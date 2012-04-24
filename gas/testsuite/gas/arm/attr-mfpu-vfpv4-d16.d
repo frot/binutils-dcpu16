@@ -3,7 +3,7 @@
 # as: -mfpu=vfpv4-d16
 # readelf: -A
 # This test is only valid on EABI based ports.
-# target: *-*-*eabi
+# target: *-*-*eabi *-*-nacl*
 
 Attribute Section: aeabi
 File Attributes
@@ -11,4 +11,3 @@ File Attributes
   Tag_THUMB_ISA_use: Thumb-1
   Tag_FP_arch: VFPv4-D16
   Tag_FP_HP_extension: Allowed
-  Tag_DIV_use: Not allowed

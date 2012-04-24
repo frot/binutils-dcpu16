@@ -296,6 +296,8 @@
 #define EM_MICROBLAZE	189	/* Xilinx MicroBlaze 32-bit RISC soft processor core */
 #define EM_CUDA		190	/* NVIDIA CUDA architecture */
 #define EM_TILEGX	191	/* Tilera TILE-Gx multicore architecture family */
+#define EM_RL78		197	/* Renesas RL78 family.  */
+#define EM_78K0R	199	/* Renesas 78K0R.  */
 
 /* If it is necessary to assign new unofficial EM_* values, please pick large
    random numbers (0x8523, 0xa7f2, etc.) to minimize the chances of collision
@@ -400,6 +402,8 @@
 #define EM_SCORE_OLD            95
 
 #define EM_MICROBLAZE_OLD	0xbaab	/* Old MicroBlaze */
+
+#define EM_ADAPTEVA_EPIPHANY   0x1223  /* Adapteva's Epiphany architecture.  */
 
 /* See the above comment before you add a new EM_* value here.  */
 
@@ -538,6 +542,10 @@
 #define NT_S390_CTRS	0x304		/* S390 control registers */
 					/*   note name must be "LINUX".  */
 #define NT_S390_PREFIX	0x305		/* S390 prefix register */
+					/*   note name must be "LINUX".  */
+#define NT_S390_LAST_BREAK      0x306   /* S390 breaking event address */
+					/*   note name must be "LINUX".  */
+#define NT_S390_SYSTEM_CALL     0x307   /* S390 system call restart data */
 					/*   note name must be "LINUX".  */
 #define NT_ARM_VFP	0x400		/* ARM VFP registers */
 					/*   note name must be "LINUX".  */

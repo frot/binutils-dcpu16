@@ -13,7 +13,7 @@
 #   em		emulation; identifies the config/te-* files
 
 # Optional output shell variables; these are not always set:
-#   arch	the default architecture; sets DEFAULT_ARCH on some systems 
+#   arch	the default architecture; sets DEFAULT_ARCH on some systems
 #   endian	"big" or "little"; used on bi-endian systems
 
 cpu_type=
@@ -38,12 +38,13 @@ case ${cpu} in
   cr16*)		cpu_type=cr16 endian=little ;;
   crisv32)		cpu_type=cris arch=crisv32 ;;
   crx*)			cpu_type=crx endian=little ;;
+  epiphany*)		cpu_type=epiphany endian=little ;;
   fido)			cpu_type=m68k ;;
   hppa*)		cpu_type=hppa ;;
   i[3-7]86)		cpu_type=i386 arch=i386;;
   ia64)			cpu_type=ia64 ;;
-  ip2k)			cpu_type=ip2k endian=big ;; 
-  iq2000)		cpu_type=iq2000 endian=big ;; 
+  ip2k)			cpu_type=ip2k endian=big ;;
+  iq2000)		cpu_type=iq2000 endian=big ;;
   lm32)			cpu_type=lm32 ;;
   m32c)			cpu_type=m32c endian=little ;;
   m32r)			cpu_type=m32r endian=big ;;
@@ -64,6 +65,7 @@ case ${cpu} in
   powerpc*le*)		cpu_type=ppc endian=little ;;
   powerpc*)		cpu_type=ppc endian=big ;;
   rs6000*)		cpu_type=ppc ;;
+  rl78*)		cpu_type=rl78 ;;
   rx)			cpu_type=rx ;;
   s390x*)		cpu_type=s390 arch=s390x ;;
   s390*)		cpu_type=s390 arch=s390 ;;
@@ -80,6 +82,8 @@ case ${cpu} in
   sparclet*)		cpu_type=sparc arch=sparclet ;;
   sparclite*)		cpu_type=sparc arch=sparclite ;;
   sparc*)		cpu_type=sparc arch=sparclite ;; # ??? See tc-sparc.c.
+  tilegx*be)		cpu_type=tilegx endian=big ;;
+  tilegx*)		cpu_type=tilegx endian=little ;;
   v850*)		cpu_type=v850 ;;
   x86_64*)		cpu_type=i386 arch=x86_64;;
   xtensa*)		cpu_type=xtensa arch=xtensa ;;
@@ -113,6 +117,7 @@ case ${generic_target} in
   arm-*-linux-*)			fmt=elf  em=linux ;;
   arm-*-uclinux*eabi*)			fmt=elf  em=armlinuxeabi ;;
   arm-*-uclinux*)			fmt=elf  em=linux ;;
+  arm-*-nacl*)				fmt=elf  em=nacl ;;
   arm-*-netbsdelf*)			fmt=elf  em=nbsd ;;
   arm-*-*n*bsd*)			fmt=aout em=nbsd ;;
   arm-*-nto*)				fmt=elf ;;
@@ -140,6 +145,8 @@ case ${generic_target} in
   d10v-*-*)				fmt=elf ;;
   d30v-*-*)				fmt=elf ;;
   dlx-*-*)				fmt=elf ;;
+
+  epiphany-*-*)				fmt=elf ;;
 
   fr30-*-*)				fmt=elf ;;
   frv-*-*linux*)			fmt=elf em=linux;;
@@ -177,6 +184,10 @@ case ${generic_target} in
   i386-*-elf)				fmt=elf ;;
   i386-*-kaos*)				fmt=elf ;;
   i386-*-bsd*)				fmt=aout em=386bsd ;;
+  i386-*-nacl*)				fmt=elf em=nacl
+    case ${cpu} in
+      x86_64*)				arch=x86_64:32 ;;
+    esac ;;
   i386-*-netbsd0.8)			fmt=aout em=386bsd ;;
   i386-*-netbsdpe*)			fmt=coff em=pe ;;
   i386-*-netbsd*-gnu* | \
@@ -399,7 +410,7 @@ case ${generic_target} in
   tic54x-*-* | c54x*-*-*)		fmt=coff bfd_gas=yes need_libm=yes;;
   tic6x-*-*)				fmt=elf ;;
 
-  tilepro-*-* | tilegx-*-*)		fmt=elf ;;
+  tilepro-*-* | tilegx*-*-*)		fmt=elf ;;
 
   v850*-*-*)				fmt=elf ;;
 

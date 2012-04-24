@@ -1,3 +1,47 @@
+2012-03-10  Edmar Wienskoski  <edmar@freescale.com>
+
+	* ppc.h: Add PPC_OPCODE_ALTIVEC2, PPC_OPCODE_E6500, PPC_OPCODE_TMR.
+
+2012-02-27  Alan Modra  <amodra@gmail.com>
+
+	* crx.h (cst4_map): Update declaration.
+
+2012-02-25  Walter Lee  <walt@tilera.com>
+
+	* tilegx.h (tilegx_mnemonic): Add TILEGX_OPC_LD4S_TLS,
+	TILEGX_OPC_LD_TLS.
+	* tilepro.h (tilepro_mnemonic): Add TILEPRO_OPC_LW_TLS,
+	TILEPRO_OPC_LW_TLS_SN.
+
+2012-02-08  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* i386.h (XACQUIRE_PREFIX_OPCODE): New.
+	(XRELEASE_PREFIX_OPCODE): Likewise.
+
+2011-12-08  Andrew Pinski  <apinski@cavium.com>
+            Adam Nemet  <anemet@caviumnetworks.com>
+
+	* mips.h (INSN_CHIP_MASK): Update according to INSN_OCTEON2.
+	(INSN_OCTEON2): New macro.
+	(CPU_OCTEON2): New macro.
+	(OPCODE_IS_MEMBER): Add Octeon2.
+
+2011-11-29  Andrew Pinski  <apinski@cavium.com>
+
+	* mips.h (INSN_CHIP_MASK): Update according to INSN_OCTEONP.
+	(INSN_OCTEONP): New macro.
+	(CPU_OCTEONP): New macro.
+	(OPCODE_IS_MEMBER): Add Octeon+.
+	(M_SAA_AB, M_SAAD_AB, M_SAA_OB, M_SAAD_OB): New enum values.
+
+2011-11-01  DJ Delorie  <dj@redhat.com>
+
+	* rl78.h: New file.
+
+2011-10-24  Maciej W. Rozycki  <macro@codesourcery.com>
+
+	* mips.h: Fix a typo in description.
+
 2011-09-21  David S. Miller  <davem@davemloft.net>
 
 	* sparc.h (struct sparc_opcode): Expand 'flags' to unsigned int.

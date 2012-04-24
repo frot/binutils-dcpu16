@@ -1,5 +1,5 @@
 /* Lattice Mico32-specific support for 32-bit ELF
-   Copyright 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
+   Copyright 2008, 2009, 2010, 2011, 2012 Free Software Foundation, Inc.
    Contributed by Jon Beniston <jon@beniston.com>
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -893,7 +893,7 @@ lm32_elf_relocate_section (bfd *output_bfd,
 	  name = h->root.root.string;
         }
 
-      if (sec != NULL && elf_discarded_section (sec))
+      if (sec != NULL && discarded_section (sec))
 	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
 					 rel, relend, howto, contents);
 
@@ -1863,13 +1863,6 @@ lm32_elf_adjust_dynamic_symbol (struct bfd_link_info *info,
       return TRUE;
     }
 
-  if (h->size == 0)
-    {
-      (*_bfd_error_handler) (_("dynamic variable `%s' is zero size"),
-			     h->root.root.string);
-      return TRUE;
-    }
-
   /* We must allocate the symbol in our .dynbss section, which will
      become part of the .bss section of the executable.  There will be
      an entry for this symbol in the .dynsym section.  The dynamic
@@ -1891,7 +1884,7 @@ lm32_elf_adjust_dynamic_symbol (struct bfd_link_info *info,
      to copy the initial value out of the dynamic object and into the
      runtime process image.  We need to remember the offset into the
      .rela.bss section we are going to use.  */
-  if ((h->root.u.def.section->flags & SEC_ALLOC) != 0)
+  if ((h->root.u.def.section->flags & SEC_ALLOC) != 0 && h->size != 0)
     {
       asection *srel;
 
@@ -2372,7 +2365,7 @@ lm32_elf_size_dynamic_sections (bfd *output_bfd,
                           /* Don't generate entries for weak symbols.  */
                           if (!h || (h && h->root.type != bfd_link_hash_undefweak))
                             {
-                              if (!elf_discarded_section (s) && !((bfd_get_section_flags (ibfd, s) & SEC_ALLOC) == 0))
+                              if (!discarded_section (s) && !((bfd_get_section_flags (ibfd, s) & SEC_ALLOC) == 0))
                                 {
                                   switch (ELF32_R_TYPE (internal_relocs->r_info))
                                     {
@@ -2394,7 +2387,7 @@ lm32_elf_size_dynamic_sections (bfd *output_bfd,
                                   if (!strcmp (current->name, h->root.root.string))
                                     break;
                                 }
-                              if (!current && !elf_discarded_section (s) && (bfd_get_section_flags (ibfd, s) & SEC_ALLOC))
+                              if (!current && !discarded_section (s) && (bfd_get_section_flags (ibfd, s) & SEC_ALLOC))
                                 {
                                   /* Will this have an entry in the GOT.  */
                                   if (ELF32_R_TYPE (internal_relocs->r_info) == R_LM32_16_GOT)

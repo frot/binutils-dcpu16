@@ -58,6 +58,7 @@ class Output_symtab_xindex;
 class Output_reduced_debug_abbrev_section;
 class Output_reduced_debug_info_section;
 class Eh_frame;
+class Gdb_index;
 class Target;
 struct Timespec;
 
@@ -522,6 +523,10 @@ class Layout
 	 const char* name, const elfcpp::Shdr<size, big_endian>& shdr,
 	 unsigned int reloc_shndx, unsigned int reloc_type, off_t* offset);
 
+  std::map<Section_id, unsigned int>*
+  get_section_order_map()
+  { return &this->section_order_map_; }
+ 
   bool
   is_section_ordering_specified()
   { return this->section_ordering_specified_; }
@@ -596,6 +601,18 @@ class Layout
   add_eh_frame_for_plt(Output_data* plt, const unsigned char* cie_data,
 		       size_t cie_length, const unsigned char* fde_data,
 		       size_t fde_length);
+
+  // Scan a .debug_info or .debug_types section, and add summary
+  // information to the .gdb_index section.
+  template<int size, bool big_endian>
+  void
+  add_to_gdb_index(bool is_type_unit,
+		   Sized_relobj<size, big_endian>* object,
+		   const unsigned char* symbols,
+		   off_t symbols_size,
+		   unsigned int shndx,
+		   unsigned int reloc_shndx,
+		   unsigned int reloc_type);
 
   // Handle a GNU stack note.  This is called once per input object
   // file.  SEEN_GNU_STACK is true if the object file has a
@@ -1277,6 +1294,8 @@ class Layout
   bool added_eh_frame_data_;
   // The exception frame header output section if there is one.
   Output_section* eh_frame_hdr_section_;
+  // The data for the .gdb_index section.
+  Gdb_index* gdb_index_data_;
   // The space for the build ID checksum if there is one.
   Output_section_data* build_id_note_;
   // The output section containing dwarf abbreviations
@@ -1322,6 +1341,9 @@ class Layout
   Segment_states* segment_states_;
   // A relaxation debug checker.  We only create one when in debugging mode.
   Relaxation_debug_check* relaxation_debug_check_;
+  // Plugins specify section_ordering using this map.  This is set in
+  // update_section_order in plugin.cc
+  std::map<Section_id, unsigned int> section_order_map_;
   // Hash a pattern to its position in the section ordering file.
   Unordered_map<std::string, unsigned int> input_section_position_;
   // Vector of glob only patterns in the section_ordering file.

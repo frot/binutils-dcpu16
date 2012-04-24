@@ -1,6 +1,6 @@
 /* Motorola 68k series support for 32-bit ELF
    Copyright 1993, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003,
-   2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
+   2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -2816,6 +2816,11 @@ elf_m68k_check_relocs (abfd, info, sec, relocs)
 	case R_68K_8:
 	case R_68K_16:
 	case R_68K_32:
+	  /* We don't need to handle relocs into sections not going into
+	     the "real" output.  */
+	  if ((sec->flags & SEC_ALLOC) == 0)
+	      break;
+
 	  if (h != NULL)
 	    {
 	      /* Make sure a plt entry is created for this symbol if it
@@ -2829,8 +2834,7 @@ elf_m68k_check_relocs (abfd, info, sec, relocs)
 
 	  /* If we are creating a shared library, we need to copy the
 	     reloc into the shared library.  */
-	  if (info->shared
-	      && (sec->flags & SEC_ALLOC) != 0)
+	  if (info->shared)
 	    {
 	      /* When creating a shared object, we must copy these
 		 reloc types into the output file.  We create a reloc
@@ -3248,13 +3252,6 @@ elf_m68k_adjust_dynamic_symbol (info, h)
   if (!h->non_got_ref)
     return TRUE;
 
-  if (h->size == 0)
-    {
-      (*_bfd_error_handler) (_("dynamic variable `%s' is zero size"),
-			     h->root.root.string);
-      return TRUE;
-    }
-
   /* We must allocate the symbol in our .dynbss section, which will
      become part of the .bss section of the executable.  There will be
      an entry for this symbol in the .dynsym section.  The dynamic
@@ -3272,7 +3269,7 @@ elf_m68k_adjust_dynamic_symbol (info, h)
      copy the initial value out of the dynamic object and into the
      runtime process image.  We need to remember the offset into the
      .rela.bss section we are going to use.  */
-  if ((h->root.u.def.section->flags & SEC_ALLOC) != 0)
+  if ((h->root.u.def.section->flags & SEC_ALLOC) != 0 && h->size != 0)
     {
       asection *srel;
 
@@ -3713,7 +3710,7 @@ elf_m68k_relocate_section (output_bfd, info, input_bfd, input_section,
 				   unresolved_reloc, warned);
 	}
 
-      if (sec != NULL && elf_discarded_section (sec))
+      if (sec != NULL && discarded_section (sec))
 	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
 					 rel, relend, howto, contents);
 
@@ -3951,7 +3948,7 @@ elf_m68k_relocate_section (output_bfd, info, input_bfd, input_section,
 	case R_68K_TLS_LE32:
 	case R_68K_TLS_LE16:
 	case R_68K_TLS_LE8:
-	  if (info->shared)
+	  if (info->shared && !info->pie)
 	    {
 	      (*_bfd_error_handler)
 		(_("%B(%A+0x%lx): R_68K_TLS_LE32 relocation not permitted "
@@ -4148,7 +4145,9 @@ elf_m68k_relocate_section (output_bfd, info, input_bfd, input_section,
 	 not process them.  */
       if (unresolved_reloc
 	  && !((input_section->flags & SEC_DEBUGGING) != 0
-	       && h->def_dynamic))
+	       && h->def_dynamic)
+	  && _bfd_elf_section_offset (output_bfd, info, input_section,
+				      rel->r_offset) != (bfd_vma) -1)
 	{
 	  (*_bfd_error_handler)
 	    (_("%B(%A+0x%lx): unresolvable %s relocation against symbol `%s'"),

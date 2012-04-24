@@ -543,7 +543,7 @@ class Search_directory
   { }
 
   // This is the usual constructor.
-  Search_directory(const char* name, bool put_in_sysroot)
+  Search_directory(const std::string& name, bool put_in_sysroot)
     : name_(name), put_in_sysroot_(put_in_sysroot), is_in_sysroot_(false)
   {
     if (this->name_.empty())
@@ -739,6 +739,9 @@ class General_options
               N_("Export all dynamic symbols"),
 	      N_("Do not export all dynamic symbols (default)"));
 
+  DEFINE_set(export_dynamic_symbol, options::TWO_DASHES, '\0',
+	     N_("Export SYMBOL to dynamic symbol table"), N_("SYMBOL"));
+
   DEFINE_special(EB, options::ONE_DASH, '\0',
 		 N_("Link big-endian objects."), NULL);
 
@@ -790,6 +793,14 @@ class General_options
 
   DEFINE_bool(g, options::EXACTLY_ONE_DASH, '\0', false,
 	      N_("Ignored"), NULL);
+
+  DEFINE_bool(gdb_index, options::TWO_DASHES, '\0', false,
+	      N_("Generate .gdb_index section"),
+	      N_("Do not generate .gdb_index section"));
+
+  DEFINE_bool(gnu_unique, options::TWO_DASHES, '\0', true,
+	      N_("Enable STB_GNU_UNIQUE symbol binding (default)"),
+	      N_("Disable STB_GNU_UNIQUE symbol binding"));
 
   DEFINE_string(soname, options::ONE_DASH, 'h', NULL,
                 N_("Set shared library name"), N_("FILENAME"));
@@ -1385,6 +1396,11 @@ class General_options
   bool
   section_start(const char* secname, uint64_t* paddr) const;
 
+  // Return whether any --section-start option was used.
+  bool
+  any_section_start() const
+  { return !this->section_starts_.empty(); }
+
   enum Fix_v4bx
   {
     // Leave original instruction.
@@ -1454,7 +1470,7 @@ class General_options
 
   // These are called by finalize() to set up the search-path correctly.
   void
-  add_to_library_path_with_sysroot(const char* arg)
+  add_to_library_path_with_sysroot(const std::string& arg)
   { this->add_search_directory_to_library_path(Search_directory(arg, true)); }
 
   // Apply any sysroot to the directory lists.

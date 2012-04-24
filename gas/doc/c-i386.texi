@@ -145,6 +145,7 @@ accept various extension mnemonics.  For example,
 @code{avx2},
 @code{noavx},
 @code{vmx},
+@code{vmfunc},
 @code{smx},
 @code{xsave},
 @code{xsaveopt},
@@ -158,6 +159,8 @@ accept various extension mnemonics.  For example,
 @code{movbe},
 @code{ept},
 @code{lzcnt},
+@code{hle},
+@code{rtm},
 @code{invpcid},
 @code{clflush},
 @code{lwp},
@@ -439,8 +442,8 @@ quadruple word).
 
 Different encoding options can be specified via optional mnemonic
 suffix.  @samp{.s} suffix swaps 2 register operands in encoding when
-moving from one register to another.  @samp{.d32} suffix forces 32bit
-displacement in encoding.
+moving from one register to another.  @samp{.d8} or @samp{.d32} suffix
+prefers 8bit or 32bit displacement in encoding.
 
 @cindex conversion instructions, i386
 @cindex i386 conversion instructions
@@ -1014,7 +1017,8 @@ supported on the CPU specified.  The choices for @var{cpu_type} are:
 @item @samp{.clflush} @tab @samp{.movbe} @tab @samp{.xsave} @tab @samp{.xsaveopt}
 @item @samp{.aes} @tab @samp{.pclmul} @tab @samp{.fma} @tab @samp{.fsgsbase}
 @item @samp{.rdrnd} @tab @samp{.f16c} @tab @samp{.avx2} @tab @samp{.bmi2}
-@item @samp{.lzcnt} @tab @samp{.invpcid}
+@item @samp{.lzcnt} @tab @samp{.invpcid} @tab @samp{.vmfunc} @tab @samp{.hle}
+@item @samp{.rtm}
 @item @samp{.3dnow} @tab @samp{.3dnowa} @tab @samp{.sse4a} @tab @samp{.sse5}
 @item @samp{.syscall} @tab @samp{.rdtscp} @tab @samp{.svme} @tab @samp{.abm}
 @item @samp{.lwp} @tab @samp{.fma4} @tab @samp{.xop}

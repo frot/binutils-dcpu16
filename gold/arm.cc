@@ -1,6 +1,6 @@
 // arm.cc -- arm target support for gold.
 
-// Copyright 2009, 2010, 2011 Free Software Foundation, Inc.
+// Copyright 2009, 2010, 2011, 2012 Free Software Foundation, Inc.
 // Written by Doug Kwan <dougkwan@google.com> based on the i386 code
 // by Ian Lance Taylor <iant@google.com>.
 // This file also contains borrowed and adapted code from
@@ -2103,65 +2103,6 @@ class Arm_scan_relocatable_relocs :
   }
 };
 
-// Utilities for manipulating integers of up to 32-bits
-
-namespace utils
-{
-  // Sign extend an n-bit unsigned integer stored in an uint32_t into
-  // an int32_t.  NO_BITS must be between 1 to 32.
-  template<int no_bits>
-  static inline int32_t
-  sign_extend(uint32_t bits)
-  {
-    gold_assert(no_bits >= 0 && no_bits <= 32);
-    if (no_bits == 32)
-      return static_cast<int32_t>(bits);
-    uint32_t mask = (~((uint32_t) 0)) >> (32 - no_bits);
-    bits &= mask;
-    uint32_t top_bit = 1U << (no_bits - 1);
-    int32_t as_signed = static_cast<int32_t>(bits);
-    return (bits & top_bit) ? as_signed + (-top_bit * 2) : as_signed;
-  }
-
-  // Detects overflow of an NO_BITS integer stored in a uint32_t.
-  template<int no_bits>
-  static inline bool
-  has_overflow(uint32_t bits)
-  {
-    gold_assert(no_bits >= 0 && no_bits <= 32);
-    if (no_bits == 32)
-      return false;
-    int32_t max = (1 << (no_bits - 1)) - 1;
-    int32_t min = -(1 << (no_bits - 1));
-    int32_t as_signed = static_cast<int32_t>(bits);
-    return as_signed > max || as_signed < min;
-  }
-
-  // Detects overflow of an NO_BITS integer stored in a uint32_t when it
-  // fits in the given number of bits as either a signed or unsigned value.
-  // For example, has_signed_unsigned_overflow<8> would check
-  // -128 <= bits <= 255
-  template<int no_bits>
-  static inline bool
-  has_signed_unsigned_overflow(uint32_t bits)
-  {
-    gold_assert(no_bits >= 2 && no_bits <= 32);
-    if (no_bits == 32)
-      return false;
-    int32_t max = static_cast<int32_t>((1U << no_bits) - 1);
-    int32_t min = -(1 << (no_bits - 1));
-    int32_t as_signed = static_cast<int32_t>(bits);
-    return as_signed > max || as_signed < min;
-  }
-
-  // Select bits from A and B using bits in MASK.  For each n in [0..31],
-  // the n-th bit in the result is chosen from the n-th bits of A and B.
-  // A zero selects A and a one selects B.
-  static inline uint32_t
-  bit_select(uint32_t a, uint32_t b, uint32_t mask)
-  { return (a & ~mask) | (b & mask); }
-};
-
 template<bool big_endian>
 class Target_arm : public Sized_target<32, big_endian>
 {
@@ -2574,6 +2515,9 @@ class Target_arm : public Sized_target<32, big_endian>
 	    && Target::do_section_may_have_icf_unsafe_pointers(section_name));
   }
   
+  virtual void
+  do_define_standard_symbols(Symbol_table*, Layout*);
+
  private:
   // The class which scans relocations.
   class Scan
@@ -3015,7 +2959,7 @@ class Arm_relocate_functions : public Relocate_functions<32, big_endian>
   {
     // According to the Elf ABI for ARM Architecture the immediate
     // field is sign-extended to form the addend.
-    return utils::sign_extend<16>(((val >> 4) & 0xf000) | (val & 0xfff));
+    return Bits<16>::sign_extend32(((val >> 4) & 0xf000) | (val & 0xfff));
   }
 
   // Insert X into VAL based on the ARM instruction encoding described
@@ -3049,10 +2993,10 @@ class Arm_relocate_functions : public Relocate_functions<32, big_endian>
   {
     // According to the Elf ABI for ARM Architecture the immediate
     // field is sign-extended to form the addend.
-    return utils::sign_extend<16>(((val >> 4) & 0xf000)
-				  | ((val >> 15) & 0x0800)
-				  | ((val >> 4) & 0x0700)
-				  | (val & 0x00ff));
+    return Bits<16>::sign_extend32(((val >> 4) & 0xf000)
+				   | ((val >> 15) & 0x0800)
+				   | ((val >> 4) & 0x0700)
+				   | (val & 0x00ff));
   }
 
   // Insert X into VAL based on the Thumb2 instruction encoding
@@ -3160,8 +3104,8 @@ class Arm_relocate_functions : public Relocate_functions<32, big_endian>
     uint32_t i1 = j1 ^ s ? 0 : 1;
     uint32_t i2 = j2 ^ s ? 0 : 1;
 
-    return utils::sign_extend<25>((s << 24) | (i1 << 23) | (i2 << 22)
-				  | (upper << 12) | (lower << 1));
+    return Bits<25>::sign_extend32((s << 24) | (i1 << 23) | (i2 << 22)
+				   | (upper << 12) | (lower << 1));
   }
 
   // Insert OFFSET to a 32-bit THUMB branch and return the upper instruction.
@@ -3199,7 +3143,7 @@ class Arm_relocate_functions : public Relocate_functions<32, big_endian>
     uint32_t lower = (lower_insn & 0x07ffU);
     uint32_t upper = (s << 8) | (j2 << 7) | (j1 << 6) | (upper_insn & 0x003fU);
 
-    return utils::sign_extend<21>((upper << 12) | (lower << 1));
+    return Bits<21>::sign_extend32((upper << 12) | (lower << 1));
   }
 
   // Insert OFFSET to a 32-bit THUMB conditional branch and return the upper
@@ -3236,14 +3180,13 @@ class Arm_relocate_functions : public Relocate_functions<32, big_endian>
     typedef typename elfcpp::Swap<8, big_endian>::Valtype Valtype;
     Valtype* wv = reinterpret_cast<Valtype*>(view);
     Valtype val = elfcpp::Swap<8, big_endian>::readval(wv);
-    int32_t addend = utils::sign_extend<8>(val);
+    int32_t addend = Bits<8>::sign_extend32(val);
     Arm_address x = psymval->value(object, addend);
-    val = utils::bit_select(val, x, 0xffU);
+    val = Bits<32>::bit_select32(val, x, 0xffU);
     elfcpp::Swap<8, big_endian>::writeval(wv, val);
 
     // R_ARM_ABS8 permits signed or unsigned results.
-    int signed_x = static_cast<int32_t>(x);
-    return ((signed_x < -128 || signed_x > 255)
+    return (Bits<8>::has_signed_unsigned_overflow32(x)
 	    ? This::STATUS_OVERFLOW
 	    : This::STATUS_OKAY);
   }
@@ -3260,12 +3203,9 @@ class Arm_relocate_functions : public Relocate_functions<32, big_endian>
     Valtype val = elfcpp::Swap<16, big_endian>::readval(wv);
     Reltype addend = (val & 0x7e0U) >> 6;
     Reltype x = psymval->value(object, addend);
-    val = utils::bit_select(val, x << 6, 0x7e0U);
+    val = Bits<32>::bit_select32(val, x << 6, 0x7e0U);
     elfcpp::Swap<16, big_endian>::writeval(wv, val);
-
-    // R_ARM_ABS16 permits signed or unsigned results.
-    int signed_x = static_cast<int32_t>(x);
-    return ((signed_x < -32768 || signed_x > 65535)
+    return (Bits<5>::has_overflow32(x)
 	    ? This::STATUS_OVERFLOW
 	    : This::STATUS_OKAY);
   }
@@ -3282,9 +3222,9 @@ class Arm_relocate_functions : public Relocate_functions<32, big_endian>
     Valtype val = elfcpp::Swap<32, big_endian>::readval(wv);
     Reltype addend = val & 0x0fffU;
     Reltype x = psymval->value(object, addend);
-    val = utils::bit_select(val, x, 0x0fffU);
+    val = Bits<32>::bit_select32(val, x, 0x0fffU);
     elfcpp::Swap<32, big_endian>::writeval(wv, val);
-    return (utils::has_overflow<12>(x)
+    return (Bits<12>::has_overflow32(x)
 	    ? This::STATUS_OVERFLOW
 	    : This::STATUS_OKAY);
   }
@@ -3298,14 +3238,13 @@ class Arm_relocate_functions : public Relocate_functions<32, big_endian>
     typedef typename elfcpp::Swap_unaligned<16, big_endian>::Valtype Valtype;
     typedef typename elfcpp::Swap<32, big_endian>::Valtype Reltype;
     Valtype val = elfcpp::Swap_unaligned<16, big_endian>::readval(view);
-    int32_t addend = utils::sign_extend<16>(val);
+    int32_t addend = Bits<16>::sign_extend32(val);
     Arm_address x = psymval->value(object, addend);
-    val = utils::bit_select(val, x, 0xffffU);
+    val = Bits<32>::bit_select32(val, x, 0xffffU);
     elfcpp::Swap_unaligned<16, big_endian>::writeval(view, val);
 
     // R_ARM_ABS16 permits signed or unsigned results.
-    int signed_x = static_cast<int32_t>(x);
-    return ((signed_x < -32768 || signed_x > 65536)
+    return (Bits<16>::has_signed_unsigned_overflow32(x)
 	    ? This::STATUS_OVERFLOW
 	    : This::STATUS_OKAY);
   }
@@ -3377,12 +3316,12 @@ class Arm_relocate_functions : public Relocate_functions<32, big_endian>
     typedef typename elfcpp::Swap<16, big_endian>::Valtype Valtype;
     Valtype* wv = reinterpret_cast<Valtype*>(view);
     Valtype val = elfcpp::Swap<16, big_endian>::readval(wv);
-    int32_t addend = utils::sign_extend<8>((val & 0x00ff) << 1);
+    int32_t addend = Bits<8>::sign_extend32((val & 0x00ff) << 1);
     int32_t x = (psymval->value(object, addend) - address);
     elfcpp::Swap<16, big_endian>::writeval(wv, ((val & 0xff00)
                                                 | ((x & 0x01fe) >> 1)));
     // We do a 9-bit overflow check because x is right-shifted by 1 bit.
-    return (utils::has_overflow<9>(x)
+    return (Bits<9>::has_overflow32(x)
 	    ? This::STATUS_OVERFLOW
 	    : This::STATUS_OKAY);
   }
@@ -3397,12 +3336,12 @@ class Arm_relocate_functions : public Relocate_functions<32, big_endian>
     typedef typename elfcpp::Swap<16, big_endian>::Valtype Valtype;
     Valtype* wv = reinterpret_cast<Valtype*>(view);
     Valtype val = elfcpp::Swap<16, big_endian>::readval(wv);
-    int32_t addend = utils::sign_extend<11>((val & 0x07ff) << 1);
+    int32_t addend = Bits<11>::sign_extend32((val & 0x07ff) << 1);
     int32_t x = (psymval->value(object, addend) - address);
     elfcpp::Swap<16, big_endian>::writeval(wv, ((val & 0xf800)
                                                 | ((x & 0x0ffe) >> 1)));
     // We do a 12-bit overflow check because x is right-shifted by 1 bit.
-    return (utils::has_overflow<12>(x)
+    return (Bits<12>::has_overflow32(x)
 	    ? This::STATUS_OVERFLOW
 	    : This::STATUS_OKAY);
   }
@@ -3455,12 +3394,13 @@ class Arm_relocate_functions : public Relocate_functions<32, big_endian>
   {
     typedef typename elfcpp::Swap_unaligned<32, big_endian>::Valtype Valtype;
     Valtype val = elfcpp::Swap_unaligned<32, big_endian>::readval(view);
-    Valtype addend = utils::sign_extend<31>(val);
+    Valtype addend = Bits<31>::sign_extend32(val);
     Valtype x = (psymval->value(object, addend) | thumb_bit) - address;
-    val = utils::bit_select(val, x, 0x7fffffffU);
+    val = Bits<32>::bit_select32(val, x, 0x7fffffffU);
     elfcpp::Swap_unaligned<32, big_endian>::writeval(view, val);
-    return (utils::has_overflow<31>(x) ?
-	    This::STATUS_OVERFLOW : This::STATUS_OKAY);
+    return (Bits<31>::has_overflow32(x)
+	    ? This::STATUS_OVERFLOW
+	    : This::STATUS_OKAY);
   }
 
   // R_ARM_MOVW_ABS_NC: (S + A) | T	(relative address base is )
@@ -3483,7 +3423,7 @@ class Arm_relocate_functions : public Relocate_functions<32, big_endian>
 		 - relative_address_base);
     val = This::insert_val_arm_movw_movt(val, x);
     elfcpp::Swap<32, big_endian>::writeval(wv, val);
-    return ((check_overflow && utils::has_overflow<16>(x))
+    return ((check_overflow && Bits<16>::has_overflow32(x))
 	    ? This::STATUS_OVERFLOW
 	    : This::STATUS_OKAY);
   }
@@ -3531,7 +3471,7 @@ class Arm_relocate_functions : public Relocate_functions<32, big_endian>
     val = This::insert_val_thumb_movw_movt(val, x);
     elfcpp::Swap<16, big_endian>::writeval(wv, val >> 16);
     elfcpp::Swap<16, big_endian>::writeval(wv + 1, val & 0xffff);
-    return ((check_overflow && utils::has_overflow<16>(x))
+    return ((check_overflow && Bits<16>::has_overflow32(x))
     	    ? This::STATUS_OVERFLOW
 	    : This::STATUS_OKAY);
   }
@@ -3963,7 +3903,7 @@ Arm_relocate_functions<big_endian>::arm_branch_common(
       return This::STATUS_OKAY;
     }
  
-  Valtype addend = utils::sign_extend<26>(val << 2);
+  Valtype addend = Bits<26>::sign_extend32(val << 2);
   Valtype branch_target = psymval->value(object, addend);
   int32_t branch_offset = branch_target - address;
 
@@ -3973,7 +3913,7 @@ Arm_relocate_functions<big_endian>::arm_branch_common(
   Reloc_stub* stub = NULL;
 
   if (!parameters->options().relocatable()
-      && (utils::has_overflow<26>(branch_offset)
+      && (Bits<26>::has_overflow32(branch_offset)
 	  || ((thumb_bit != 0)
 	      && !(may_use_blx && r_type == elfcpp::R_ARM_CALL))))
     {
@@ -3995,7 +3935,7 @@ Arm_relocate_functions<big_endian>::arm_branch_common(
 	  thumb_bit = stub->stub_template()->entry_in_thumb_mode() ? 1 : 0;
 	  branch_target = stub_table->address() + stub->offset() + addend;
 	  branch_offset = branch_target - address;
-	  gold_assert(!utils::has_overflow<26>(branch_offset));
+	  gold_assert(!Bits<26>::has_overflow32(branch_offset));
 	}
     }
 
@@ -4008,10 +3948,11 @@ Arm_relocate_functions<big_endian>::arm_branch_common(
       val = (val & 0xffffff) | 0xfa000000 | ((branch_offset & 2) << 23);
     }
 
-  val = utils::bit_select(val, (branch_offset >> 2), 0xffffffUL);
+  val = Bits<32>::bit_select32(val, (branch_offset >> 2), 0xffffffUL);
   elfcpp::Swap<32, big_endian>::writeval(wv, val);
-  return (utils::has_overflow<26>(branch_offset)
-	  ? This::STATUS_OVERFLOW : This::STATUS_OKAY);
+  return (Bits<26>::has_overflow32(branch_offset)
+	  ? This::STATUS_OVERFLOW
+	  : This::STATUS_OKAY);
 }
 
 // Relocate THUMB long branches.  This handles relocation types
@@ -4102,7 +4043,7 @@ Arm_relocate_functions<big_endian>::thumb_branch_common(
   // For BLX, bit 1 of target address comes from bit 1 of base address.
   bool may_use_blx = arm_target->may_use_v5t_interworking();
   if (thumb_bit == 0 && may_use_blx)
-    branch_target = utils::bit_select(branch_target, address, 0x2);
+    branch_target = Bits<32>::bit_select32(branch_target, address, 0x2);
 
   int32_t branch_offset = branch_target - address;
 
@@ -4110,8 +4051,8 @@ Arm_relocate_functions<big_endian>::thumb_branch_common(
   // to switch mode.
   bool thumb2 = arm_target->using_thumb2();
   if (!parameters->options().relocatable()
-      && ((!thumb2 && utils::has_overflow<23>(branch_offset))
-	  || (thumb2 && utils::has_overflow<25>(branch_offset))
+      && ((!thumb2 && Bits<23>::has_overflow32(branch_offset))
+	  || (thumb2 && Bits<25>::has_overflow32(branch_offset))
 	  || ((thumb_bit == 0)
 	      && (((r_type == elfcpp::R_ARM_THM_CALL) && !may_use_blx)
 		  || r_type == elfcpp::R_ARM_THM_JUMP24))))
@@ -4135,7 +4076,7 @@ Arm_relocate_functions<big_endian>::thumb_branch_common(
 	  thumb_bit = stub->stub_template()->entry_in_thumb_mode() ? 1 : 0;
 	  branch_target = stub_table->address() + stub->offset() + addend;
 	  if (thumb_bit == 0 && may_use_blx) 
-	    branch_target = utils::bit_select(branch_target, address, 0x2);
+	    branch_target = Bits<32>::bit_select32(branch_target, address, 0x2);
 	  branch_offset = branch_target - address;
 	}
     }
@@ -4172,11 +4113,11 @@ Arm_relocate_functions<big_endian>::thumb_branch_common(
   elfcpp::Swap<16, big_endian>::writeval(wv, upper_insn);
   elfcpp::Swap<16, big_endian>::writeval(wv + 1, lower_insn);
 
-  gold_assert(!utils::has_overflow<25>(branch_offset));
+  gold_assert(!Bits<25>::has_overflow32(branch_offset));
 
   return ((thumb2
-	   ? utils::has_overflow<25>(branch_offset)
-	   : utils::has_overflow<23>(branch_offset))
+	   ? Bits<25>::has_overflow32(branch_offset)
+	   : Bits<23>::has_overflow32(branch_offset))
 	  ? This::STATUS_OVERFLOW
 	  : This::STATUS_OKAY);
 }
@@ -4221,7 +4162,7 @@ Arm_relocate_functions<big_endian>::thm_jump19(
   elfcpp::Swap<16, big_endian>::writeval(wv, upper_insn);
   elfcpp::Swap<16, big_endian>::writeval(wv + 1, lower_insn);
 
-  return (utils::has_overflow<21>(branch_offset)
+  return (Bits<21>::has_overflow32(branch_offset)
 	  ? This::STATUS_OVERFLOW
 	  : This::STATUS_OKAY);
 }
@@ -4236,11 +4177,22 @@ Target_arm<big_endian>::got_section(Symbol_table* symtab, Layout* layout)
     {
       gold_assert(symtab != NULL && layout != NULL);
 
+      // When using -z now, we can treat .got as a relro section.
+      // Without -z now, it is modified after program startup by lazy
+      // PLT relocations.
+      bool is_got_relro = parameters->options().now();
+      Output_section_order got_order = (is_got_relro
+					? ORDER_RELRO_LAST
+					: ORDER_DATA);
+
+      // Unlike some targets (.e.g x86), ARM does not use separate .got and
+      // .got.plt sections in output.  The output .got section contains both
+      // PLT and non-PLT GOT entries.
       this->got_ = new Arm_output_data_got<big_endian>(symtab, layout);
 
       layout->add_output_section_data(".got", elfcpp::SHT_PROGBITS,
 				      (elfcpp::SHF_ALLOC | elfcpp::SHF_WRITE),
-				      this->got_, ORDER_DATA, false);
+				      this->got_, got_order, is_got_relro);
 
       // The old GNU linker creates a .got.plt section.  We just
       // create another set of data in the .got section.  Note that we
@@ -4249,7 +4201,7 @@ Target_arm<big_endian>::got_section(Symbol_table* symtab, Layout* layout)
       this->got_plt_ = new Output_data_space(4, "** GOT PLT");
       layout->add_output_section_data(".got", elfcpp::SHT_PROGBITS,
 				      (elfcpp::SHF_ALLOC | elfcpp::SHF_WRITE),
-				      this->got_plt_, ORDER_DATA, false);
+				      this->got_plt_, got_order, is_got_relro);
 
       // The first three entries are reserved.
       this->got_plt_->set_current_data_size(3 * 4);
@@ -4499,12 +4451,14 @@ Reloc_stub::stub_type_for_reloc(
     }
 
   int64_t branch_offset;
+  bool output_is_position_independent =
+      parameters->options().output_is_position_independent();
   if (r_type == elfcpp::R_ARM_THM_CALL || r_type == elfcpp::R_ARM_THM_JUMP24)
     {
       // For THUMB BLX instruction, bit 1 of target comes from bit 1 of the
       // base address (instruction address + 4).
       if ((r_type == elfcpp::R_ARM_THM_CALL) && may_use_blx && !target_is_thumb)
-	destination = utils::bit_select(destination, location, 0x2);
+	destination = Bits<32>::bit_select32(destination, location, 0x2);
       branch_offset = static_cast<int64_t>(destination) - location;
 	
       // Handle cases where:
@@ -4527,7 +4481,7 @@ Reloc_stub::stub_type_for_reloc(
 	      // Thumb to thumb.
 	      if (!thumb_only)
 		{
-		  stub_type = (parameters->options().shared()
+		  stub_type = (output_is_position_independent
 			       || should_force_pic_veneer)
 		    // PIC stubs.
 		    ? ((may_use_blx
@@ -4548,7 +4502,7 @@ Reloc_stub::stub_type_for_reloc(
 		}
 	      else
 		{
-		  stub_type = (parameters->options().shared()
+		  stub_type = (output_is_position_independent
 			       || should_force_pic_veneer)
 		    ? arm_stub_long_branch_thumb_only_pic	// PIC stub.
 		    : arm_stub_long_branch_thumb_only;	// non-PIC stub.
@@ -4561,7 +4515,7 @@ Reloc_stub::stub_type_for_reloc(
 	      // FIXME: We should check that the input section is from an
 	      // object that has interwork enabled.
 
-	      stub_type = (parameters->options().shared()
+	      stub_type = (output_is_position_independent
 			   || should_force_pic_veneer)
 		// PIC stubs.
 		? ((may_use_blx
@@ -4603,7 +4557,7 @@ Reloc_stub::stub_type_for_reloc(
 	      || (r_type == elfcpp::R_ARM_JUMP24)
 	      || (r_type == elfcpp::R_ARM_PLT32))
 	    {
-	      stub_type = (parameters->options().shared()
+	      stub_type = (output_is_position_independent
 			   || should_force_pic_veneer)
 		// PIC stubs.
 		? (may_use_blx
@@ -4622,7 +4576,7 @@ Reloc_stub::stub_type_for_reloc(
 	  if (branch_offset > ARM_MAX_FWD_BRANCH_OFFSET
 	      || (branch_offset < ARM_MAX_BWD_BRANCH_OFFSET))
 	    {
-	      stub_type = (parameters->options().shared()
+	      stub_type = (output_is_position_independent
 			   || should_force_pic_veneer)
 		? arm_stub_long_branch_any_arm_pic	// PIC stubs.
 		: arm_stub_long_branch_any_any;		/// non-PIC.
@@ -5277,7 +5231,7 @@ Arm_exidx_cantunwind::do_fixed_endian_write(Output_file* of)
   // or after the end of a text section.  The second word is the special
   // EXIDX_CANTUNWIND value.
   uint32_t prel31_offset = output_address - this->address();
-  if (utils::has_overflow<31>(offset))
+  if (Bits<31>::has_overflow32(offset))
     gold_error(_("PREL31 overflow in EXIDX_CANTUNWIND entry"));
   elfcpp::Swap_unaligned<32, big_endian>::writeval(oview,
 						   prel31_offset & 0x7fffffffU);
@@ -7050,7 +7004,7 @@ Stub_addend_reader<elfcpp::SHT_REL, big_endian>::operator()(
 	typedef typename elfcpp::Swap<32, big_endian>::Valtype Valtype;
 	const Valtype* wv = reinterpret_cast<const Valtype*>(view);
 	Valtype val = elfcpp::Swap<32, big_endian>::readval(wv);
-	return utils::sign_extend<26>(val << 2);
+	return Bits<26>::sign_extend32(val << 2);
       }
 
     case elfcpp::R_ARM_THM_CALL:
@@ -8374,7 +8328,9 @@ Target_arm<big_endian>::Scan::global(Symbol_table* symtab,
 	    Reloc_section* rel_dyn = target->rel_dyn_section(layout);
 	    if (gsym->is_from_dynobj()
 		|| gsym->is_undefined()
-		|| gsym->is_preemptible())
+		|| gsym->is_preemptible()
+		|| (gsym->visibility() == elfcpp::STV_PROTECTED
+		    && parameters->options().shared()))
 	      got->add_global_with_rel(gsym, GOT_TYPE_STANDARD,
 				       rel_dyn, elfcpp::R_ARM_GLOB_DAT);
 	    else
@@ -8582,7 +8538,7 @@ void
 Target_arm<big_endian>::do_finalize_sections(
     Layout* layout,
     const Input_objects* input_objects,
-    Symbol_table* symtab)
+    Symbol_table*)
 {
   bool merged_any_attributes = false;
   // Merge processor-specific flags.
@@ -8669,18 +8625,6 @@ Target_arm<big_endian>::do_finalize_sections(
       if (exidx_section != NULL
           && exidx_section->type() == elfcpp::SHT_ARM_EXIDX)
         {
-          // Create __exidx_start and __exidx_end symbols.
-          symtab->define_in_output_data("__exidx_start", NULL,
-                                        Symbol_table::PREDEFINED,
-                                        exidx_section, 0, 0, elfcpp::STT_OBJECT,
-                                        elfcpp::STB_GLOBAL, elfcpp::STV_HIDDEN,
-                                        0, false, true);
-          symtab->define_in_output_data("__exidx_end", NULL,
-                                        Symbol_table::PREDEFINED,
-                                        exidx_section, 0, 0, elfcpp::STT_OBJECT,
-                                        elfcpp::STB_GLOBAL, elfcpp::STV_HIDDEN,
-                                        0, true, true);
-
           // For the ARM target, we need to add a PT_ARM_EXIDX segment for
           // the .ARM.exidx section.
           if (!layout->script_options()->saw_phdrs_clause())
@@ -8693,19 +8637,6 @@ Target_arm<big_endian>::do_finalize_sections(
               exidx_segment->add_output_section_to_nonload(exidx_section,
                                                            elfcpp::PF_R);
             }
-        }
-      else
-        {
-          symtab->define_as_constant("__exidx_start", NULL,
-                                     Symbol_table::PREDEFINED,
-                                     0, 0, elfcpp::STT_OBJECT,
-                                     elfcpp::STB_GLOBAL, elfcpp::STV_HIDDEN, 0,
-                                     true, false);
-          symtab->define_as_constant("__exidx_end", NULL,
-                                     Symbol_table::PREDEFINED,
-                                     0, 0, elfcpp::STT_OBJECT,
-                                     elfcpp::STB_GLOBAL, elfcpp::STV_HIDDEN, 0,
-                                     true, false);
         }
     }
 
@@ -11901,7 +11832,7 @@ Target_arm<big_endian>::apply_cortex_a8_workaround(
 	branch_offset = (branch_offset + 2) & ~3;
 
       // Put BRANCH_OFFSET back into the insn.
-      gold_assert(!utils::has_overflow<25>(branch_offset));
+      gold_assert(!Bits<25>::has_overflow32(branch_offset));
       upper_insn = RelocFuncs::thumb32_branch_upper(upper_insn, branch_offset);
       lower_insn = RelocFuncs::thumb32_branch_lower(lower_insn, branch_offset);
       break;
@@ -11992,6 +11923,61 @@ Target_arm<big_endian>::fix_exidx_coverage(
 
   exidx_section->fix_exidx_coverage(layout, sorted_text_sections, symtab,
 				    merge_exidx_entries(), task);
+}
+
+template<bool big_endian>
+void
+Target_arm<big_endian>::do_define_standard_symbols(
+    Symbol_table* symtab,
+    Layout* layout)
+{
+  // Handle the .ARM.exidx section.
+  Output_section* exidx_section = layout->find_output_section(".ARM.exidx");
+
+  if (exidx_section != NULL)
+    {
+      // Create __exidx_start and __exidx_end symbols.
+      symtab->define_in_output_data("__exidx_start",
+				    NULL, // version
+				    Symbol_table::PREDEFINED,
+				    exidx_section,
+				    0, // value
+				    0, // symsize
+				    elfcpp::STT_NOTYPE,
+				    elfcpp::STB_GLOBAL,
+				    elfcpp::STV_HIDDEN,
+				    0, // nonvis
+				    false, // offset_is_from_end
+				    true); // only_if_ref
+
+      symtab->define_in_output_data("__exidx_end",
+				    NULL, // version
+				    Symbol_table::PREDEFINED,
+				    exidx_section,
+			 	    0, // value
+				    0, // symsize
+				    elfcpp::STT_NOTYPE,
+				    elfcpp::STB_GLOBAL,
+				    elfcpp::STV_HIDDEN,
+				    0, // nonvis
+				    true, // offset_is_from_end
+				    true); // only_if_ref
+    }
+  else
+    {
+      // Define __exidx_start and __exidx_end even when .ARM.exidx
+      // section is missing to match ld's behaviour.
+      symtab->define_as_constant("__exidx_start", NULL,
+                                 Symbol_table::PREDEFINED,
+                                 0, 0, elfcpp::STT_OBJECT,
+                                 elfcpp::STB_GLOBAL, elfcpp::STV_HIDDEN, 0,
+                                 true, false);
+      symtab->define_as_constant("__exidx_end", NULL,
+                                 Symbol_table::PREDEFINED,
+                                 0, 0, elfcpp::STT_OBJECT,
+                                 elfcpp::STB_GLOBAL, elfcpp::STV_HIDDEN, 0,
+                                 true, false);
+    }
 }
 
 Target_selector_arm<false> target_selector_arm;

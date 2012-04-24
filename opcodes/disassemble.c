@@ -1,6 +1,7 @@
 /* Select disassembly routine for specified architecture.
    Copyright 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003,
-   2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
+   2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
+   Free Software Foundation, Inc.
 
    This file is part of the GNU opcodes library.
 
@@ -34,6 +35,7 @@
 #define ARCH_d10v
 #define ARCH_d30v
 #define ARCH_dlx
+#define ARCH_epiphany
 #define ARCH_fr30
 #define ARCH_frv
 #define ARCH_h8300
@@ -70,6 +72,7 @@
 #define ARCH_pj
 #define ARCH_powerpc
 #define ARCH_rs6000
+#define ARCH_rl78
 #define ARCH_rx
 #define ARCH_s390
 #define ARCH_score
@@ -224,6 +227,11 @@ disassembler (abfd)
       disassemble = print_insn_ip2k;
       break;
 #endif
+#ifdef ARCH_epiphany
+    case bfd_arch_epiphany:
+      disassemble = print_insn_epiphany;
+      break;
+#endif
 #ifdef ARCH_fr30
     case bfd_arch_fr30:
       disassemble = print_insn_fr30;
@@ -347,6 +355,11 @@ disassembler (abfd)
 	disassemble = print_insn_big_powerpc;
       else
 	disassemble = print_insn_rs6000;
+      break;
+#endif
+#ifdef ARCH_rl78
+    case bfd_arch_rl78:
+      disassemble = print_insn_rl78;
       break;
 #endif
 #ifdef ARCH_rx
@@ -552,6 +565,16 @@ disassemble_init_for_target (struct disassemble_info * info)
 	  else
 	    cgen_bitset_set (info->insn_sets, ISA_M32C);
 	}
+      break;
+#endif
+#ifdef ARCH_powerpc
+    case bfd_arch_powerpc:
+#endif
+#ifdef ARCH_rs6000
+    case bfd_arch_rs6000:
+#endif
+#if defined (ARCH_powerpc) || defined (ARCH_rs6000)
+      disassemble_init_powerpc (info);
       break;
 #endif
     default:

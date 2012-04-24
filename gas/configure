@@ -12143,7 +12143,7 @@ _ACEOF
         fi
         ;;
 
-      fr30 | ip2k | iq2000 | lm32 | m32r | openrisc)
+      epiphany | fr30 | ip2k | iq2000 | lm32 | m32r | openrisc)
 	using_cgen=yes
 	;;
 
@@ -12193,6 +12193,13 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 
 	fi
+	;;
+
+      rl78)
+        echo ${extra_objects} | grep -s "rl78-parse.o"
+        if test $? -ne 0 ; then
+          extra_objects="$extra_objects rl78-parse.o"
+        fi
 	;;
 
       rx)
@@ -12746,7 +12753,7 @@ if test "$LEX" = :; then
   LEX=${am_missing_run}flex
 fi
 
-ALL_LINGUAS="fr tr es rw id ru fi"
+ALL_LINGUAS="fr tr es rw id ru fi ja"
 # If we haven't got the data from the intl directory,
 # assume NLS is disabled.
 USE_NLS=no
@@ -13159,7 +13166,7 @@ fi
 
 
 
-for ac_header in string.h stdlib.h memory.h strings.h unistd.h errno.h sys/types.h limits.h time.h sys/stat.h
+for ac_header in string.h stdlib.h memory.h strings.h unistd.h errno.h sys/types.h limits.h locale.h time.h sys/stat.h
 do :
   as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
 ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
@@ -13448,6 +13455,51 @@ _ACEOF
 
 fi
 done
+
+
+for ac_func in setlocale
+do :
+  ac_fn_c_check_func "$LINENO" "setlocale" "ac_cv_func_setlocale"
+if test "x$ac_cv_func_setlocale" = x""yes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_SETLOCALE 1
+_ACEOF
+
+fi
+done
+
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for LC_MESSAGES" >&5
+$as_echo_n "checking for LC_MESSAGES... " >&6; }
+if test "${am_cv_val_LC_MESSAGES+set}" = set; then :
+  $as_echo_n "(cached) " >&6
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <locale.h>
+int
+main ()
+{
+return LC_MESSAGES
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  am_cv_val_LC_MESSAGES=yes
+else
+  am_cv_val_LC_MESSAGES=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $am_cv_val_LC_MESSAGES" >&5
+$as_echo "$am_cv_val_LC_MESSAGES" >&6; }
+  if test $am_cv_val_LC_MESSAGES = yes; then
+
+$as_echo "#define HAVE_LC_MESSAGES 1" >>confdefs.h
+
+  fi
 
 
 # do we need the math library?

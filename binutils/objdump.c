@@ -1,7 +1,7 @@
 /* objdump.c -- dump information about an object file.
    Copyright 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
-   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
-   Free Software Foundation, Inc.
+   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011,
+   2012 Free Software Foundation, Inc.
 
    This file is part of GNU Binutils.
 
@@ -70,8 +70,6 @@
 #ifdef HAVE_MMAP
 #include <sys/mman.h>
 #endif
-
-#include <sys/stat.h>
 
 /* Internal headers for the ELF .stab-dump code - sorry.  */
 #define	BYTES_IN_WORD	32
@@ -1125,25 +1123,28 @@ slurp_file (const char *fn, size_t *size)
   if (fd < 0)
     return NULL;
   if (fstat (fd, &st) < 0)
-    return NULL;
+    {
+      close (fd);
+      return NULL;
+    }
   *size = st.st_size;
 #ifdef HAVE_MMAP
   msize = (*size + ps - 1) & ~(ps - 1);
   map = mmap (NULL, msize, PROT_READ, MAP_SHARED, fd, 0);
-  if (map != (char *)-1L)
+  if (map != (char *) -1L)
     {
-      close(fd);
-      return map; 
+      close (fd);
+      return map;
     }
 #endif
   map = (const char *) malloc (*size);
-  if (!map || (size_t) read (fd, (char *)map, *size) != *size) 
-    { 
-      free ((void *)map);
+  if (!map || (size_t) read (fd, (char *) map, *size) != *size)
+    {
+      free ((void *) map);
       map = NULL;
     }
   close (fd);
-  return map; 
+  return map;
 }
 
 #define line_map_decrease 5
@@ -3229,6 +3230,7 @@ dump_bfd (bfd *abfd)
 	 info in the file, try DWARF instead.  */
       else if (! dump_dwarf_section_info)
 	{
+	  dwarf_select_sections_all (); 
 	  dump_dwarf (abfd);
 	}
     }
@@ -3257,7 +3259,7 @@ dump_bfd (bfd *abfd)
 }
 
 static void
-display_bfd (bfd *abfd)
+display_object_bfd (bfd *abfd)
 {
   char **matching;
 
@@ -3297,10 +3299,53 @@ display_bfd (bfd *abfd)
 }
 
 static void
+display_any_bfd (bfd *file, int level)
+{
+  /* Decompress sections unless dumping the section contents.  */
+  if (!dump_section_contents)
+    file->flags |= BFD_DECOMPRESS;
+
+  /* If the file is an archive, process all of its elements.  */
+  if (bfd_check_format (file, bfd_archive))
+    {
+      bfd *arfile = NULL;
+      bfd *last_arfile = NULL;
+
+      if (level == 0)
+        printf (_("In archive %s:\n"), bfd_get_filename (file));
+      else
+        printf (_("In nested archive %s:\n"), bfd_get_filename (file));
+
+      for (;;)
+	{
+	  bfd_set_error (bfd_error_no_error);
+
+	  arfile = bfd_openr_next_archived_file (file, arfile);
+	  if (arfile == NULL)
+	    {
+	      if (bfd_get_error () != bfd_error_no_more_archived_files)
+		nonfatal (bfd_get_filename (file));
+	      break;
+	    }
+
+	  display_any_bfd (arfile, level + 1);
+
+	  if (last_arfile != NULL)
+	    bfd_close (last_arfile);
+	  last_arfile = arfile;
+	}
+
+      if (last_arfile != NULL)
+	bfd_close (last_arfile);
+    }
+  else
+    display_object_bfd (file);
+}
+
+static void
 display_file (char *filename, char *target)
 {
   bfd *file;
-  bfd *arfile = NULL;
 
   if (get_file_size (filename) < 1)
     {
@@ -3315,40 +3360,7 @@ display_file (char *filename, char *target)
       return;
     }
 
-  /* Decompress sections unless dumping the section contents.  */
-  if (!dump_section_contents)
-    file->flags |= BFD_DECOMPRESS;
-
-  /* If the file is an archive, process all of its elements.  */
-  if (bfd_check_format (file, bfd_archive))
-    {
-      bfd *last_arfile = NULL;
-
-      printf (_("In archive %s:\n"), bfd_get_filename (file));
-      for (;;)
-	{
-	  bfd_set_error (bfd_error_no_error);
-
-	  arfile = bfd_openr_next_archived_file (file, arfile);
-	  if (arfile == NULL)
-	    {
-	      if (bfd_get_error () != bfd_error_no_more_archived_files)
-		nonfatal (bfd_get_filename (file));
-	      break;
-	    }
-
-	  display_bfd (arfile);
-
-	  if (last_arfile != NULL)
-	    bfd_close (last_arfile);
-	  last_arfile = arfile;
-	}
-
-      if (last_arfile != NULL)
-	bfd_close (last_arfile);
-    }
-  else
-    display_bfd (file);
+  display_any_bfd (file, 0);
 
   bfd_close (file);
 }

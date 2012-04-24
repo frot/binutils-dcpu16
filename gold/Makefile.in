@@ -77,11 +77,11 @@ am__objects_1 = archive.$(OBJEXT) attributes.$(OBJEXT) \
 	descriptors.$(OBJEXT) dirsearch.$(OBJEXT) dynobj.$(OBJEXT) \
 	dwarf_reader.$(OBJEXT) ehframe.$(OBJEXT) errors.$(OBJEXT) \
 	expression.$(OBJEXT) fileread.$(OBJEXT) gc.$(OBJEXT) \
-	gold.$(OBJEXT) gold-threads.$(OBJEXT) icf.$(OBJEXT) \
-	incremental.$(OBJEXT) int_encoding.$(OBJEXT) layout.$(OBJEXT) \
-	mapfile.$(OBJEXT) merge.$(OBJEXT) object.$(OBJEXT) \
-	options.$(OBJEXT) output.$(OBJEXT) parameters.$(OBJEXT) \
-	plugin.$(OBJEXT) readsyms.$(OBJEXT) \
+	gdb-index.$(OBJEXT) gold.$(OBJEXT) gold-threads.$(OBJEXT) \
+	icf.$(OBJEXT) incremental.$(OBJEXT) int_encoding.$(OBJEXT) \
+	layout.$(OBJEXT) mapfile.$(OBJEXT) merge.$(OBJEXT) \
+	object.$(OBJEXT) options.$(OBJEXT) output.$(OBJEXT) \
+	parameters.$(OBJEXT) plugin.$(OBJEXT) readsyms.$(OBJEXT) \
 	reduced_debug_output.$(OBJEXT) reloc.$(OBJEXT) \
 	resolve.$(OBJEXT) script-sections.$(OBJEXT) script.$(OBJEXT) \
 	stringpool.$(OBJEXT) symtab.$(OBJEXT) target.$(OBJEXT) \
@@ -101,7 +101,9 @@ am_ld_new_OBJECTS = $(am__objects_4)
 ld_new_OBJECTS = $(am_ld_new_OBJECTS)
 am__DEPENDENCIES_2 = $(am__DEPENDENCIES_1) libgold.a $(LIBIBERTY) \
 	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
-	$(am__DEPENDENCIES_1)
+	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
+ld_new_LINK = $(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) $(ld_new_LDFLAGS) \
+	$(LDFLAGS) -o $@
 @GCC_TRUE@@NATIVE_LINKER_TRUE@am_ld1_OBJECTS = $(am__objects_4)
 ld1_OBJECTS = $(am_ld1_OBJECTS)
 ld1_LINK = $(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) $(ld1_LDFLAGS) \
@@ -251,6 +253,8 @@ EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 GENCAT = @GENCAT@
 GMSGFMT = @GMSGFMT@
+GOLD_LDADD = @GOLD_LDADD@
+GOLD_LDFLAGS = @GOLD_LDFLAGS@
 GREP = @GREP@
 INCINTL = @INCINTL@
 INSTALL = @INSTALL@
@@ -365,7 +369,7 @@ AM_CPPFLAGS = \
 	-I$(srcdir) -I$(srcdir)/../include -I$(srcdir)/../elfcpp \
 	-DLOCALEDIR="\"$(datadir)/locale\"" \
 	-DBINDIR="\"$(bindir)\"" -DTOOLBINDIR="\"$(tooldir)/bin\"" \
-	@INCINTL@
+	-DTOOLLIBDIR="\"$(tooldir)/lib\"" @INCINTL@
 
 LIBIBERTY = ../libiberty/libiberty.a
 @PLUGINS_TRUE@LIBDL = -ldl
@@ -395,6 +399,7 @@ CCFILES = \
 	expression.cc \
 	fileread.cc \
         gc.cc \
+        gdb-index.cc \
 	gold.cc \
 	gold-threads.cc \
 	icf.cc \
@@ -442,6 +447,7 @@ HFILES = \
 	fileread.h \
 	freebsd.h \
         gc.h \
+        gdb-index.h \
 	gold.h \
 	gold-threads.h \
 	icf.h \
@@ -488,12 +494,14 @@ libgold_a_SOURCES = $(CCFILES) $(HFILES) $(YFILES) $(DEFFILES)
 libgold_a_LIBADD = $(LIBOBJS)
 sources_var = main.cc
 deps_var = $(TARGETOBJS) libgold.a $(LIBIBERTY) $(LIBINTL_DEP)
-ldadd_var = $(TARGETOBJS) libgold.a $(LIBIBERTY) $(LIBINTL) \
+ldadd_var = $(TARGETOBJS) libgold.a $(LIBIBERTY) $(GOLD_LDADD) $(LIBINTL) \
 	 $(THREADSLIB) $(LIBDL)
 
+ldflags_var = $(GOLD_LDFLAGS)
 ld_new_SOURCES = $(sources_var)
 ld_new_DEPENDENCIES = $(deps_var)
 ld_new_LDADD = $(ldadd_var)
+ld_new_LDFLAGS = $(ldflags_var)
 EXTRA_ld_new_SOURCES = $(TARGETSOURCES)
 incremental_dump_SOURCES = incremental-dump.cc
 incremental_dump_DEPENDENCIES = $(TARGETOBJS) libgold.a $(LIBIBERTY) \
@@ -601,7 +609,7 @@ incremental-dump$(EXEEXT): $(incremental_dump_OBJECTS) $(incremental_dump_DEPEND
 	$(CXXLINK) $(incremental_dump_OBJECTS) $(incremental_dump_LDADD) $(LIBS)
 ld-new$(EXEEXT): $(ld_new_OBJECTS) $(ld_new_DEPENDENCIES) 
 	@rm -f ld-new$(EXEEXT)
-	$(CXXLINK) $(ld_new_OBJECTS) $(ld_new_LDADD) $(LIBS)
+	$(ld_new_LINK) $(ld_new_OBJECTS) $(ld_new_LDADD) $(LIBS)
 ld1$(EXEEXT): $(ld1_OBJECTS) $(ld1_DEPENDENCIES) 
 	@rm -f ld1$(EXEEXT)
 	$(ld1_LINK) $(ld1_OBJECTS) $(ld1_LDADD) $(LIBS)
@@ -644,6 +652,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/expression.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fileread.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gc.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gdb-index.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gold-threads.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gold.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/i386.Po@am__quote@

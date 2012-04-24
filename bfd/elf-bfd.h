@@ -1,6 +1,6 @@
 /* BFD back-end data structures for ELF files.
    Copyright 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001,
-   2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
+   2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
    Written by Cygnus Support.
 
@@ -1221,6 +1221,11 @@ struct elf_backend_data
   /* Return TRUE if type is a function symbol type.  */
   bfd_boolean (*is_function_type) (unsigned int type);
 
+  /* Return TRUE if symbol may be a function.  Set *CODE_SEC and *CODE_VAL
+     to the function's entry point.  */
+  bfd_boolean (*maybe_function_sym) (const asymbol *sym,
+				     asection **code_sec, bfd_vma *code_off);
+
   /* Used to handle bad SHF_LINK_ORDER input.  */
   bfd_error_handler_type link_order_error_handler;
 
@@ -1413,14 +1418,14 @@ struct bfd_elf_section_data
   void *sec_info;
 };
 
-#define elf_section_data(sec)  ((struct bfd_elf_section_data*)(sec)->used_by_bfd)
+#define elf_section_data(sec) ((struct bfd_elf_section_data*)(sec)->used_by_bfd)
 #define elf_linked_to_section(sec) (elf_section_data(sec)->linked_to)
-#define elf_section_type(sec)  (elf_section_data(sec)->this_hdr.sh_type)
-#define elf_section_flags(sec) (elf_section_data(sec)->this_hdr.sh_flags)
-#define elf_group_name(sec)    (elf_section_data(sec)->group.name)
-#define elf_group_id(sec)      (elf_section_data(sec)->group.id)
-#define elf_next_in_group(sec) (elf_section_data(sec)->next_in_group)
-#define elf_fde_list(sec)      (elf_section_data(sec)->fde_list)
+#define elf_section_type(sec)	(elf_section_data(sec)->this_hdr.sh_type)
+#define elf_section_flags(sec)	(elf_section_data(sec)->this_hdr.sh_flags)
+#define elf_group_name(sec)	(elf_section_data(sec)->group.name)
+#define elf_group_id(sec)	(elf_section_data(sec)->group.id)
+#define elf_next_in_group(sec)	(elf_section_data(sec)->next_in_group)
+#define elf_fde_list(sec)	(elf_section_data(sec)->fde_list)
 #define elf_sec_group(sec)	(elf_section_data(sec)->sec_group)
 
 #define xvec_get_elf_backend_data(xvec) \
@@ -1807,8 +1812,7 @@ extern void bfd_elf_set_group_contents
   (bfd *, asection *, void *);
 extern asection *_bfd_elf_check_kept_section
   (asection *, struct bfd_link_info *);
-extern void _bfd_elf_link_just_syms
-  (asection *, struct bfd_link_info *);
+#define _bfd_elf_link_just_syms _bfd_generic_link_just_syms
 extern void _bfd_elf_copy_link_hash_symbol_type
   (bfd *, struct bfd_link_hash_entry *, struct bfd_link_hash_entry *);
 extern bfd_boolean _bfd_elf_size_group_sections
@@ -2132,9 +2136,6 @@ extern unsigned int _bfd_elf_common_section_index
 extern asection *_bfd_elf_common_section
   (asection *);
 
-extern void _bfd_dwarf2_cleanup_debug_info
-  (bfd *);
-
 extern bfd_vma _bfd_elf_default_got_elt_size
 (bfd *, struct bfd_link_info *, struct elf_link_hash_entry *, bfd *,
  unsigned long);
@@ -2200,6 +2201,9 @@ extern bfd_boolean _bfd_elf_map_sections_to_segments
 
 extern bfd_boolean _bfd_elf_is_function_type (unsigned int);
 
+extern bfd_boolean _bfd_elf_maybe_function_sym (const asymbol *,
+						asection **, bfd_vma *);
+
 extern int bfd_elf_get_default_section_type (flagword);
 
 extern void bfd_elf_lookup_section_flags
@@ -2236,6 +2240,10 @@ extern char *elfcore_write_s390_todpreg
 extern char *elfcore_write_s390_ctrs
   (bfd *, char *, int *, const void *, int);
 extern char *elfcore_write_s390_prefix
+  (bfd *, char *, int *, const void *, int);
+extern char *elfcore_write_s390_last_break
+  (bfd *, char *, int *, const void *, int);
+extern char *elfcore_write_s390_system_call
   (bfd *, char *, int *, const void *, int);
 extern char *elfcore_write_arm_vfp
   (bfd *, char *, int *, const void *, int);

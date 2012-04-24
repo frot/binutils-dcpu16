@@ -1,6 +1,7 @@
 // i386.cc -- i386 target support for gold.
 
-// Copyright 2006, 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
+// Copyright 2006, 2007, 2008, 2009, 2010, 2011, 2012
+// Free Software Foundation, Inc.
 // Written by Ian Lance Taylor <iant@google.com>.
 
 // This file is part of gold.
@@ -2709,12 +2710,6 @@ Target_i386::Relocate::relocate_tls(const Relocate_info<32, false>* relinfo,
             }
           if (optimized_type == tls::TLSOPT_TO_IE)
 	    {
-	      if (tls_segment == NULL)
-		{
-		  gold_assert(parameters->errors()->error_count() > 0
-			      || issue_undefined_symbol_error(gsym));
-		  return;
-		}
 	      this->tls_gd_to_ie(relinfo, relnum, tls_segment, rel, r_type,
                                  got_offset, view, view_size);
               break;
@@ -3476,46 +3471,55 @@ Target_i386::do_code_fill(section_size_type length) const
       jmp[0] = 0xe9;
       elfcpp::Swap_unaligned<32, false>::writeval(jmp + 1, length - 5);
       return (std::string(reinterpret_cast<char*>(&jmp[0]), 5)
-              + std::string(length - 5, '\0'));
+              + std::string(length - 5, static_cast<char>(0x90)));
     }
 
   // Nop sequences of various lengths.
-  const char nop1[1] = { 0x90 };                   // nop
-  const char nop2[2] = { 0x66, 0x90 };             // xchg %ax %ax
-  const char nop3[3] = { 0x8d, 0x76, 0x00 };       // leal 0(%esi),%esi
-  const char nop4[4] = { 0x8d, 0x74, 0x26, 0x00};  // leal 0(%esi,1),%esi
-  const char nop5[5] = { 0x90, 0x8d, 0x74, 0x26,   // nop
-                         0x00 };                   // leal 0(%esi,1),%esi
-  const char nop6[6] = { 0x8d, 0xb6, 0x00, 0x00,   // leal 0L(%esi),%esi
-                         0x00, 0x00 };
-  const char nop7[7] = { 0x8d, 0xb4, 0x26, 0x00,   // leal 0L(%esi,1),%esi
-                         0x00, 0x00, 0x00 };
-  const char nop8[8] = { 0x90, 0x8d, 0xb4, 0x26,   // nop
-                         0x00, 0x00, 0x00, 0x00 }; // leal 0L(%esi,1),%esi
-  const char nop9[9] = { 0x89, 0xf6, 0x8d, 0xbc,   // movl %esi,%esi
-                         0x27, 0x00, 0x00, 0x00,   // leal 0L(%edi,1),%edi
-                         0x00 };
-  const char nop10[10] = { 0x8d, 0x76, 0x00, 0x8d, // leal 0(%esi),%esi
-                           0xbc, 0x27, 0x00, 0x00, // leal 0L(%edi,1),%edi
-                           0x00, 0x00 };
-  const char nop11[11] = { 0x8d, 0x74, 0x26, 0x00, // leal 0(%esi,1),%esi
-                           0x8d, 0xbc, 0x27, 0x00, // leal 0L(%edi,1),%edi
-                           0x00, 0x00, 0x00 };
-  const char nop12[12] = { 0x8d, 0xb6, 0x00, 0x00, // leal 0L(%esi),%esi
-                           0x00, 0x00, 0x8d, 0xbf, // leal 0L(%edi),%edi
-                           0x00, 0x00, 0x00, 0x00 };
-  const char nop13[13] = { 0x8d, 0xb6, 0x00, 0x00, // leal 0L(%esi),%esi
-                           0x00, 0x00, 0x8d, 0xbc, // leal 0L(%edi,1),%edi
-                           0x27, 0x00, 0x00, 0x00,
-                           0x00 };
-  const char nop14[14] = { 0x8d, 0xb4, 0x26, 0x00, // leal 0L(%esi,1),%esi
-                           0x00, 0x00, 0x00, 0x8d, // leal 0L(%edi,1),%edi
-                           0xbc, 0x27, 0x00, 0x00,
-                           0x00, 0x00 };
-  const char nop15[15] = { 0xeb, 0x0d, 0x90, 0x90, // jmp .+15
-                           0x90, 0x90, 0x90, 0x90, // nop,nop,nop,...
-                           0x90, 0x90, 0x90, 0x90,
-                           0x90, 0x90, 0x90 };
+  const char nop1[1] = { '\x90' };                   // nop
+  const char nop2[2] = { '\x66', '\x90' };           // xchg %ax %ax
+  const char nop3[3] = { '\x8d', '\x76', '\x00' };   // leal 0(%esi),%esi
+  const char nop4[4] = { '\x8d', '\x74', '\x26',     // leal 0(%esi,1),%esi
+			 '\x00'};
+  const char nop5[5] = { '\x90', '\x8d', '\x74',     // nop
+  			 '\x26', '\x00' };           // leal 0(%esi,1),%esi
+  const char nop6[6] = { '\x8d', '\xb6', '\x00',     // leal 0L(%esi),%esi
+  			 '\x00', '\x00', '\x00' };
+  const char nop7[7] = { '\x8d', '\xb4', '\x26',     // leal 0L(%esi,1),%esi
+  			 '\x00', '\x00', '\x00',
+			 '\x00' };
+  const char nop8[8] = { '\x90', '\x8d', '\xb4',     // nop
+  			 '\x26', '\x00', '\x00',     // leal 0L(%esi,1),%esi
+			 '\x00', '\x00' };
+  const char nop9[9] = { '\x89', '\xf6', '\x8d',     // movl %esi,%esi
+  			 '\xbc', '\x27', '\x00',     // leal 0L(%edi,1),%edi
+			 '\x00', '\x00', '\x00' };
+  const char nop10[10] = { '\x8d', '\x76', '\x00',   // leal 0(%esi),%esi
+  			   '\x8d', '\xbc', '\x27',   // leal 0L(%edi,1),%edi
+			   '\x00', '\x00', '\x00',
+			   '\x00' };
+  const char nop11[11] = { '\x8d', '\x74', '\x26',   // leal 0(%esi,1),%esi
+  			   '\x00', '\x8d', '\xbc',   // leal 0L(%edi,1),%edi
+			   '\x27', '\x00', '\x00',
+			   '\x00', '\x00' };
+  const char nop12[12] = { '\x8d', '\xb6', '\x00',   // leal 0L(%esi),%esi
+  			   '\x00', '\x00', '\x00',   // leal 0L(%edi),%edi
+			   '\x8d', '\xbf', '\x00',
+			   '\x00', '\x00', '\x00' };
+  const char nop13[13] = { '\x8d', '\xb6', '\x00',   // leal 0L(%esi),%esi
+  			   '\x00', '\x00', '\x00',   // leal 0L(%edi,1),%edi
+			   '\x8d', '\xbc', '\x27',
+			   '\x00', '\x00', '\x00',
+                           '\x00' };
+  const char nop14[14] = { '\x8d', '\xb4', '\x26',   // leal 0L(%esi,1),%esi
+  			   '\x00', '\x00', '\x00',   // leal 0L(%edi,1),%edi
+			   '\x00', '\x8d', '\xbc',
+			   '\x27', '\x00', '\x00',
+                           '\x00', '\x00' };
+  const char nop15[15] = { '\xeb', '\x0d', '\x90',   // jmp .+15
+  			   '\x90', '\x90', '\x90',   // nop,nop,nop,...
+			   '\x90', '\x90', '\x90',
+			   '\x90', '\x90', '\x90',
+                           '\x90', '\x90', '\x90' };
 
   const char* nops[16] = {
     NULL,

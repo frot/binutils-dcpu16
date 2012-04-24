@@ -134,8 +134,14 @@ enum
   CpuBMI2,
   /* LZCNT support required */
   CpuLZCNT,
+  /* HLE support required */
+  CpuHLE,
+  /* RTM support required */
+  CpuRTM,
   /* INVPCID Instructions required */
   CpuINVPCID,
+  /* VMFUNC Instruction required */
+  CpuVMFUNC,
   /* 64bit support available, used by -march= in assembler.  */
   CpuLM,
   /* 64bit support required  */
@@ -212,7 +218,10 @@ typedef union i386_cpu_flags
       unsigned int cpuf16c:1;
       unsigned int cpubmi2:1;
       unsigned int cpulzcnt:1;
+      unsigned int cpuhle:1;
+      unsigned int cpurtm:1;
       unsigned int cpuinvpcid:1;
+      unsigned int cpuvmfunc:1;
       unsigned int cpulm:1;
       unsigned int cpu64:1;
       unsigned int cpuno64:1;
@@ -290,6 +299,16 @@ enum
   FirstXmm0,
   /* An implicit xmm0 as the first operand */
   Implicit1stXmm0,
+  /* The HLE prefix is OK:
+     1. With a LOCK prefix.
+     2. With or without a LOCK prefix.
+     3. With a RELEASE (0xf3) prefix.
+   */
+#define HLEPrefixNone		0
+#define HLEPrefixLock		1
+#define HLEPrefixAny		2
+#define HLEPrefixRelease	3
+  HLEPrefixOk,
   /* Convert to DWORD */
   ToDword,
   /* Convert to QWORD */
@@ -423,6 +442,7 @@ typedef struct i386_opcode_modifier
   unsigned int regkludge:1;
   unsigned int firstxmm0:1;
   unsigned int implicit1stxmm0:1;
+  unsigned int hleprefixok:2;
   unsigned int todword:1;
   unsigned int toqword:1;
   unsigned int addrprefixop0:1;

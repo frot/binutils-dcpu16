@@ -1,6 +1,6 @@
 /* ppc-dis.c -- Disassemble PowerPC instructions
    Copyright 1994, 1995, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007,
-   2008, 2009, 2010 Free Software Foundation, Inc.
+   2008, 2009, 2010, 2011, 2012 Free Software Foundation, Inc.
    Written by Ian Lance Taylor, Cygnus Support
 
    This file is part of the GNU opcodes library.
@@ -38,7 +38,7 @@ struct dis_private
 {
   /* Stash the result of parsing disassembler_options here.  */
   ppc_cpu_t dialect;
-};
+} private;
 
 #define POWERPC_DIALECT(INFO) \
   (((struct dis_private *) ((INFO)->private_data))->dialect)
@@ -113,6 +113,18 @@ struct ppc_mopt ppc_opts[] = {
 		| PPC_OPCODE_PMR | PPC_OPCODE_CACHELCK | PPC_OPCODE_RFMCI
 		| PPC_OPCODE_E500MC | PPC_OPCODE_64 | PPC_OPCODE_POWER5
 		| PPC_OPCODE_POWER6 | PPC_OPCODE_POWER7),
+    0 },
+  { "e5500",    (PPC_OPCODE_PPC | PPC_OPCODE_BOOKE | PPC_OPCODE_ISEL
+		| PPC_OPCODE_PMR | PPC_OPCODE_CACHELCK | PPC_OPCODE_RFMCI
+		| PPC_OPCODE_E500MC | PPC_OPCODE_64 | PPC_OPCODE_POWER4
+		| PPC_OPCODE_POWER5 | PPC_OPCODE_POWER6
+		| PPC_OPCODE_POWER7),
+    0 },
+  { "e6500",   (PPC_OPCODE_PPC | PPC_OPCODE_BOOKE | PPC_OPCODE_ISEL
+		| PPC_OPCODE_PMR | PPC_OPCODE_CACHELCK | PPC_OPCODE_RFMCI
+		| PPC_OPCODE_E500MC | PPC_OPCODE_64 | PPC_OPCODE_ALTIVEC
+		| PPC_OPCODE_ALTIVEC2 | PPC_OPCODE_E6500 | PPC_OPCODE_POWER4
+		| PPC_OPCODE_POWER5 | PPC_OPCODE_POWER6 | PPC_OPCODE_POWER7),
     0 },
   { "e500x2",  (PPC_OPCODE_PPC | PPC_OPCODE_BOOKE | PPC_OPCODE_SPE
 		| PPC_OPCODE_ISEL | PPC_OPCODE_EFS | PPC_OPCODE_BRLOCK
@@ -205,7 +217,7 @@ ppc_parse_cpu (ppc_cpu_t ppc_cpu, const char *arg)
 
 /* Determine which set of machines to disassemble for.  */
 
-static int
+static void
 powerpc_init_dialect (struct disassemble_info *info)
 {
   ppc_cpu_t dialect = 0;
@@ -213,7 +225,7 @@ powerpc_init_dialect (struct disassemble_info *info)
   struct dis_private *priv = calloc (sizeof (*priv), 1);
 
   if (priv == NULL)
-    return FALSE;
+    priv = &private;
 
   arg = info->disassembler_options;
   while (arg != NULL)
@@ -251,8 +263,37 @@ powerpc_init_dialect (struct disassemble_info *info)
 
   info->private_data = priv;
   POWERPC_DIALECT(info) = dialect;
+}
 
-  return TRUE;
+static unsigned short powerpc_opcd_indices[65];
+
+/* Calculate opcode table indices to speed up disassembly,
+   and init dialect.  */
+
+void
+disassemble_init_powerpc (struct disassemble_info *info)
+{
+  int i;
+  unsigned short last;
+
+  i = powerpc_num_opcodes;
+  while (--i >= 0)
+    {
+      unsigned op = PPC_OP (powerpc_opcodes[i].opcode);
+
+      powerpc_opcd_indices[op] = i;
+    }
+
+  last = powerpc_num_opcodes;
+  for (i = 64; i > 0; --i)
+    {
+      if (powerpc_opcd_indices[i] == 0)
+	powerpc_opcd_indices[i] = last;
+      last = powerpc_opcd_indices[i];
+    }
+
+  if (info->arch == bfd_arch_powerpc)
+    powerpc_init_dialect (info);
 }
 
 /* Print a big endian PowerPC instruction.  */
@@ -260,8 +301,6 @@ powerpc_init_dialect (struct disassemble_info *info)
 int
 print_insn_big_powerpc (bfd_vma memaddr, struct disassemble_info *info)
 {
-  if (info->private_data == NULL && !powerpc_init_dialect (info))
-    return -1;
   return print_insn_powerpc (memaddr, info, 1, POWERPC_DIALECT(info));
 }
 
@@ -270,8 +309,6 @@ print_insn_big_powerpc (bfd_vma memaddr, struct disassemble_info *info)
 int
 print_insn_little_powerpc (bfd_vma memaddr, struct disassemble_info *info)
 {
-  if (info->private_data == NULL && !powerpc_init_dialect (info))
-    return -1;
   return print_insn_powerpc (memaddr, info, 0, POWERPC_DIALECT(info));
 }
 
@@ -333,6 +370,52 @@ skip_optional_operands (const unsigned char *opindex,
   return 1;
 }
 
+/* Find a match for INSN in the opcode table, given machine DIALECT.
+   A DIALECT of -1 is special, matching all machine opcode variations.  */
+   
+static const struct powerpc_opcode *
+lookup_powerpc (unsigned long insn, ppc_cpu_t dialect)
+{
+  const struct powerpc_opcode *opcode;
+  const struct powerpc_opcode *opcode_end;
+  unsigned long op;
+
+  /* Get the major opcode of the instruction.  */
+  op = PPC_OP (insn);
+
+  /* Find the first match in the opcode table for this major opcode.  */
+  opcode_end = powerpc_opcodes + powerpc_opcd_indices[op + 1];
+  for (opcode = powerpc_opcodes + powerpc_opcd_indices[op];
+       opcode < opcode_end;
+       ++opcode)
+    {
+      const unsigned char *opindex;
+      const struct powerpc_operand *operand;
+      int invalid;
+
+      if ((insn & opcode->mask) != opcode->opcode
+	  || (dialect != (ppc_cpu_t) -1
+	      && ((opcode->flags & dialect) == 0
+		  || (opcode->deprecated & dialect) != 0)))
+	continue;
+
+      /* Check validity of operands.  */
+      invalid = 0;
+      for (opindex = opcode->operands; *opindex != 0; opindex++)
+	{
+	  operand = powerpc_operands + *opindex;
+	  if (operand->extract)
+	    (*operand->extract) (insn, dialect, &invalid);
+	}
+      if (invalid)
+	continue;
+
+      return opcode;
+    }
+
+  return NULL;
+}
+
 /* Print a PowerPC or POWER instruction.  */
 
 static int
@@ -345,9 +428,6 @@ print_insn_powerpc (bfd_vma memaddr,
   int status;
   unsigned long insn;
   const struct powerpc_opcode *opcode;
-  const struct powerpc_opcode *opcode_end;
-  unsigned long op;
-  ppc_cpu_t dialect_orig = dialect;
 
   status = (*info->read_memory_func) (memaddr, buffer, 4, info);
   if (status != 0)
@@ -361,48 +441,18 @@ print_insn_powerpc (bfd_vma memaddr,
   else
     insn = bfd_getl32 (buffer);
 
-  /* Get the major opcode of the instruction.  */
-  op = PPC_OP (insn);
+  opcode = lookup_powerpc (insn, dialect);
+  if (opcode == NULL && (dialect & PPC_OPCODE_ANY) != 0)
+    opcode = lookup_powerpc (insn, (ppc_cpu_t) -1);
 
-  /* Find the first match in the opcode table.  We could speed this up
-     a bit by doing a binary search on the major opcode.  */
-  opcode_end = powerpc_opcodes + powerpc_num_opcodes;
- again:
-  for (opcode = powerpc_opcodes; opcode < opcode_end; opcode++)
+  if (opcode != NULL)
     {
-      unsigned long table_op;
       const unsigned char *opindex;
       const struct powerpc_operand *operand;
-      int invalid;
       int need_comma;
       int need_paren;
       int skip_optional;
 
-      table_op = PPC_OP (opcode->opcode);
-      if (op < table_op)
-	break;
-      if (op > table_op)
-	continue;
-
-      if ((insn & opcode->mask) != opcode->opcode
-	  || (opcode->flags & dialect) == 0
-	  || (opcode->deprecated & dialect_orig) != 0)
-	continue;
-
-      /* Make two passes over the operands.  First see if any of them
-	 have extraction functions, and, if they do, make sure the
-	 instruction is valid.  */
-      invalid = 0;
-      for (opindex = opcode->operands; *opindex != 0; opindex++)
-	{
-	  operand = powerpc_operands + *opindex;
-	  if (operand->extract)
-	    (*operand->extract) (insn, dialect, &invalid);
-	}
-      if (invalid)
-	continue;
-
-      /* The instruction is valid.  */
       if (opcode->operands[0] != 0)
 	(*info->fprintf_func) (info->stream, "%-7s ", opcode->name);
       else
@@ -501,12 +551,6 @@ print_insn_powerpc (bfd_vma memaddr,
 
       /* We have found and printed an instruction; return.  */
       return 4;
-    }
-
-  if ((dialect & PPC_OPCODE_ANY) != 0)
-    {
-      dialect = ~(ppc_cpu_t) PPC_OPCODE_ANY;
-      goto again;
     }
 
   /* We could not find a match.  */

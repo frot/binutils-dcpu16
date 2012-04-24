@@ -1,5 +1,5 @@
 /* dwarf.c -- display DWARF contents of a BFD binary file
-   Copyright 2005, 2006, 2007, 2008, 2009, 2010, 2011
+   Copyright 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
 
    This file is part of GNU Binutils.
@@ -129,7 +129,7 @@ print_dwarf_vma (dwarf_vma val, unsigned byte_size)
       if (byte_size > 0 && byte_size <= 8)
 	offset = 16 - 2 * byte_size;
       else
-	error ("Wrong size in print_dwarf_vma");
+	error (_("Wrong size in print_dwarf_vma"));
     }
 
   fputs (buff + offset, stdout);
@@ -167,6 +167,27 @@ dwarf_vmatoa (const char *fmtch, dwarf_vma value)
   snprintf (ret, sizeof (buf[0].place), fmt, value);
 
   return ret;
+}
+
+/* Format a 64-bit value, given as two 32-bit values, in hex.
+   For reentrancy, this uses a buffer provided by the caller.  */
+
+static const char *
+dwarf_vmatoa64 (dwarf_vma hvalue, dwarf_vma lvalue, char *buf,
+		unsigned int buf_len)
+{
+  int len = 0;
+
+  if (hvalue == 0)
+    snprintf (buf, buf_len, "%" DWARF_VMA_FMT "x", lvalue);
+  else
+    {
+      len = snprintf (buf, buf_len, "%" DWARF_VMA_FMT "x", hvalue);
+      snprintf (buf + len, buf_len - len,
+		"%08" DWARF_VMA_FMT "x", lvalue);
+    }
+
+  return buf;
 }
 
 dwarf_vma
@@ -247,6 +268,7 @@ process_extended_line_op (unsigned char *data, int is_stmt)
   unsigned int len;
   unsigned char *name;
   dwarf_vma adr;
+  unsigned char *orig_data = data;
 
   len = read_leb128 (data, & bytes_read, 0);
   data += bytes_read;
@@ -277,7 +299,7 @@ process_extended_line_op (unsigned char *data, int is_stmt)
       break;
 
     case DW_LNE_define_file:
-      printf (_("  define new File Table entry\n"));
+      printf (_("define new File Table entry\n"));
       printf (_("  Entry\tDir\tTime\tSize\tName\n"));
 
       printf ("   %d\t", ++state_machine_regs.last_file_entry);
@@ -288,7 +310,11 @@ process_extended_line_op (unsigned char *data, int is_stmt)
       printf ("%s\t", dwarf_vmatoa ("u", read_leb128 (data, & bytes_read, 0)));
       data += bytes_read;
       printf ("%s\t", dwarf_vmatoa ("u", read_leb128 (data, & bytes_read, 0)));
-      printf ("%s\n\n", name);
+      data += bytes_read;
+      printf ("%s", name);
+      if ((unsigned int) (data - orig_data) != len)
+        printf (_(" [Bad opcode length]"));
+      printf ("\n\n");
       break;
 
     case DW_LNE_set_discriminator:
@@ -353,21 +379,21 @@ process_extended_line_op (unsigned char *data, int is_stmt)
                 break;
               case DW_LNE_HP_SFC_associate:
                 printf ("    DW_LNE_HP_SFC_associate ");
-                printf (_("(%s"),
+                printf ("(%s",
                         dwarf_vmatoa ("u",
                                       read_leb128 (data, & bytes_read, 0)));
                 data += bytes_read;
-                printf (_(",%s"),
+                printf (",%s",
                         dwarf_vmatoa ("u",
                                       read_leb128 (data, & bytes_read, 0)));
                 data += bytes_read;
-                printf (_(",%s)\n"),
+                printf (",%s)\n",
                         dwarf_vmatoa ("u",
                                       read_leb128 (data, & bytes_read, 0)));
                 data += bytes_read;
                 break;
               default:
-                printf ("    UNKNOW DW_LNE_HP_SFC opcode (%u)\n", opc);
+                printf (_("    UNKNOWN DW_LNE_HP_SFC opcode (%u)\n"), opc);
                 data = edata;
                 break;
               }
@@ -1072,10 +1098,10 @@ decode_location_expression (unsigned char * data,
 	  break;
 	case DW_OP_bit_piece:
 	  printf ("DW_OP_bit_piece: ");
-	  printf ("size: %s ",
+	  printf (_("size: %s "),
 		  dwarf_vmatoa ("u", read_leb128 (data, &bytes_read, 0)));
 	  data += bytes_read;
-	  printf ("offset: %s ",
+	  printf (_("offset: %s "),
 		  dwarf_vmatoa ("u", read_leb128 (data, &bytes_read, 0)));
 	  data += bytes_read;
 	  break;
@@ -1095,7 +1121,7 @@ decode_location_expression (unsigned char * data,
 
 	  /* GNU extensions.  */
 	case DW_OP_GNU_push_tls_address:
-	  printf ("DW_OP_GNU_push_tls_address or DW_OP_HP_unknown");
+	  printf (_("DW_OP_GNU_push_tls_address or DW_OP_HP_unknown"));
 	  break;
 	case DW_OP_GNU_uninit:
 	  printf ("DW_OP_GNU_uninit");
@@ -1376,9 +1402,12 @@ read_and_display_attr_value (unsigned long attribute,
     case DW_FORM_data8:
       if (!do_loc)
 	{
-	  uvalue = byte_get (data, 4);
-	  printf (" 0x%s", dwarf_vmatoa ("x", uvalue));
-	  printf (" 0x%lx", (unsigned long) byte_get (data + 4, 4));
+	  dwarf_vma high_bits;
+	  char buf[64];
+
+	  byte_get_64 (data, &high_bits, &uvalue);
+	  printf (" 0x%s",
+		  dwarf_vmatoa64 (high_bits, uvalue, buf, sizeof (buf)));
 	}
       if ((do_loc || do_debug_loc || do_debug_ranges)
 	  && num_debug_info_entries == 0)
@@ -1448,16 +1477,14 @@ read_and_display_attr_value (unsigned long attribute,
     case DW_FORM_ref_sig8:
       if (!do_loc)
 	{
-	  int i;
-	  printf (" signature: ");
-	  for (i = 0; i < 8; i++)
-	    {
-	      printf ("%02x", (unsigned) byte_get (data, 1));
-	      data += 1;
-	    }
+	  dwarf_vma high_bits;
+	  char buf[64];
+
+	  byte_get_64 (data, &high_bits, &uvalue);
+	  printf (" signature: 0x%s",
+		  dwarf_vmatoa64 (high_bits, uvalue, buf, sizeof (buf)));
 	}
-      else
-        data += 8;
+      data += 8;
       break;
 
     default:
@@ -1599,16 +1626,18 @@ read_and_display_attr_value (unsigned long attribute,
 	case DW_LANG_D:			printf ("(D)"); break;
 	  /* DWARF 4 values.  */
 	case DW_LANG_Python:		printf ("(Python)"); break;
+	  /* DWARF 5 values.  */
+	case DW_LANG_Go:		printf ("(Go)"); break;
 	  /* MIPS extension.  */
 	case DW_LANG_Mips_Assembler:	printf ("(MIPS assembler)"); break;
 	  /* UPC extension.  */
 	case DW_LANG_Upc:		printf ("(Unified Parallel C)"); break;
 	default:
 	  if (uvalue >= DW_LANG_lo_user && uvalue <= DW_LANG_hi_user)
-	    printf ("(implementation defined: %s)",
+	    printf (_("(implementation defined: %s)"),
 		    dwarf_vmatoa ("x", uvalue));
 	  else
-	    printf ("(Unknown: %s)", dwarf_vmatoa ("x", uvalue));
+	    printf (_("(Unknown: %s)"), dwarf_vmatoa ("x", uvalue));
 	  break;
 	}
       break;
@@ -1646,9 +1675,9 @@ read_and_display_attr_value (unsigned long attribute,
 	default:
 	  if (uvalue >= DW_ATE_lo_user
 	      && uvalue <= DW_ATE_hi_user)
-	    printf ("(user defined type)");
+	    printf (_("(user defined type)"));
 	  else
-	    printf ("(unknown type)");
+	    printf (_("(unknown type)"));
 	  break;
 	}
       break;
@@ -1660,7 +1689,7 @@ read_and_display_attr_value (unsigned long attribute,
 	case DW_ACCESS_protected:	printf ("(protected)"); break;
 	case DW_ACCESS_private:		printf ("(private)"); break;
 	default:
-	  printf ("(unknown accessibility)");
+	  printf (_("(unknown accessibility)"));
 	  break;
 	}
       break;
@@ -1671,7 +1700,7 @@ read_and_display_attr_value (unsigned long attribute,
 	case DW_VIS_local:		printf ("(local)"); break;
 	case DW_VIS_exported:		printf ("(exported)"); break;
 	case DW_VIS_qualified:		printf ("(qualified)"); break;
-	default:			printf ("(unknown visibility)"); break;
+	default:			printf (_("(unknown visibility)")); break;
 	}
       break;
 
@@ -1681,7 +1710,7 @@ read_and_display_attr_value (unsigned long attribute,
 	case DW_VIRTUALITY_none:	printf ("(none)"); break;
 	case DW_VIRTUALITY_virtual:	printf ("(virtual)"); break;
 	case DW_VIRTUALITY_pure_virtual:printf ("(pure_virtual)"); break;
-	default:			printf ("(unknown virtuality)"); break;
+	default:			printf (_("(unknown virtuality)")); break;
 	}
       break;
 
@@ -1692,7 +1721,7 @@ read_and_display_attr_value (unsigned long attribute,
 	case DW_ID_up_case:		printf ("(up_case)"); break;
 	case DW_ID_down_case:		printf ("(down_case)"); break;
 	case DW_ID_case_insensitive:	printf ("(case_insensitive)"); break;
-	default:			printf ("(unknown case)"); break;
+	default:			printf (_("(unknown case)")); break;
 	}
       break;
 
@@ -1705,16 +1734,16 @@ read_and_display_attr_value (unsigned long attribute,
 	default:
 	  if (uvalue >= DW_CC_lo_user
 	      && uvalue <= DW_CC_hi_user)
-	    printf ("(user defined)");
+	    printf (_("(user defined)"));
 	  else
-	    printf ("(unknown convention)");
+	    printf (_("(unknown convention)"));
 	}
       break;
 
     case DW_AT_ordering:
       switch (uvalue)
 	{
-	case -1: printf ("(undefined)"); break;
+	case -1: printf (_("(undefined)")); break;
 	case 0:  printf ("(row major)"); break;
 	case 1:  printf ("(column major)"); break;
 	}
@@ -1769,7 +1798,8 @@ read_and_display_attr_value (unsigned long attribute,
 
 	if (form == DW_FORM_ref1
 	    || form == DW_FORM_ref2
-	    || form == DW_FORM_ref4)
+	    || form == DW_FORM_ref4
+	    || form == DW_FORM_ref_udata)
 	  uvalue += cu_offset;
 
 	if (uvalue >= section->size)
@@ -1783,7 +1813,7 @@ read_and_display_attr_value (unsigned long attribute,
 
 	    abbrev_number = read_leb128 (section->start + uvalue, NULL, 0);
 
-	    printf ("[Abbrev Number: %ld", abbrev_number);
+	    printf (_("[Abbrev Number: %ld"), abbrev_number);
 	    for (entry = first_abbrev; entry != NULL; entry = entry->next)
 	      if (entry->entry == abbrev_number)
 		break;
@@ -2105,7 +2135,8 @@ process_debug_info (struct dwarf_section *section,
       dwarf_vma cu_offset;
       int offset_size;
       int initial_length_size;
-      unsigned char signature[8] = { 0 };
+      dwarf_vma signature_high = 0;
+      dwarf_vma signature_low = 0;
       dwarf_vma type_offset = 0;
 
       hdrptr = start;
@@ -2139,14 +2170,8 @@ process_debug_info (struct dwarf_section *section,
 
       if (do_types)
         {
-          int i;
-
-          for (i = 0; i < 8; i++)
-            {
-              signature[i] = byte_get (hdrptr, 1);
-              hdrptr += 1;
-            }
-
+          byte_get_64 (hdrptr, &signature_high, &signature_low);
+          hdrptr += 8;
           type_offset = byte_get (hdrptr, offset_size);
           hdrptr += offset_size;
         }
@@ -2183,13 +2208,13 @@ process_debug_info (struct dwarf_section *section,
 	  printf (_("   Pointer Size:  %d\n"), compunit.cu_pointer_size);
 	  if (do_types)
 	    {
-	      int i;
-	      printf (_("   Signature:     "));
-	      for (i = 0; i < 8; i++)
-	        printf ("%02x", signature[i]);
-	      printf ("\n");
-             printf (_("   Type Offset:   0x%s\n"),
-                     dwarf_vmatoa ("x", type_offset));
+	      char buf[64];
+
+	      printf (_("   Signature:     0x%s\n"),
+		      dwarf_vmatoa64 (signature_high, signature_low,
+				      buf, sizeof (buf)));
+	      printf (_("   Type Offset:   0x%s\n"),
+		      dwarf_vmatoa ("x", type_offset));
 	    }
 	}
 
@@ -2797,7 +2822,9 @@ display_debug_lines_decoded (struct dwarf_section *section,
       int offset_size;
       int i;
       File_Entry *file_table = NULL;
+      unsigned int n_files = 0;
       unsigned char **directory_table = NULL;
+      unsigned int n_directories = 0;
 
       hdrptr = data;
 
@@ -2882,7 +2909,6 @@ display_debug_lines_decoded (struct dwarf_section *section,
       data = standard_opcodes + linfo.li_opcode_base - 1;
       if (*data != 0)
         {
-          unsigned int n_directories = 0;
           unsigned char *ptr_directory_table = data;
 
 	  while (*data != 0)
@@ -2909,7 +2935,6 @@ display_debug_lines_decoded (struct dwarf_section *section,
       /* Traverse the File Name table just to count the entries.  */
       if (*data != 0)
         {
-          unsigned int n_files = 0;
           unsigned char *ptr_file_name_table = data;
 
           while (*data != 0)
@@ -2961,9 +2986,10 @@ display_debug_lines_decoded (struct dwarf_section *section,
             }
           else
             {
-              if (do_wide || strlen ((char *) directory_table[0]) < 76)
-		printf (_("CU: %s/%s:\n"), directory_table[0],
-			file_table[0].name);
+              unsigned int ix = file_table[0].directory_index;
+              const char *directory = ix ? (char *)directory_table[ix - 1] : ".";
+              if (do_wide || strlen (directory) < 76)
+		printf (_("CU: %s/%s:\n"), directory, file_table[0].name);
               else
 		printf ("%s:\n", file_table[0].name);
 
@@ -3040,21 +3066,36 @@ display_debug_lines_decoded (struct dwarf_section *section,
                     break;
                   case DW_LNE_define_file:
                     {
-                      unsigned int dir_index = 0;
+                      file_table = (File_Entry *) xrealloc
+                        (file_table, (n_files + 1) * sizeof (File_Entry));
 
                       ++state_machine_regs.last_file_entry;
+                      /* Source file name.  */
+                      file_table[n_files].name = op_code_data;
                       op_code_data += strlen ((char *) op_code_data) + 1;
-                      dir_index = read_leb128 (op_code_data, & bytes_read, 0);
+                      /* Directory index.  */
+                      file_table[n_files].directory_index =
+                        read_leb128 (op_code_data, & bytes_read, 0);
                       op_code_data += bytes_read;
-                      read_leb128 (op_code_data, & bytes_read, 0);
+                      /* Last modification time.  */
+                      file_table[n_files].modification_date =
+                        read_leb128 (op_code_data, & bytes_read, 0);
                       op_code_data += bytes_read;
-                      read_leb128 (op_code_data, & bytes_read, 0);
+                      /* File length.  */
+                      file_table[n_files].length =
+                        read_leb128 (op_code_data, & bytes_read, 0);
 
-                      printf ("%s:\n", directory_table[dir_index]);
+                      n_files++;
                       break;
                     }
+                  case DW_LNE_set_discriminator:
+                  case DW_LNE_HP_set_sequence:
+                    /* Simply ignored.  */
+                    break;
+
                   default:
-                    printf (_("UNKNOWN: length %d\n"), ext_op_code_len - bytes_read);
+                    printf (_("UNKNOWN (%u): length %d\n"),
+                            ext_op_code, ext_op_code_len - bytes_read);
                     break;
                   }
                 data += ext_op_code_len;
@@ -5108,6 +5149,9 @@ display_debug_frames (struct dwarf_section *section,
 		{
 		  fc->col_type[opa] = cie->col_type[opa];
 		  fc->col_offset[opa] = cie->col_offset[opa];
+		  if (do_debug_frames_interp
+		      && fc->col_type[opa] == DW_CFA_unreferenced)
+		    fc->col_type[opa] = DW_CFA_undefined;
 		}
 	      break;
 
@@ -5507,6 +5551,9 @@ display_gdb_index (struct dwarf_section *section,
       warn (_("Version 4 does not support case insensitive lookups.\n"));
       break;
     case 5:
+      warn (_("Version 5 does not include inlined functions.\n"));
+      break;
+    case 6:
       break;
     default:
       warn (_("Unsupported version %lu.\n"), (unsigned long) version);

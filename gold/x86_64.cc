@@ -1,6 +1,7 @@
 // x86_64.cc -- x86_64 target support for gold.
 
-// Copyright 2006, 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
+// Copyright 2006, 2007, 2008, 2009, 2010, 2011, 2012
+// Free Software Foundation, Inc.
 // Written by Ian Lance Taylor <iant@google.com>.
 
 // This file is part of gold.
@@ -49,10 +50,11 @@ using namespace gold;
 
 // A class to handle the PLT data.
 
+template<int size>
 class Output_data_plt_x86_64 : public Output_section_data
 {
  public:
-  typedef Output_data_reloc<elfcpp::SHT_RELA, true, 64, false> Reloc_section;
+  typedef Output_data_reloc<elfcpp::SHT_RELA, true, size, false> Reloc_section;
 
   Output_data_plt_x86_64(Layout* layout, Output_data_got<64, false>* got,
 			 Output_data_space* got_plt,
@@ -90,7 +92,7 @@ class Output_data_plt_x86_64 : public Output_section_data
   // Add an entry to the PLT for a local STT_GNU_IFUNC symbol.
   unsigned int
   add_local_ifunc_entry(Symbol_table* symtab, Layout*,
-			Sized_relobj_file<64, false>* relobj,
+			Sized_relobj_file<size, false>* relobj,
 			unsigned int local_sym_index);
 
   // Add the relocation for a PLT entry.
@@ -242,15 +244,16 @@ class Output_data_plt_x86_64 : public Output_section_data
 //   http://people.redhat.com/drepper/tls.pdf
 //   http://www.lsd.ic.unicamp.br/~oliva/writeups/TLS/RFC-TLSDESC-x86.txt
 
-class Target_x86_64 : public Sized_target<64, false>
+template<int size>
+class Target_x86_64 : public Sized_target<size, false>
 {
  public:
   // In the x86_64 ABI (p 68), it says "The AMD64 ABI architectures
   // uses only Elf64_Rela relocation entries with explicit addends."
-  typedef Output_data_reloc<elfcpp::SHT_RELA, true, 64, false> Reloc_section;
+  typedef Output_data_reloc<elfcpp::SHT_RELA, true, size, false> Reloc_section;
 
   Target_x86_64()
-    : Sized_target<64, false>(&x86_64_info),
+    : Sized_target<size, false>(&x86_64_info),
       got_(NULL), plt_(NULL), got_plt_(NULL), got_irelative_(NULL),
       got_tlsdesc_(NULL), global_offset_table_(NULL), rela_dyn_(NULL),
       rela_irelative_(NULL), copy_relocs_(elfcpp::R_X86_64_COPY),
@@ -266,7 +269,7 @@ class Target_x86_64 : public Sized_target<64, false>
   void
   gc_process_relocs(Symbol_table* symtab,
 	            Layout* layout,
-	            Sized_relobj_file<64, false>* object,
+	            Sized_relobj_file<size, false>* object,
 	            unsigned int data_shndx,
 	            unsigned int sh_type,
 	            const unsigned char* prelocs,
@@ -280,7 +283,7 @@ class Target_x86_64 : public Sized_target<64, false>
   void
   scan_relocs(Symbol_table* symtab,
 	      Layout* layout,
-	      Sized_relobj_file<64, false>* object,
+	      Sized_relobj_file<size, false>* object,
 	      unsigned int data_shndx,
 	      unsigned int sh_type,
 	      const unsigned char* prelocs,
@@ -301,14 +304,14 @@ class Target_x86_64 : public Sized_target<64, false>
 
   // Relocate a section.
   void
-  relocate_section(const Relocate_info<64, false>*,
+  relocate_section(const Relocate_info<size, false>*,
 		   unsigned int sh_type,
 		   const unsigned char* prelocs,
 		   size_t reloc_count,
 		   Output_section* output_section,
 		   bool needs_special_offset_handling,
 		   unsigned char* view,
-		   elfcpp::Elf_types<64>::Elf_Addr view_address,
+		   typename elfcpp::Elf_types<size>::Elf_Addr view_address,
 		   section_size_type view_size,
 		   const Reloc_symbol_changes*);
 
@@ -316,7 +319,7 @@ class Target_x86_64 : public Sized_target<64, false>
   void
   scan_relocatable_relocs(Symbol_table* symtab,
 			  Layout* layout,
-			  Sized_relobj_file<64, false>* object,
+			  Sized_relobj_file<size, false>* object,
 			  unsigned int data_shndx,
 			  unsigned int sh_type,
 			  const unsigned char* prelocs,
@@ -329,18 +332,19 @@ class Target_x86_64 : public Sized_target<64, false>
 
   // Relocate a section during a relocatable link.
   void
-  relocate_for_relocatable(const Relocate_info<64, false>*,
-			   unsigned int sh_type,
-			   const unsigned char* prelocs,
-			   size_t reloc_count,
-			   Output_section* output_section,
-			   off_t offset_in_output_section,
-			   const Relocatable_relocs*,
-			   unsigned char* view,
-			   elfcpp::Elf_types<64>::Elf_Addr view_address,
-			   section_size_type view_size,
-			   unsigned char* reloc_view,
-			   section_size_type reloc_view_size);
+  relocate_for_relocatable(
+      const Relocate_info<size, false>*,
+      unsigned int sh_type,
+      const unsigned char* prelocs,
+      size_t reloc_count,
+      Output_section* output_section,
+      off_t offset_in_output_section,
+      const Relocatable_relocs*,
+      unsigned char* view,
+      typename elfcpp::Elf_types<size>::Elf_Addr view_address,
+      section_size_type view_size,
+      unsigned char* reloc_view,
+      section_size_type reloc_view_size);
 
   // Return a string used to fill a code section with nops.
   std::string
@@ -425,7 +429,7 @@ class Target_x86_64 : public Sized_target<64, false>
   plt_entry_size() const;
 
   // Create the GOT section for an incremental update.
-  Output_data_got<64, false>*
+  Output_data_got_base*
   init_got_plt_for_update(Symbol_table* symtab,
 			  Layout* layout,
 			  unsigned int got_count,
@@ -435,7 +439,7 @@ class Target_x86_64 : public Sized_target<64, false>
   // necessary dynamic relocations.
   void
   reserve_local_got_entry(unsigned int got_index,
-		          Sized_relobj<64, false>* obj,
+		          Sized_relobj<size, false>* obj,
 			  unsigned int r_sym,
 			  unsigned int got_type);
 
@@ -456,18 +460,18 @@ class Target_x86_64 : public Sized_target<64, false>
 
   // Apply an incremental relocation.
   void
-  apply_relocation(const Relocate_info<64, false>* relinfo,
-		   elfcpp::Elf_types<64>::Elf_Addr r_offset,
+  apply_relocation(const Relocate_info<size, false>* relinfo,
+		   typename elfcpp::Elf_types<size>::Elf_Addr r_offset,
 		   unsigned int r_type,
-		   elfcpp::Elf_types<64>::Elf_Swxword r_addend,
+		   typename elfcpp::Elf_types<size>::Elf_Swxword r_addend,
 		   const Symbol* gsym,
 		   unsigned char* view,
-		   elfcpp::Elf_types<64>::Elf_Addr address,
+		   typename elfcpp::Elf_types<size>::Elf_Addr address,
 		   section_size_type view_size);
 
   // Add a new reloc argument, returning the index in the vector.
   size_t
-  add_tlsdesc_info(Sized_relobj_file<64, false>* object, unsigned int r_sym)
+  add_tlsdesc_info(Sized_relobj_file<size, false>* object, unsigned int r_sym)
   {
     this->tlsdesc_reloc_info_.push_back(Tlsdesc_info(object, r_sym));
     return this->tlsdesc_reloc_info_.size() - 1;
@@ -487,47 +491,48 @@ class Target_x86_64 : public Sized_target<64, false>
 
     inline void
     local(Symbol_table* symtab, Layout* layout, Target_x86_64* target,
-	  Sized_relobj_file<64, false>* object,
+	  Sized_relobj_file<size, false>* object,
 	  unsigned int data_shndx,
 	  Output_section* output_section,
-	  const elfcpp::Rela<64, false>& reloc, unsigned int r_type,
-	  const elfcpp::Sym<64, false>& lsym);
+	  const elfcpp::Rela<size, false>& reloc, unsigned int r_type,
+	  const elfcpp::Sym<size, false>& lsym);
 
     inline void
     global(Symbol_table* symtab, Layout* layout, Target_x86_64* target,
-	   Sized_relobj_file<64, false>* object,
+	   Sized_relobj_file<size, false>* object,
 	   unsigned int data_shndx,
 	   Output_section* output_section,
-	   const elfcpp::Rela<64, false>& reloc, unsigned int r_type,
+	   const elfcpp::Rela<size, false>& reloc, unsigned int r_type,
 	   Symbol* gsym);
 
     inline bool
     local_reloc_may_be_function_pointer(Symbol_table* symtab, Layout* layout,
 					Target_x86_64* target,
-			        	Sized_relobj_file<64, false>* object,
+			        	Sized_relobj_file<size, false>* object,
 		  			unsigned int data_shndx,
 		  			Output_section* output_section,
-		  			const elfcpp::Rela<64, false>& reloc,
+		  			const elfcpp::Rela<size, false>& reloc,
 					unsigned int r_type,
-				  	const elfcpp::Sym<64, false>& lsym);
+				  	const elfcpp::Sym<size, false>& lsym);
 
     inline bool
     global_reloc_may_be_function_pointer(Symbol_table* symtab, Layout* layout,
  					 Target_x86_64* target,
-         	   			 Sized_relobj_file<64, false>* object,
+         	   			 Sized_relobj_file<size, false>* object,
         	   			 unsigned int data_shndx,
 		   			 Output_section* output_section,
-		   			 const elfcpp::Rela<64, false>& reloc,
+		   			 const elfcpp::Rela<size, false>& reloc,
 					 unsigned int r_type,
 		  			 Symbol* gsym);
 
   private:
     static void
-    unsupported_reloc_local(Sized_relobj_file<64, false>*, unsigned int r_type);
+    unsupported_reloc_local(Sized_relobj_file<size, false>*,
+			    unsigned int r_type);
 
     static void
-    unsupported_reloc_global(Sized_relobj_file<64, false>*, unsigned int r_type,
-			     Symbol*);
+    unsupported_reloc_global(Sized_relobj_file<size, false>*,
+			     unsigned int r_type, Symbol*);
 
     void
     check_non_pic(Relobj*, unsigned int r_type, Symbol*);
@@ -536,7 +541,7 @@ class Target_x86_64 : public Sized_target<64, false>
     possible_function_pointer_reloc(unsigned int r_type);
 
     bool
-    reloc_needs_plt_for_ifunc(Sized_relobj_file<64, false>*,
+    reloc_needs_plt_for_ifunc(Sized_relobj_file<size, false>*,
 			      unsigned int r_type);
 
     // Whether we have issued an error about a non-PIC compilation.
@@ -563,76 +568,77 @@ class Target_x86_64 : public Sized_target<64, false>
     // Do a relocation.  Return false if the caller should not issue
     // any warnings about this relocation.
     inline bool
-    relocate(const Relocate_info<64, false>*, Target_x86_64*, Output_section*,
-	     size_t relnum, const elfcpp::Rela<64, false>&,
-	     unsigned int r_type, const Sized_symbol<64>*,
-	     const Symbol_value<64>*,
-	     unsigned char*, elfcpp::Elf_types<64>::Elf_Addr,
+    relocate(const Relocate_info<size, false>*, Target_x86_64*,
+	     Output_section*,
+	     size_t relnum, const elfcpp::Rela<size, false>&,
+	     unsigned int r_type, const Sized_symbol<size>*,
+	     const Symbol_value<size>*,
+	     unsigned char*, typename elfcpp::Elf_types<size>::Elf_Addr,
 	     section_size_type);
 
    private:
     // Do a TLS relocation.
     inline void
-    relocate_tls(const Relocate_info<64, false>*, Target_x86_64*,
-                 size_t relnum, const elfcpp::Rela<64, false>&,
-		 unsigned int r_type, const Sized_symbol<64>*,
-		 const Symbol_value<64>*,
-		 unsigned char*, elfcpp::Elf_types<64>::Elf_Addr,
+    relocate_tls(const Relocate_info<size, false>*, Target_x86_64*,
+                 size_t relnum, const elfcpp::Rela<size, false>&,
+		 unsigned int r_type, const Sized_symbol<size>*,
+		 const Symbol_value<size>*,
+		 unsigned char*, typename elfcpp::Elf_types<size>::Elf_Addr,
 		 section_size_type);
 
     // Do a TLS General-Dynamic to Initial-Exec transition.
     inline void
-    tls_gd_to_ie(const Relocate_info<64, false>*, size_t relnum,
+    tls_gd_to_ie(const Relocate_info<size, false>*, size_t relnum,
 		 Output_segment* tls_segment,
-		 const elfcpp::Rela<64, false>&, unsigned int r_type,
-		 elfcpp::Elf_types<64>::Elf_Addr value,
+		 const elfcpp::Rela<size, false>&, unsigned int r_type,
+		 typename elfcpp::Elf_types<size>::Elf_Addr value,
 		 unsigned char* view,
-		 elfcpp::Elf_types<64>::Elf_Addr,
+		 typename elfcpp::Elf_types<size>::Elf_Addr,
 		 section_size_type view_size);
 
     // Do a TLS General-Dynamic to Local-Exec transition.
     inline void
-    tls_gd_to_le(const Relocate_info<64, false>*, size_t relnum,
+    tls_gd_to_le(const Relocate_info<size, false>*, size_t relnum,
 		 Output_segment* tls_segment,
-		 const elfcpp::Rela<64, false>&, unsigned int r_type,
-		 elfcpp::Elf_types<64>::Elf_Addr value,
+		 const elfcpp::Rela<size, false>&, unsigned int r_type,
+		 typename elfcpp::Elf_types<size>::Elf_Addr value,
 		 unsigned char* view,
 		 section_size_type view_size);
 
     // Do a TLSDESC-style General-Dynamic to Initial-Exec transition.
     inline void
-    tls_desc_gd_to_ie(const Relocate_info<64, false>*, size_t relnum,
+    tls_desc_gd_to_ie(const Relocate_info<size, false>*, size_t relnum,
 		      Output_segment* tls_segment,
-		      const elfcpp::Rela<64, false>&, unsigned int r_type,
-		      elfcpp::Elf_types<64>::Elf_Addr value,
+		      const elfcpp::Rela<size, false>&, unsigned int r_type,
+		      typename elfcpp::Elf_types<size>::Elf_Addr value,
 		      unsigned char* view,
-		      elfcpp::Elf_types<64>::Elf_Addr,
+		      typename elfcpp::Elf_types<size>::Elf_Addr,
 		      section_size_type view_size);
 
     // Do a TLSDESC-style General-Dynamic to Local-Exec transition.
     inline void
-    tls_desc_gd_to_le(const Relocate_info<64, false>*, size_t relnum,
+    tls_desc_gd_to_le(const Relocate_info<size, false>*, size_t relnum,
 		      Output_segment* tls_segment,
-		      const elfcpp::Rela<64, false>&, unsigned int r_type,
-		      elfcpp::Elf_types<64>::Elf_Addr value,
+		      const elfcpp::Rela<size, false>&, unsigned int r_type,
+		      typename elfcpp::Elf_types<size>::Elf_Addr value,
 		      unsigned char* view,
 		      section_size_type view_size);
 
     // Do a TLS Local-Dynamic to Local-Exec transition.
     inline void
-    tls_ld_to_le(const Relocate_info<64, false>*, size_t relnum,
+    tls_ld_to_le(const Relocate_info<size, false>*, size_t relnum,
 		 Output_segment* tls_segment,
-		 const elfcpp::Rela<64, false>&, unsigned int r_type,
-		 elfcpp::Elf_types<64>::Elf_Addr value,
+		 const elfcpp::Rela<size, false>&, unsigned int r_type,
+		 typename elfcpp::Elf_types<size>::Elf_Addr value,
 		 unsigned char* view,
 		 section_size_type view_size);
 
     // Do a TLS Initial-Exec to Local-Exec transition.
     static inline void
-    tls_ie_to_le(const Relocate_info<64, false>*, size_t relnum,
+    tls_ie_to_le(const Relocate_info<size, false>*, size_t relnum,
 		 Output_segment* tls_segment,
-		 const elfcpp::Rela<64, false>&, unsigned int r_type,
-		 elfcpp::Elf_types<64>::Elf_Addr value,
+		 const elfcpp::Rela<size, false>&, unsigned int r_type,
+		 typename elfcpp::Elf_types<size>::Elf_Addr value,
 		 unsigned char* view,
 		 section_size_type view_size);
 
@@ -686,7 +692,7 @@ class Target_x86_64 : public Sized_target<64, false>
   // Create a PLT entry for a local STT_GNU_IFUNC symbol.
   void
   make_local_ifunc_plt_entry(Symbol_table*, Layout*,
-			     Sized_relobj_file<64, false>* relobj,
+			     Sized_relobj_file<size, false>* relobj,
 			     unsigned int local_sym_index);
 
   // Define the _TLS_MODULE_BASE_ symbol in the TLS segment.
@@ -700,10 +706,10 @@ class Target_x86_64 : public Sized_target<64, false>
   // Create a GOT entry for the TLS module index.
   unsigned int
   got_mod_index_entry(Symbol_table* symtab, Layout* layout,
-		      Sized_relobj_file<64, false>* object);
+		      Sized_relobj_file<size, false>* object);
 
   // Get the PLT section.
-  Output_data_plt_x86_64*
+  Output_data_plt_x86_64<size>*
   plt_section() const
   {
     gold_assert(this->plt_ != NULL);
@@ -725,12 +731,12 @@ class Target_x86_64 : public Sized_target<64, false>
   // Add a potential copy relocation.
   void
   copy_reloc(Symbol_table* symtab, Layout* layout,
-             Sized_relobj_file<64, false>* object,
+             Sized_relobj_file<size, false>* object,
 	     unsigned int shndx, Output_section* output_section,
-	     Symbol* sym, const elfcpp::Rela<64, false>& reloc)
+	     Symbol* sym, const elfcpp::Rela<size, false>& reloc)
   {
     this->copy_relocs_.copy_reloc(symtab, layout,
-				  symtab->get_sized_symbol<64>(sym),
+				  symtab->get_sized_symbol<size>(sym),
 				  object, shndx, output_section,
 				  reloc, this->rela_dyn_section(layout));
   }
@@ -756,12 +762,12 @@ class Target_x86_64 : public Sized_target<64, false>
   // R_X86_64_TLSDESC against a local symbol.
   struct Tlsdesc_info
   {
-    Tlsdesc_info(Sized_relobj_file<64, false>* a_object, unsigned int a_r_sym)
+    Tlsdesc_info(Sized_relobj_file<size, false>* a_object, unsigned int a_r_sym)
       : object(a_object), r_sym(a_r_sym)
     { }
 
     // The object in which the local symbol is defined.
-    Sized_relobj_file<64, false>* object;
+    Sized_relobj_file<size, false>* object;
     // The local symbol index in the object.
     unsigned int r_sym;
   };
@@ -769,7 +775,7 @@ class Target_x86_64 : public Sized_target<64, false>
   // The GOT section.
   Output_data_got<64, false>* got_;
   // The PLT section.
-  Output_data_plt_x86_64* plt_;
+  Output_data_plt_x86_64<size>* plt_;
   // The GOT PLT section.
   Output_data_space* got_plt_;
   // The GOT section for IRELATIVE relocations.
@@ -783,7 +789,7 @@ class Target_x86_64 : public Sized_target<64, false>
   // The section to use for IRELATIVE relocs.
   Reloc_section* rela_irelative_;
   // Relocs saved to avoid a COPY reloc.
-  Copy_relocs<elfcpp::SHT_RELA, 64, false> copy_relocs_;
+  Copy_relocs<elfcpp::SHT_RELA, size, false> copy_relocs_;
   // Space for variables copied with a COPY reloc.
   Output_data_space* dynbss_;
   // Offset of the GOT entry for the TLS module index.
@@ -796,7 +802,8 @@ class Target_x86_64 : public Sized_target<64, false>
   bool tls_base_symbol_defined_;
 };
 
-const Target::Target_info Target_x86_64::x86_64_info =
+template<>
+const Target::Target_info Target_x86_64<64>::x86_64_info =
 {
   64,			// size
   false,		// is_big_endian
@@ -819,11 +826,36 @@ const Target::Target_info Target_x86_64::x86_64_info =
   NULL			// attributes_vendor
 };
 
+template<>
+const Target::Target_info Target_x86_64<32>::x86_64_info =
+{
+  32,			// size
+  false,		// is_big_endian
+  elfcpp::EM_X86_64,	// machine_code
+  false,		// has_make_symbol
+  false,		// has_resolve
+  true,			// has_code_fill
+  true,			// is_default_stack_executable
+  true,			// can_icf_inline_merge_sections
+  '\0',			// wrap_char
+  "/libx32/ldx32.so.1", // program interpreter
+  0x400000,		// default_text_segment_address
+  0x1000,		// abi_pagesize (overridable by -z max-page-size)
+  0x1000,		// common_pagesize (overridable by -z common-page-size)
+  elfcpp::SHN_UNDEF,	// small_common_shndx
+  elfcpp::SHN_X86_64_LCOMMON,	// large_common_shndx
+  0,			// small_common_section_flags
+  elfcpp::SHF_X86_64_LARGE,	// large_common_section_flags
+  NULL,			// attributes_section
+  NULL			// attributes_vendor
+};
+
 // This is called when a new output section is created.  This is where
 // we handle the SHF_X86_64_LARGE.
 
+template<int size>
 void
-Target_x86_64::do_new_output_section(Output_section* os) const
+Target_x86_64<size>::do_new_output_section(Output_section* os) const
 {
   if ((os->flags() & elfcpp::SHF_X86_64_LARGE) != 0)
     os->set_is_large_section();
@@ -831,8 +863,9 @@ Target_x86_64::do_new_output_section(Output_section* os) const
 
 // Get the GOT section, creating it if necessary.
 
+template<int size>
 Output_data_got<64, false>*
-Target_x86_64::got_section(Symbol_table* symtab, Layout* layout)
+Target_x86_64<size>::got_section(Symbol_table* symtab, Layout* layout)
 {
   if (this->got_ == NULL)
     {
@@ -906,8 +939,9 @@ Target_x86_64::got_section(Symbol_table* symtab, Layout* layout)
 
 // Get the dynamic reloc section, creating it if necessary.
 
-Target_x86_64::Reloc_section*
-Target_x86_64::rela_dyn_section(Layout* layout)
+template<int size>
+typename Target_x86_64<size>::Reloc_section*
+Target_x86_64<size>::rela_dyn_section(Layout* layout)
 {
   if (this->rela_dyn_ == NULL)
     {
@@ -926,8 +960,9 @@ Target_x86_64::rela_dyn_section(Layout* layout)
 // that they can refer to global variables initialized by those
 // relocs.
 
-Target_x86_64::Reloc_section*
-Target_x86_64::rela_irelative_section(Layout* layout)
+template<int size>
+typename Target_x86_64<size>::Reloc_section*
+Target_x86_64<size>::rela_irelative_section(Layout* layout)
 {
   if (this->rela_irelative_ == NULL)
     {
@@ -945,8 +980,9 @@ Target_x86_64::rela_irelative_section(Layout* layout)
 
 // Initialize the PLT section.
 
+template<int size>
 void
-Output_data_plt_x86_64::init(Layout* layout)
+Output_data_plt_x86_64<size>::init(Layout* layout)
 {
   this->rel_ = new Reloc_section(false);
   layout->add_output_section_data(".rela.plt", elfcpp::SHT_RELA,
@@ -959,17 +995,19 @@ Output_data_plt_x86_64::init(Layout* layout)
 				 plt_eh_frame_fde, plt_eh_frame_fde_size);
 }
 
+template<int size>
 void
-Output_data_plt_x86_64::do_adjust_output_section(Output_section* os)
+Output_data_plt_x86_64<size>::do_adjust_output_section(Output_section* os)
 {
   os->set_entsize(plt_entry_size);
 }
 
 // Add an entry to the PLT.
 
+template<int size>
 void
-Output_data_plt_x86_64::add_entry(Symbol_table* symtab, Layout* layout,
-				  Symbol* gsym)
+Output_data_plt_x86_64<size>::add_entry(Symbol_table* symtab, Layout* layout,
+					Symbol* gsym)
 {
   gold_assert(!gsym->has_plt_offset());
 
@@ -1044,11 +1082,12 @@ Output_data_plt_x86_64::add_entry(Symbol_table* symtab, Layout* layout,
 // Add an entry to the PLT for a local STT_GNU_IFUNC symbol.  Return
 // the PLT offset.
 
+template<int size>
 unsigned int
-Output_data_plt_x86_64::add_local_ifunc_entry(
+Output_data_plt_x86_64<size>::add_local_ifunc_entry(
     Symbol_table* symtab,
     Layout* layout,
-    Sized_relobj_file<64, false>* relobj,
+    Sized_relobj_file<size, false>* relobj,
     unsigned int local_sym_index)
 {
   unsigned int plt_offset = this->irelative_count_ * plt_entry_size;
@@ -1071,9 +1110,12 @@ Output_data_plt_x86_64::add_local_ifunc_entry(
 
 // Add the relocation for a PLT entry.
 
+template<int size>
 void
-Output_data_plt_x86_64::add_relocation(Symbol_table* symtab, Layout* layout,
-				       Symbol* gsym, unsigned int got_offset)
+Output_data_plt_x86_64<size>::add_relocation(Symbol_table* symtab,
+					     Layout* layout,
+					     Symbol* gsym,
+					     unsigned int got_offset)
 {
   if (gsym->type() == elfcpp::STT_GNU_IFUNC
       && gsym->can_use_relative_reloc(false))
@@ -1093,8 +1135,9 @@ Output_data_plt_x86_64::add_relocation(Symbol_table* symtab, Layout* layout,
 // Return where the TLSDESC relocations should go, creating it if
 // necessary.  These follow the JUMP_SLOT relocations.
 
-Output_data_plt_x86_64::Reloc_section*
-Output_data_plt_x86_64::rela_tlsdesc(Layout* layout)
+template<int size>
+typename Output_data_plt_x86_64<size>::Reloc_section*
+Output_data_plt_x86_64<size>::rela_tlsdesc(Layout* layout)
 {
   if (this->tlsdesc_rel_ == NULL)
     {
@@ -1111,8 +1154,10 @@ Output_data_plt_x86_64::rela_tlsdesc(Layout* layout)
 // Return where the IRELATIVE relocations should go in the PLT.  These
 // follow the JUMP_SLOT and the TLSDESC relocations.
 
-Output_data_plt_x86_64::Reloc_section*
-Output_data_plt_x86_64::rela_irelative(Symbol_table* symtab, Layout* layout)
+template<int size>
+typename Output_data_plt_x86_64<size>::Reloc_section*
+Output_data_plt_x86_64<size>::rela_irelative(Symbol_table* symtab,
+					     Layout* layout)
 {
   if (this->irelative_rel_ == NULL)
     {
@@ -1150,8 +1195,9 @@ Output_data_plt_x86_64::rela_irelative(Symbol_table* symtab, Layout* layout)
 
 // Return the PLT address to use for a global symbol.
 
+template<int size>
 uint64_t
-Output_data_plt_x86_64::address_for_global(const Symbol* gsym)
+Output_data_plt_x86_64<size>::address_for_global(const Symbol* gsym)
 {
   uint64_t offset = 0;
   if (gsym->type() == elfcpp::STT_GNU_IFUNC
@@ -1163,15 +1209,17 @@ Output_data_plt_x86_64::address_for_global(const Symbol* gsym)
 // Return the PLT address to use for a local symbol.  These are always
 // IRELATIVE relocs.
 
+template<int size>
 uint64_t
-Output_data_plt_x86_64::address_for_local(const Relobj*, unsigned int)
+Output_data_plt_x86_64<size>::address_for_local(const Relobj*, unsigned int)
 {
   return this->address() + (this->count_ + 1) * plt_entry_size;
 }
 
 // Set the final size.
+template<int size>
 void
-Output_data_plt_x86_64::set_final_data_size()
+Output_data_plt_x86_64<size>::set_final_data_size()
 {
   unsigned int count = this->count_ + this->irelative_count_;
   if (this->has_tlsdesc_entry())
@@ -1181,7 +1229,9 @@ Output_data_plt_x86_64::set_final_data_size()
 
 // The first entry in the PLT for an executable.
 
-const unsigned char Output_data_plt_x86_64::first_plt_entry[plt_entry_size] =
+template<int size>
+const unsigned char
+Output_data_plt_x86_64<size>::first_plt_entry[plt_entry_size] =
 {
   // From AMD64 ABI Draft 0.98, page 76
   0xff, 0x35,	// pushq contents of memory address
@@ -1193,7 +1243,9 @@ const unsigned char Output_data_plt_x86_64::first_plt_entry[plt_entry_size] =
 
 // Subsequent entries in the PLT for an executable.
 
-const unsigned char Output_data_plt_x86_64::plt_entry[plt_entry_size] =
+template<int size>
+const unsigned char
+Output_data_plt_x86_64<size>::plt_entry[plt_entry_size] =
 {
   // From AMD64 ABI Draft 0.98, page 76
   0xff, 0x25,	// jmpq indirect
@@ -1206,7 +1258,9 @@ const unsigned char Output_data_plt_x86_64::plt_entry[plt_entry_size] =
 
 // The reserved TLSDESC entry in the PLT for an executable.
 
-const unsigned char Output_data_plt_x86_64::tlsdesc_plt_entry[plt_entry_size] =
+template<int size>
+const unsigned char
+Output_data_plt_x86_64<size>::tlsdesc_plt_entry[plt_entry_size] =
 {
   // From Alexandre Oliva, "Thread-Local Storage Descriptors for IA32
   // and AMD64/EM64T", Version 0.9.4 (2005-10-10).
@@ -1220,8 +1274,9 @@ const unsigned char Output_data_plt_x86_64::tlsdesc_plt_entry[plt_entry_size] =
 
 // The .eh_frame unwind information for the PLT.
 
+template<int size>
 const unsigned char 
-Output_data_plt_x86_64::plt_eh_frame_cie[plt_eh_frame_cie_size] =
+Output_data_plt_x86_64<size>::plt_eh_frame_cie[plt_eh_frame_cie_size] =
 {
   1,				// CIE version.
   'z',				// Augmentation: augmentation size included.
@@ -1239,8 +1294,9 @@ Output_data_plt_x86_64::plt_eh_frame_cie[plt_eh_frame_cie_size] =
   elfcpp::DW_CFA_nop
 };
 
+template<int size>
 const unsigned char
-Output_data_plt_x86_64::plt_eh_frame_fde[plt_eh_frame_fde_size] =
+Output_data_plt_x86_64<size>::plt_eh_frame_fde[plt_eh_frame_fde_size] =
 {
   0, 0, 0, 0,				// Replaced with offset to .plt.
   0, 0, 0, 0,				// Replaced with size of .plt.
@@ -1269,8 +1325,9 @@ Output_data_plt_x86_64::plt_eh_frame_fde[plt_eh_frame_fde_size] =
 // Write out the PLT.  This uses the hand-coded instructions above,
 // and adjusts them as needed.  This is specified by the AMD64 ABI.
 
+template<int size>
 void
-Output_data_plt_x86_64::do_write(Output_file* of)
+Output_data_plt_x86_64<size>::do_write(Output_file* of)
 {
   const off_t offset = this->offset();
   const section_size_type oview_size =
@@ -1290,13 +1347,14 @@ Output_data_plt_x86_64::do_write(Output_file* of)
   unsigned char* pov = oview;
 
   // The base address of the .plt section.
-  elfcpp::Elf_types<64>::Elf_Addr plt_address = this->address();
+  typename elfcpp::Elf_types<size>::Elf_Addr plt_address = this->address();
   // The base address of the .got section.
-  elfcpp::Elf_types<64>::Elf_Addr got_base = this->got_->address();
+  typename elfcpp::Elf_types<size>::Elf_Addr got_base = this->got_->address();
   // The base address of the PLT portion of the .got section,
   // which is where the GOT pointer will point, and where the
   // three reserved GOT entries are located.
-  elfcpp::Elf_types<64>::Elf_Addr got_address = this->got_plt_->address();
+  typename elfcpp::Elf_types<size>::Elf_Addr got_address
+    = this->got_plt_->address();
 
   memcpy(pov, first_plt_entry, plt_entry_size);
   // We do a jmp relative to the PC at the end of this instruction.
@@ -1373,17 +1431,18 @@ Output_data_plt_x86_64::do_write(Output_file* of)
 
 // Create the PLT section.
 
+template<int size>
 void
-Target_x86_64::make_plt_section(Symbol_table* symtab, Layout* layout)
+Target_x86_64<size>::make_plt_section(Symbol_table* symtab, Layout* layout)
 {
   if (this->plt_ == NULL)
     {
       // Create the GOT sections first.
       this->got_section(symtab, layout);
 
-      this->plt_ = new Output_data_plt_x86_64(layout, this->got_,
-					      this->got_plt_,
-					      this->got_irelative_);
+      this->plt_ = new Output_data_plt_x86_64<size>(layout, this->got_,
+						    this->got_plt_,
+						    this->got_irelative_);
       layout->add_output_section_data(".plt", elfcpp::SHT_PROGBITS,
 				      (elfcpp::SHF_ALLOC
 				       | elfcpp::SHF_EXECINSTR),
@@ -1397,17 +1456,19 @@ Target_x86_64::make_plt_section(Symbol_table* symtab, Layout* layout)
 
 // Return the section for TLSDESC relocations.
 
-Target_x86_64::Reloc_section*
-Target_x86_64::rela_tlsdesc_section(Layout* layout) const
+template<int size>
+typename Target_x86_64<size>::Reloc_section*
+Target_x86_64<size>::rela_tlsdesc_section(Layout* layout) const
 {
   return this->plt_section()->rela_tlsdesc(layout);
 }
 
 // Create a PLT entry for a global symbol.
 
+template<int size>
 void
-Target_x86_64::make_plt_entry(Symbol_table* symtab, Layout* layout,
-                              Symbol* gsym)
+Target_x86_64<size>::make_plt_entry(Symbol_table* symtab, Layout* layout,
+				    Symbol* gsym)
 {
   if (gsym->has_plt_offset())
     return;
@@ -1420,10 +1481,12 @@ Target_x86_64::make_plt_entry(Symbol_table* symtab, Layout* layout,
 
 // Make a PLT entry for a local STT_GNU_IFUNC symbol.
 
+template<int size>
 void
-Target_x86_64::make_local_ifunc_plt_entry(Symbol_table* symtab, Layout* layout,
-					  Sized_relobj_file<64, false>* relobj,
-					  unsigned int local_sym_index)
+Target_x86_64<size>::make_local_ifunc_plt_entry(
+    Symbol_table* symtab, Layout* layout,
+    Sized_relobj_file<size, false>* relobj,
+    unsigned int local_sym_index)
 {
   if (relobj->local_has_plt_offset(local_sym_index))
     return;
@@ -1437,8 +1500,9 @@ Target_x86_64::make_local_ifunc_plt_entry(Symbol_table* symtab, Layout* layout,
 
 // Return the number of entries in the PLT.
 
+template<int size>
 unsigned int
-Target_x86_64::plt_entry_count() const
+Target_x86_64<size>::plt_entry_count() const
 {
   if (this->plt_ == NULL)
     return 0;
@@ -1447,24 +1511,27 @@ Target_x86_64::plt_entry_count() const
 
 // Return the offset of the first non-reserved PLT entry.
 
+template<int size>
 unsigned int
-Target_x86_64::first_plt_entry_offset() const
+Target_x86_64<size>::first_plt_entry_offset() const
 {
-  return Output_data_plt_x86_64::first_plt_entry_offset();
+  return Output_data_plt_x86_64<size>::first_plt_entry_offset();
 }
 
 // Return the size of each PLT entry.
 
+template<int size>
 unsigned int
-Target_x86_64::plt_entry_size() const
+Target_x86_64<size>::plt_entry_size() const
 {
-  return Output_data_plt_x86_64::get_plt_entry_size();
+  return Output_data_plt_x86_64<size>::get_plt_entry_size();
 }
 
 // Create the GOT and PLT sections for an incremental update.
 
-Output_data_got<64, false>*
-Target_x86_64::init_got_plt_for_update(Symbol_table* symtab,
+template<int size>
+Output_data_got_base*
+Target_x86_64<size>::init_got_plt_for_update(Symbol_table* symtab,
 				       Layout* layout,
 				       unsigned int got_count,
 				       unsigned int plt_count)
@@ -1514,8 +1581,10 @@ Target_x86_64::init_got_plt_for_update(Symbol_table* symtab,
 				  ORDER_NON_RELRO_FIRST, false);
 
   // Create the PLT section.
-  this->plt_ = new Output_data_plt_x86_64(layout, this->got_, this->got_plt_,
-					  this->got_irelative_, plt_count);
+  this->plt_ = new Output_data_plt_x86_64<size>(layout, this->got_,
+						this->got_plt_,
+						this->got_irelative_,
+						plt_count);
   layout->add_output_section_data(".plt", elfcpp::SHT_PROGBITS,
 				  elfcpp::SHF_ALLOC | elfcpp::SHF_EXECINSTR,
 				  this->plt_, ORDER_PLT, false);
@@ -1533,10 +1602,11 @@ Target_x86_64::init_got_plt_for_update(Symbol_table* symtab,
 // Reserve a GOT entry for a local symbol, and regenerate any
 // necessary dynamic relocations.
 
+template<int size>
 void
-Target_x86_64::reserve_local_got_entry(
+Target_x86_64<size>::reserve_local_got_entry(
     unsigned int got_index,
-    Sized_relobj<64, false>* obj,
+    Sized_relobj<size, false>* obj,
     unsigned int r_sym,
     unsigned int got_type)
 {
@@ -1549,7 +1619,7 @@ Target_x86_64::reserve_local_got_entry(
     case GOT_TYPE_STANDARD:
       if (parameters->options().output_is_position_independent())
 	rela_dyn->add_local_relative(obj, r_sym, elfcpp::R_X86_64_RELATIVE,
-				     this->got_, got_offset, 0);
+				     this->got_, got_offset, 0, false);
       break;
     case GOT_TYPE_TLS_OFFSET:
       rela_dyn->add_local(obj, r_sym, elfcpp::R_X86_64_TPOFF64,
@@ -1574,9 +1644,11 @@ Target_x86_64::reserve_local_got_entry(
 // Reserve a GOT entry for a global symbol, and regenerate any
 // necessary dynamic relocations.
 
+template<int size>
 void
-Target_x86_64::reserve_global_got_entry(unsigned int got_index, Symbol* gsym,
-					unsigned int got_type)
+Target_x86_64<size>::reserve_global_got_entry(unsigned int got_index,
+					      Symbol* gsym,
+					      unsigned int got_type)
 {
   unsigned int got_offset = got_index * 8;
   Reloc_section* rela_dyn = this->rela_dyn_section(NULL);
@@ -1595,24 +1667,24 @@ Target_x86_64::reserve_global_got_entry(unsigned int got_index, Symbol* gsym,
 				 this->got_, got_offset, 0);
 	  else
 	    rela_dyn->add_global_relative(gsym, elfcpp::R_X86_64_RELATIVE,
-					  this->got_, got_offset, 0);
+					  this->got_, got_offset, 0, false);
 	}
       break;
     case GOT_TYPE_TLS_OFFSET:
       rela_dyn->add_global_relative(gsym, elfcpp::R_X86_64_TPOFF64,
-				    this->got_, got_offset, 0);
+				    this->got_, got_offset, 0, false);
       break;
     case GOT_TYPE_TLS_PAIR:
       this->got_->reserve_slot(got_index + 1);
       rela_dyn->add_global_relative(gsym, elfcpp::R_X86_64_DTPMOD64,
-				    this->got_, got_offset, 0);
+				    this->got_, got_offset, 0, false);
       rela_dyn->add_global_relative(gsym, elfcpp::R_X86_64_DTPOFF64,
-				    this->got_, got_offset + 8, 0);
+				    this->got_, got_offset + 8, 0, false);
       break;
     case GOT_TYPE_TLS_DESC:
       this->got_->reserve_slot(got_index + 1);
       rela_dyn->add_global_relative(gsym, elfcpp::R_X86_64_TLSDESC,
-				    this->got_, got_offset, 0);
+				    this->got_, got_offset, 0, false);
       break;
     default:
       gold_unreachable();
@@ -1621,11 +1693,12 @@ Target_x86_64::reserve_global_got_entry(unsigned int got_index, Symbol* gsym,
 
 // Register an existing PLT entry for a global symbol.
 
+template<int size>
 void
-Target_x86_64::register_global_plt_entry(Symbol_table* symtab,
-					 Layout* layout,
-					 unsigned int plt_index,
-					 Symbol* gsym)
+Target_x86_64<size>::register_global_plt_entry(Symbol_table* symtab,
+					       Layout* layout,
+					       unsigned int plt_index,
+					       Symbol* gsym)
 {
   gold_assert(this->plt_ != NULL);
   gold_assert(!gsym->has_plt_offset());
@@ -1640,12 +1713,13 @@ Target_x86_64::register_global_plt_entry(Symbol_table* symtab,
 
 // Force a COPY relocation for a given symbol.
 
+template<int size>
 void
-Target_x86_64::emit_copy_reloc(
+Target_x86_64<size>::emit_copy_reloc(
     Symbol_table* symtab, Symbol* sym, Output_section* os, off_t offset)
 {
   this->copy_relocs_.emit_copy_reloc(symtab,
-				     symtab->get_sized_symbol<64>(sym),
+				     symtab->get_sized_symbol<size>(sym),
 				     os,
 				     offset,
 				     this->rela_dyn_section(NULL));
@@ -1653,8 +1727,10 @@ Target_x86_64::emit_copy_reloc(
 
 // Define the _TLS_MODULE_BASE_ symbol in the TLS segment.
 
+template<int size>
 void
-Target_x86_64::define_tls_base_symbol(Symbol_table* symtab, Layout* layout)
+Target_x86_64<size>::define_tls_base_symbol(Symbol_table* symtab,
+					    Layout* layout)
 {
   if (this->tls_base_symbol_defined_)
     return;
@@ -1679,8 +1755,9 @@ Target_x86_64::define_tls_base_symbol(Symbol_table* symtab, Layout* layout)
 
 // Create the reserved PLT and GOT entries for the TLS descriptor resolver.
 
+template<int size>
 void
-Target_x86_64::reserve_tlsdesc_entries(Symbol_table* symtab,
+Target_x86_64<size>::reserve_tlsdesc_entries(Symbol_table* symtab,
                                              Layout* layout)
 {
   if (this->plt_ == NULL)
@@ -1699,9 +1776,10 @@ Target_x86_64::reserve_tlsdesc_entries(Symbol_table* symtab,
 
 // Create a GOT entry for the TLS module index.
 
+template<int size>
 unsigned int
-Target_x86_64::got_mod_index_entry(Symbol_table* symtab, Layout* layout,
-			           Sized_relobj_file<64, false>* object)
+Target_x86_64<size>::got_mod_index_entry(Symbol_table* symtab, Layout* layout,
+					 Sized_relobj_file<size, false>* object)
 {
   if (this->got_mod_index_offset_ == -1U)
     {
@@ -1721,8 +1799,9 @@ Target_x86_64::got_mod_index_entry(Symbol_table* symtab, Layout* layout,
 // symbol.  IS_FINAL is true if the final address of this symbol is
 // known at link time.
 
+template<int size>
 tls::Tls_optimization
-Target_x86_64::optimize_tls_reloc(bool is_final, int r_type)
+Target_x86_64<size>::optimize_tls_reloc(bool is_final, int r_type)
 {
   // If we are generating a shared library, then we can't do anything
   // in the linker.
@@ -1774,8 +1853,9 @@ Target_x86_64::optimize_tls_reloc(bool is_final, int r_type)
 
 // Get the Reference_flags for a particular relocation.
 
+template<int size>
 int
-Target_x86_64::Scan::get_reference_flags(unsigned int r_type)
+Target_x86_64<size>::Scan::get_reference_flags(unsigned int r_type)
 {
   switch (r_type)
     {
@@ -1841,9 +1921,10 @@ Target_x86_64::Scan::get_reference_flags(unsigned int r_type)
 
 // Report an unsupported relocation against a local symbol.
 
+template<int size>
 void
-Target_x86_64::Scan::unsupported_reloc_local(
-     Sized_relobj_file<64, false>* object,
+Target_x86_64<size>::Scan::unsupported_reloc_local(
+     Sized_relobj_file<size, false>* object,
      unsigned int r_type)
 {
   gold_error(_("%s: unsupported reloc %u against local symbol"),
@@ -1860,9 +1941,10 @@ Target_x86_64::Scan::unsupported_reloc_local(
 // it is the symbol the relocation is against; if it is NULL, the
 // relocation is against a local symbol.
 
+template<int size>
 void
-Target_x86_64::Scan::check_non_pic(Relobj* object, unsigned int r_type,
-				   Symbol* gsym)
+Target_x86_64<size>::Scan::check_non_pic(Relobj* object, unsigned int r_type,
+					 Symbol* gsym)
 {
   switch (r_type)
     {
@@ -1890,6 +1972,9 @@ Target_x86_64::Scan::check_non_pic(Relobj* object, unsigned int r_type,
 	return;
       /* Fall through.  */
     case elfcpp::R_X86_64_32:
+      // R_X86_64_32 is OK for x32.
+      if (size == 32 && r_type == elfcpp::R_X86_64_32)
+	return;
       if (this->issued_non_pic_error_)
 	return;
       gold_assert(parameters->options().output_is_position_independent());
@@ -1927,9 +2012,10 @@ Target_x86_64::Scan::check_non_pic(Relobj* object, unsigned int r_type,
 // Return whether we need to make a PLT entry for a relocation of the
 // given type against a STT_GNU_IFUNC symbol.
 
+template<int size>
 bool
-Target_x86_64::Scan::reloc_needs_plt_for_ifunc(
-     Sized_relobj_file<64, false>* object,
+Target_x86_64<size>::Scan::reloc_needs_plt_for_ifunc(
+     Sized_relobj_file<size, false>* object,
      unsigned int r_type)
 {
   int flags = Scan::get_reference_flags(r_type);
@@ -1941,22 +2027,23 @@ Target_x86_64::Scan::reloc_needs_plt_for_ifunc(
 
 // Scan a relocation for a local symbol.
 
+template<int size>
 inline void
-Target_x86_64::Scan::local(Symbol_table* symtab,
-                           Layout* layout,
-                           Target_x86_64* target,
-                           Sized_relobj_file<64, false>* object,
-                           unsigned int data_shndx,
-                           Output_section* output_section,
-                           const elfcpp::Rela<64, false>& reloc,
-                           unsigned int r_type,
-                           const elfcpp::Sym<64, false>& lsym)
+Target_x86_64<size>::Scan::local(Symbol_table* symtab,
+				 Layout* layout,
+				 Target_x86_64<size>* target,
+				 Sized_relobj_file<size, false>* object,
+				 unsigned int data_shndx,
+				 Output_section* output_section,
+				 const elfcpp::Rela<size, false>& reloc,
+				 unsigned int r_type,
+				 const elfcpp::Sym<size, false>& lsym)
 {
   // A local STT_GNU_IFUNC symbol may require a PLT entry.
-  if (lsym.get_st_type() == elfcpp::STT_GNU_IFUNC
-      && this->reloc_needs_plt_for_ifunc(object, r_type))
+  bool is_ifunc = lsym.get_st_type() == elfcpp::STT_GNU_IFUNC;
+  if (is_ifunc && this->reloc_needs_plt_for_ifunc(object, r_type))
     {
-      unsigned int r_sym = elfcpp::elf_r_sym<64>(reloc.get_r_info());
+      unsigned int r_sym = elfcpp::elf_r_sym<size>(reloc.get_r_info());
       target->make_local_ifunc_plt_entry(symtab, layout, object, r_sym);
     }
 
@@ -1976,13 +2063,13 @@ Target_x86_64::Scan::local(Symbol_table* symtab,
       // relocate it easily.
       if (parameters->options().output_is_position_independent())
         {
-          unsigned int r_sym = elfcpp::elf_r_sym<64>(reloc.get_r_info());
+          unsigned int r_sym = elfcpp::elf_r_sym<size>(reloc.get_r_info());
           Reloc_section* rela_dyn = target->rela_dyn_section(layout);
 	  rela_dyn->add_local_relative(object, r_sym,
 				       elfcpp::R_X86_64_RELATIVE,
 				       output_section, data_shndx,
 				       reloc.get_r_offset(),
-				       reloc.get_r_addend());
+				       reloc.get_r_addend(), is_ifunc);
         }
       break;
 
@@ -1996,10 +2083,23 @@ Target_x86_64::Scan::local(Symbol_table* symtab,
       // because that is always a 64-bit relocation.
       if (parameters->options().output_is_position_independent())
         {
+	  // Use R_X86_64_RELATIVE relocation for R_X86_64_32 under x32.
+	  if (size == 32 && r_type == elfcpp::R_X86_64_32)
+	    {
+	      unsigned int r_sym = elfcpp::elf_r_sym<size>(reloc.get_r_info());
+	      Reloc_section* rela_dyn = target->rela_dyn_section(layout);
+	      rela_dyn->add_local_relative(object, r_sym,
+					   elfcpp::R_X86_64_RELATIVE,
+					   output_section, data_shndx,
+					   reloc.get_r_offset(),
+					   reloc.get_r_addend(), is_ifunc);
+	      break;
+	    }
+
           this->check_non_pic(object, r_type, NULL);
 
           Reloc_section* rela_dyn = target->rela_dyn_section(layout);
-	  unsigned int r_sym = elfcpp::elf_r_sym<64>(reloc.get_r_info());
+	  unsigned int r_sym = elfcpp::elf_r_sym<size>(reloc.get_r_info());
           if (lsym.get_st_type() != elfcpp::STT_SECTION)
 	    rela_dyn->add_local(object, r_sym, r_type, output_section,
 				data_shndx, reloc.get_r_offset(),
@@ -2052,13 +2152,13 @@ Target_x86_64::Scan::local(Symbol_table* symtab,
       {
         // The symbol requires a GOT entry.
         Output_data_got<64, false>* got = target->got_section(symtab, layout);
-        unsigned int r_sym = elfcpp::elf_r_sym<64>(reloc.get_r_info());
+        unsigned int r_sym = elfcpp::elf_r_sym<size>(reloc.get_r_info());
 
 	// For a STT_GNU_IFUNC symbol we want the PLT offset.  That
 	// lets function pointers compare correctly with shared
 	// libraries.  Otherwise we would need an IRELATIVE reloc.
 	bool is_new;
-	if (lsym.get_st_type() == elfcpp::STT_GNU_IFUNC)
+	if (is_ifunc)
 	  is_new = got->add_local_plt(object, r_sym, GOT_TYPE_STANDARD);
 	else
 	  is_new = got->add_local(object, r_sym, GOT_TYPE_STANDARD);
@@ -2076,7 +2176,7 @@ Target_x86_64::Scan::local(Symbol_table* symtab,
 		      object->local_got_offset(r_sym, GOT_TYPE_STANDARD);
 		    rela_dyn->add_local_relative(object, r_sym,
 						 elfcpp::R_X86_64_RELATIVE,
-						 got, got_offset, 0);
+						 got, got_offset, 0, is_ifunc);
 		  }
                 else
                   {
@@ -2119,7 +2219,8 @@ Target_x86_64::Scan::local(Symbol_table* symtab,
       {
 	bool output_is_shared = parameters->options().shared();
 	const tls::Tls_optimization optimized_type
-            = Target_x86_64::optimize_tls_reloc(!output_is_shared, r_type);
+            = Target_x86_64<size>::optimize_tls_reloc(!output_is_shared,
+						      r_type);
 	switch (r_type)
 	  {
           case elfcpp::R_X86_64_TLSGD:       // General-dynamic
@@ -2129,7 +2230,7 @@ Target_x86_64::Scan::local(Symbol_table* symtab,
                 // dtv-relative offset.
                 Output_data_got<64, false>* got
                     = target->got_section(symtab, layout);
-                unsigned int r_sym = elfcpp::elf_r_sym<64>(reloc.get_r_info());
+                unsigned int r_sym = elfcpp::elf_r_sym<size>(reloc.get_r_info());
 		unsigned int shndx = lsym.get_st_shndx();
 		bool is_ordinary;
 		shndx = object->adjust_sym_shndx(r_sym, shndx, &is_ordinary);
@@ -2137,11 +2238,11 @@ Target_x86_64::Scan::local(Symbol_table* symtab,
 		  object->error(_("local symbol %u has bad shndx %u"),
 			      r_sym, shndx);
                 else
-		  got->add_local_pair_with_rela(object, r_sym,
-						shndx,
-						GOT_TYPE_TLS_PAIR,
-						target->rela_dyn_section(layout),
-						elfcpp::R_X86_64_DTPMOD64, 0);
+		  got->add_local_pair_with_rel(object, r_sym,
+					       shndx,
+					       GOT_TYPE_TLS_PAIR,
+					       target->rela_dyn_section(layout),
+					       elfcpp::R_X86_64_DTPMOD64, 0);
               }
             else if (optimized_type != tls::TLSOPT_TO_LE)
 	      unsupported_reloc_local(object, r_type);
@@ -2161,7 +2262,7 @@ Target_x86_64::Scan::local(Symbol_table* symtab,
 	        // make sure the section has been created.
 		target->got_section(symtab, layout);
                 Output_data_got<64, false>* got = target->got_tlsdesc_section();
-                unsigned int r_sym = elfcpp::elf_r_sym<64>(reloc.get_r_info());
+                unsigned int r_sym = elfcpp::elf_r_sym<size>(reloc.get_r_info());
 		if (!object->local_has_got_offset(r_sym, GOT_TYPE_TLS_DESC))
 		  {
 		    unsigned int got_offset = got->add_constant(0);
@@ -2206,10 +2307,10 @@ Target_x86_64::Scan::local(Symbol_table* symtab,
 	        // Create a GOT entry for the tp-relative offset.
 	        Output_data_got<64, false>* got
 	            = target->got_section(symtab, layout);
-	        unsigned int r_sym = elfcpp::elf_r_sym<64>(reloc.get_r_info());
-	        got->add_local_with_rela(object, r_sym, GOT_TYPE_TLS_OFFSET,
-	                                 target->rela_dyn_section(layout),
-	                                 elfcpp::R_X86_64_TPOFF64);
+	        unsigned int r_sym = elfcpp::elf_r_sym<size>(reloc.get_r_info());
+	        got->add_local_with_rel(object, r_sym, GOT_TYPE_TLS_OFFSET,
+					target->rela_dyn_section(layout),
+					elfcpp::R_X86_64_TPOFF64);
               }
             else if (optimized_type != tls::TLSOPT_TO_LE)
               unsupported_reloc_local(object, r_type);
@@ -2239,9 +2340,10 @@ Target_x86_64::Scan::local(Symbol_table* symtab,
 
 // Report an unsupported relocation against a global symbol.
 
+template<int size>
 void
-Target_x86_64::Scan::unsupported_reloc_global(
-    Sized_relobj_file<64, false>* object,
+Target_x86_64<size>::Scan::unsupported_reloc_global(
+    Sized_relobj_file<size, false>* object,
     unsigned int r_type,
     Symbol* gsym)
 {
@@ -2250,8 +2352,9 @@ Target_x86_64::Scan::unsupported_reloc_global(
 }
 
 // Returns true if this relocation type could be that of a function pointer.
+template<int size>
 inline bool
-Target_x86_64::Scan::possible_function_pointer_reloc(unsigned int r_type)
+Target_x86_64<size>::Scan::possible_function_pointer_reloc(unsigned int r_type)
 {
   switch (r_type)
     {
@@ -2276,17 +2379,18 @@ Target_x86_64::Scan::possible_function_pointer_reloc(unsigned int r_type)
 // corresponds to a function pointer being taken.  In that case mark
 // the function whose pointer was taken as not foldable.
 
+template<int size>
 inline bool
-Target_x86_64::Scan::local_reloc_may_be_function_pointer(
+Target_x86_64<size>::Scan::local_reloc_may_be_function_pointer(
   Symbol_table* ,
   Layout* ,
-  Target_x86_64* ,
-  Sized_relobj_file<64, false>* ,
+  Target_x86_64<size>* ,
+  Sized_relobj_file<size, false>* ,
   unsigned int ,
   Output_section* ,
-  const elfcpp::Rela<64, false>& ,
+  const elfcpp::Rela<size, false>& ,
   unsigned int r_type,
-  const elfcpp::Sym<64, false>&)
+  const elfcpp::Sym<size, false>&)
 {
   // When building a shared library, do not fold any local symbols as it is
   // not possible to distinguish pointer taken versus a call by looking at
@@ -2299,15 +2403,16 @@ Target_x86_64::Scan::local_reloc_may_be_function_pointer(
 // corresponds to a function pointer being taken.  In that case mark
 // the function whose pointer was taken as not foldable.
 
+template<int size>
 inline bool
-Target_x86_64::Scan::global_reloc_may_be_function_pointer(
+Target_x86_64<size>::Scan::global_reloc_may_be_function_pointer(
   Symbol_table*,
   Layout* ,
-  Target_x86_64* ,
-  Sized_relobj_file<64, false>* ,
+  Target_x86_64<size>* ,
+  Sized_relobj_file<size, false>* ,
   unsigned int ,
   Output_section* ,
-  const elfcpp::Rela<64, false>& ,
+  const elfcpp::Rela<size, false>& ,
   unsigned int r_type,
   Symbol* gsym)
 {
@@ -2322,14 +2427,15 @@ Target_x86_64::Scan::global_reloc_may_be_function_pointer(
 
 // Scan a relocation for a global symbol.
 
+template<int size>
 inline void
-Target_x86_64::Scan::global(Symbol_table* symtab,
+Target_x86_64<size>::Scan::global(Symbol_table* symtab,
                             Layout* layout,
-                            Target_x86_64* target,
-                            Sized_relobj_file<64, false>* object,
+                            Target_x86_64<size>* target,
+                            Sized_relobj_file<size, false>* object,
                             unsigned int data_shndx,
                             Output_section* output_section,
-                            const elfcpp::Rela<64, false>& reloc,
+                            const elfcpp::Rela<size, false>& reloc,
                             unsigned int r_type,
                             Symbol* gsym)
 {
@@ -2370,7 +2476,8 @@ Target_x86_64::Scan::global(Symbol_table* symtab,
                 target->copy_reloc(symtab, layout, object,
                                    data_shndx, output_section, gsym, reloc);
               }
-	    else if (r_type == elfcpp::R_X86_64_64
+	    else if (((size == 64 && r_type == elfcpp::R_X86_64_64)
+		      || (size == 32 && r_type == elfcpp::R_X86_64_32))
 		     && gsym->type() == elfcpp::STT_GNU_IFUNC
 		     && gsym->can_use_relative_reloc(false)
 		     && !gsym->is_from_dynobj()
@@ -2398,7 +2505,7 @@ Target_x86_64::Scan::global(Symbol_table* symtab,
 					      output_section, object,
 					      data_shndx,
 					      reloc.get_r_offset(),
-					      reloc.get_r_addend());
+					      reloc.get_r_addend(), false);
               }
             else
               {
@@ -2481,8 +2588,8 @@ Target_x86_64::Scan::global(Symbol_table* symtab,
 		    && parameters->options().shared())
 		|| (gsym->type() == elfcpp::STT_GNU_IFUNC
 		    && parameters->options().output_is_position_independent()))
-              got->add_global_with_rela(gsym, GOT_TYPE_STANDARD, rela_dyn,
-                                        elfcpp::R_X86_64_GLOB_DAT);
+              got->add_global_with_rel(gsym, GOT_TYPE_STANDARD, rela_dyn,
+				       elfcpp::R_X86_64_GLOB_DAT);
             else
               {
 		// For a STT_GNU_IFUNC symbol we want to write the PLT
@@ -2505,7 +2612,7 @@ Target_x86_64::Scan::global(Symbol_table* symtab,
 		    unsigned int got_off = gsym->got_offset(GOT_TYPE_STANDARD);
 		    rela_dyn->add_global_relative(gsym,
 						  elfcpp::R_X86_64_RELATIVE,
-						  got, got_off, 0);
+						  got, got_off, 0, false);
 		  }
               }
           }
@@ -2570,7 +2677,7 @@ Target_x86_64::Scan::global(Symbol_table* symtab,
       {
 	const bool is_final = gsym->final_value_is_known();
 	const tls::Tls_optimization optimized_type
-            = Target_x86_64::optimize_tls_reloc(is_final, r_type);
+            = Target_x86_64<size>::optimize_tls_reloc(is_final, r_type);
 	switch (r_type)
 	  {
           case elfcpp::R_X86_64_TLSGD:       // General-dynamic
@@ -2580,19 +2687,19 @@ Target_x86_64::Scan::global(Symbol_table* symtab,
                 // dtv-relative offset.
                 Output_data_got<64, false>* got
                     = target->got_section(symtab, layout);
-                got->add_global_pair_with_rela(gsym, GOT_TYPE_TLS_PAIR,
-                                               target->rela_dyn_section(layout),
-                                               elfcpp::R_X86_64_DTPMOD64,
-                                               elfcpp::R_X86_64_DTPOFF64);
+                got->add_global_pair_with_rel(gsym, GOT_TYPE_TLS_PAIR,
+					      target->rela_dyn_section(layout),
+					      elfcpp::R_X86_64_DTPMOD64,
+					      elfcpp::R_X86_64_DTPOFF64);
 	      }
 	    else if (optimized_type == tls::TLSOPT_TO_IE)
 	      {
                 // Create a GOT entry for the tp-relative offset.
                 Output_data_got<64, false>* got
                     = target->got_section(symtab, layout);
-                got->add_global_with_rela(gsym, GOT_TYPE_TLS_OFFSET,
-                                          target->rela_dyn_section(layout),
-                                          elfcpp::R_X86_64_TPOFF64);
+                got->add_global_with_rel(gsym, GOT_TYPE_TLS_OFFSET,
+					 target->rela_dyn_section(layout),
+					 elfcpp::R_X86_64_TPOFF64);
 	      }
 	    else if (optimized_type != tls::TLSOPT_TO_LE)
 	      unsupported_reloc_global(object, r_type, gsym);
@@ -2613,17 +2720,17 @@ Target_x86_64::Scan::global(Symbol_table* symtab,
 		target->got_section(symtab, layout);
                 Output_data_got<64, false>* got = target->got_tlsdesc_section();
 		Reloc_section* rt = target->rela_tlsdesc_section(layout);
-                got->add_global_pair_with_rela(gsym, GOT_TYPE_TLS_DESC, rt,
-                                               elfcpp::R_X86_64_TLSDESC, 0);
+                got->add_global_pair_with_rel(gsym, GOT_TYPE_TLS_DESC, rt,
+					      elfcpp::R_X86_64_TLSDESC, 0);
 	      }
 	    else if (optimized_type == tls::TLSOPT_TO_IE)
 	      {
 	        // Create a GOT entry for the tp-relative offset.
                 Output_data_got<64, false>* got
                     = target->got_section(symtab, layout);
-                got->add_global_with_rela(gsym, GOT_TYPE_TLS_OFFSET,
-                                          target->rela_dyn_section(layout),
-                                          elfcpp::R_X86_64_TPOFF64);
+                got->add_global_with_rel(gsym, GOT_TYPE_TLS_OFFSET,
+					 target->rela_dyn_section(layout),
+					 elfcpp::R_X86_64_TPOFF64);
 	      }
 	    else if (optimized_type != tls::TLSOPT_TO_LE)
 	      unsupported_reloc_global(object, r_type, gsym);
@@ -2653,9 +2760,9 @@ Target_x86_64::Scan::global(Symbol_table* symtab,
 	        // Create a GOT entry for the tp-relative offset.
 	        Output_data_got<64, false>* got
 	            = target->got_section(symtab, layout);
-	        got->add_global_with_rela(gsym, GOT_TYPE_TLS_OFFSET,
-	                                  target->rela_dyn_section(layout),
-	                                  elfcpp::R_X86_64_TPOFF64);
+	        got->add_global_with_rel(gsym, GOT_TYPE_TLS_OFFSET,
+					 target->rela_dyn_section(layout),
+					 elfcpp::R_X86_64_TPOFF64);
               }
             else if (optimized_type != tls::TLSOPT_TO_LE)
               unsupported_reloc_global(object, r_type, gsym);
@@ -2683,18 +2790,19 @@ Target_x86_64::Scan::global(Symbol_table* symtab,
     }
 }
 
+template<int size>
 void
-Target_x86_64::gc_process_relocs(Symbol_table* symtab,
-                                 Layout* layout,
-                                 Sized_relobj_file<64, false>* object,
-                                 unsigned int data_shndx,
-                                 unsigned int sh_type,
-                                 const unsigned char* prelocs,
-                                 size_t reloc_count,
-			         Output_section* output_section,
-			         bool needs_special_offset_handling,
-                                 size_t local_symbol_count,
-                                 const unsigned char* plocal_symbols)
+Target_x86_64<size>::gc_process_relocs(Symbol_table* symtab,
+				       Layout* layout,
+				       Sized_relobj_file<size, false>* object,
+				       unsigned int data_shndx,
+				       unsigned int sh_type,
+				       const unsigned char* prelocs,
+				       size_t reloc_count,
+				       Output_section* output_section,
+				       bool needs_special_offset_handling,
+				       size_t local_symbol_count,
+				       const unsigned char* plocal_symbols)
 {
 
   if (sh_type == elfcpp::SHT_REL)
@@ -2702,9 +2810,9 @@ Target_x86_64::gc_process_relocs(Symbol_table* symtab,
       return;
     }
 
-   gold::gc_process_relocs<64, false, Target_x86_64, elfcpp::SHT_RELA,
-                           Target_x86_64::Scan,
-			   Target_x86_64::Relocatable_size_for_reloc>(
+   gold::gc_process_relocs<size, false, Target_x86_64<size>, elfcpp::SHT_RELA,
+                           typename Target_x86_64<size>::Scan,
+			   typename Target_x86_64<size>::Relocatable_size_for_reloc>(
     symtab,
     layout,
     this,
@@ -2720,18 +2828,19 @@ Target_x86_64::gc_process_relocs(Symbol_table* symtab,
 }
 // Scan relocations for a section.
 
+template<int size>
 void
-Target_x86_64::scan_relocs(Symbol_table* symtab,
-                           Layout* layout,
-                           Sized_relobj_file<64, false>* object,
-                           unsigned int data_shndx,
-                           unsigned int sh_type,
-                           const unsigned char* prelocs,
-                           size_t reloc_count,
-			   Output_section* output_section,
-			   bool needs_special_offset_handling,
-                           size_t local_symbol_count,
-                           const unsigned char* plocal_symbols)
+Target_x86_64<size>::scan_relocs(Symbol_table* symtab,
+				 Layout* layout,
+				 Sized_relobj_file<size, false>* object,
+				 unsigned int data_shndx,
+				 unsigned int sh_type,
+				 const unsigned char* prelocs,
+				 size_t reloc_count,
+				 Output_section* output_section,
+				 bool needs_special_offset_handling,
+				 size_t local_symbol_count,
+				 const unsigned char* plocal_symbols)
 {
   if (sh_type == elfcpp::SHT_REL)
     {
@@ -2740,8 +2849,8 @@ Target_x86_64::scan_relocs(Symbol_table* symtab,
       return;
     }
 
-  gold::scan_relocs<64, false, Target_x86_64, elfcpp::SHT_RELA,
-      Target_x86_64::Scan>(
+  gold::scan_relocs<size, false, Target_x86_64<size>, elfcpp::SHT_RELA,
+      typename Target_x86_64<size>::Scan>(
     symtab,
     layout,
     this,
@@ -2757,8 +2866,9 @@ Target_x86_64::scan_relocs(Symbol_table* symtab,
 
 // Finalize the sections.
 
+template<int size>
 void
-Target_x86_64::do_finalize_sections(
+Target_x86_64<size>::do_finalize_sections(
     Layout* layout,
     const Input_objects*,
     Symbol_table* symtab)
@@ -2798,7 +2908,7 @@ Target_x86_64::do_finalize_sections(
   if (sym != NULL)
     {
       uint64_t data_size = this->got_plt_->current_data_size();
-      symtab->get_sized_symbol<64>(sym)->set_symsize(data_size);
+      symtab->get_sized_symbol<size>(sym)->set_symsize(data_size);
     }
 
   if (parameters->doing_static_link()
@@ -2845,18 +2955,20 @@ Target_x86_64::do_finalize_sections(
 
 // Perform a relocation.
 
+template<int size>
 inline bool
-Target_x86_64::Relocate::relocate(const Relocate_info<64, false>* relinfo,
-                                  Target_x86_64* target,
-				  Output_section*,
-                                  size_t relnum,
-                                  const elfcpp::Rela<64, false>& rela,
-                                  unsigned int r_type,
-                                  const Sized_symbol<64>* gsym,
-                                  const Symbol_value<64>* psymval,
-                                  unsigned char* view,
-                                  elfcpp::Elf_types<64>::Elf_Addr address,
-                                  section_size_type view_size)
+Target_x86_64<size>::Relocate::relocate(
+    const Relocate_info<size, false>* relinfo,
+    Target_x86_64<size>* target,
+    Output_section*,
+    size_t relnum,
+    const elfcpp::Rela<size, false>& rela,
+    unsigned int r_type,
+    const Sized_symbol<size>* gsym,
+    const Symbol_value<size>* psymval,
+    unsigned char* view,
+    typename elfcpp::Elf_types<size>::Elf_Addr address,
+    section_size_type view_size)
 {
   if (this->skip_call_tls_get_addr_)
     {
@@ -2875,10 +2987,10 @@ Target_x86_64::Relocate::relocate(const Relocate_info<64, false>* relinfo,
 	}
     }
 
-  const Sized_relobj_file<64, false>* object = relinfo->object;
+  const Sized_relobj_file<size, false>* object = relinfo->object;
 
   // Pick the value to use for symbols defined in the PLT.
-  Symbol_value<64> symval;
+  Symbol_value<size> symval;
   if (gsym != NULL
       && gsym->use_plt_offset(Scan::get_reference_flags(r_type)))
     {
@@ -2888,7 +3000,7 @@ Target_x86_64::Relocate::relocate(const Relocate_info<64, false>* relinfo,
     }
   else if (gsym == NULL && psymval->is_ifunc_symbol())
     {
-      unsigned int r_sym = elfcpp::elf_r_sym<64>(rela.get_r_info());
+      unsigned int r_sym = elfcpp::elf_r_sym<size>(rela.get_r_info());
       if (object->local_has_plt_offset(r_sym))
 	{
 	  symval.set_output_value(target->plt_address_for_local(object, r_sym)
@@ -2919,7 +3031,7 @@ Target_x86_64::Relocate::relocate(const Relocate_info<64, false>* relinfo,
         }
       else
         {
-          unsigned int r_sym = elfcpp::elf_r_sym<64>(rela.get_r_info());
+          unsigned int r_sym = elfcpp::elf_r_sym<size>(rela.get_r_info());
           gold_assert(object->local_has_got_offset(r_sym, GOT_TYPE_STANDARD));
           got_offset = (object->local_got_offset(r_sym, GOT_TYPE_STANDARD)
                         - target->got_size());
@@ -2939,11 +3051,11 @@ Target_x86_64::Relocate::relocate(const Relocate_info<64, false>* relinfo,
       break;
 
     case elfcpp::R_X86_64_64:
-      Relocate_functions<64, false>::rela64(view, object, psymval, addend);
+      Relocate_functions<size, false>::rela64(view, object, psymval, addend);
       break;
 
     case elfcpp::R_X86_64_PC64:
-      Relocate_functions<64, false>::pcrela64(view, object, psymval, addend,
+      Relocate_functions<size, false>::pcrela64(view, object, psymval, addend,
                                               address);
       break;
 
@@ -2952,37 +3064,37 @@ Target_x86_64::Relocate::relocate(const Relocate_info<64, false>* relinfo,
       //    uint64_t x = value + addend;
       //    x == static_cast<uint64_t>(static_cast<uint32_t>(x))
       // Likewise for other <=32-bit relocations (but see R_X86_64_32S).
-      Relocate_functions<64, false>::rela32(view, object, psymval, addend);
+      Relocate_functions<size, false>::rela32(view, object, psymval, addend);
       break;
 
     case elfcpp::R_X86_64_32S:
       // FIXME: we need to verify that value + addend fits into 32 bits:
       //    int64_t x = value + addend;   // note this quantity is signed!
       //    x == static_cast<int64_t>(static_cast<int32_t>(x))
-      Relocate_functions<64, false>::rela32(view, object, psymval, addend);
+      Relocate_functions<size, false>::rela32(view, object, psymval, addend);
       break;
 
     case elfcpp::R_X86_64_PC32:
-      Relocate_functions<64, false>::pcrela32(view, object, psymval, addend,
-                                              address);
+      Relocate_functions<size, false>::pcrela32(view, object, psymval, addend,
+						address);
       break;
 
     case elfcpp::R_X86_64_16:
-      Relocate_functions<64, false>::rela16(view, object, psymval, addend);
+      Relocate_functions<size, false>::rela16(view, object, psymval, addend);
       break;
 
     case elfcpp::R_X86_64_PC16:
-      Relocate_functions<64, false>::pcrela16(view, object, psymval, addend,
-                                              address);
+      Relocate_functions<size, false>::pcrela16(view, object, psymval, addend,
+						address);
       break;
 
     case elfcpp::R_X86_64_8:
-      Relocate_functions<64, false>::rela8(view, object, psymval, addend);
+      Relocate_functions<size, false>::rela8(view, object, psymval, addend);
       break;
 
     case elfcpp::R_X86_64_PC8:
-      Relocate_functions<64, false>::pcrela8(view, object, psymval, addend,
-                                             address);
+      Relocate_functions<size, false>::pcrela8(view, object, psymval, addend,
+					       address);
       break;
 
     case elfcpp::R_X86_64_PLT32:
@@ -2995,8 +3107,8 @@ Target_x86_64::Relocate::relocate(const Relocate_info<64, false>* relinfo,
       // Note: while this code looks the same as for R_X86_64_PC32, it
       // behaves differently because psymval was set to point to
       // the PLT entry, rather than the symbol, in Scan::global().
-      Relocate_functions<64, false>::pcrela32(view, object, psymval, addend,
-                                              address);
+      Relocate_functions<size, false>::pcrela32(view, object, psymval, addend,
+						address);
       break;
 
     case elfcpp::R_X86_64_PLTOFF64:
@@ -3004,23 +3116,23 @@ Target_x86_64::Relocate::relocate(const Relocate_info<64, false>* relinfo,
         gold_assert(gsym);
         gold_assert(gsym->has_plt_offset()
                     || gsym->final_value_is_known());
-	elfcpp::Elf_types<64>::Elf_Addr got_address;
+	typename elfcpp::Elf_types<size>::Elf_Addr got_address;
 	got_address = target->got_section(NULL, NULL)->address();
-	Relocate_functions<64, false>::rela64(view, object, psymval,
-					      addend - got_address);
+	Relocate_functions<size, false>::rela64(view, object, psymval,
+						addend - got_address);
       }
 
     case elfcpp::R_X86_64_GOT32:
       gold_assert(have_got_offset);
-      Relocate_functions<64, false>::rela32(view, got_offset, addend);
+      Relocate_functions<size, false>::rela32(view, got_offset, addend);
       break;
 
     case elfcpp::R_X86_64_GOTPC32:
       {
         gold_assert(gsym);
-	elfcpp::Elf_types<64>::Elf_Addr value;
+	typename elfcpp::Elf_types<size>::Elf_Addr value;
 	value = target->got_plt_section()->address();
-	Relocate_functions<64, false>::pcrela32(view, value, addend, address);
+	Relocate_functions<size, false>::pcrela32(view, value, addend, address);
       }
       break;
 
@@ -3029,42 +3141,42 @@ Target_x86_64::Relocate::relocate(const Relocate_info<64, false>* relinfo,
       // Since we always add a PLT entry, this is equivalent.
     case elfcpp::R_X86_64_GOTPLT64:
       gold_assert(have_got_offset);
-      Relocate_functions<64, false>::rela64(view, got_offset, addend);
+      Relocate_functions<size, false>::rela64(view, got_offset, addend);
       break;
 
     case elfcpp::R_X86_64_GOTPC64:
       {
         gold_assert(gsym);
-	elfcpp::Elf_types<64>::Elf_Addr value;
+	typename elfcpp::Elf_types<size>::Elf_Addr value;
 	value = target->got_plt_section()->address();
-	Relocate_functions<64, false>::pcrela64(view, value, addend, address);
+	Relocate_functions<size, false>::pcrela64(view, value, addend, address);
       }
       break;
 
     case elfcpp::R_X86_64_GOTOFF64:
       {
-	elfcpp::Elf_types<64>::Elf_Addr value;
+	typename elfcpp::Elf_types<size>::Elf_Addr value;
 	value = (psymval->value(object, 0)
 		 - target->got_plt_section()->address());
-	Relocate_functions<64, false>::rela64(view, value, addend);
+	Relocate_functions<size, false>::rela64(view, value, addend);
       }
       break;
 
     case elfcpp::R_X86_64_GOTPCREL:
       {
         gold_assert(have_got_offset);
-        elfcpp::Elf_types<64>::Elf_Addr value;
+        typename elfcpp::Elf_types<size>::Elf_Addr value;
         value = target->got_plt_section()->address() + got_offset;
-        Relocate_functions<64, false>::pcrela32(view, value, addend, address);
+        Relocate_functions<size, false>::pcrela32(view, value, addend, address);
       }
       break;
 
     case elfcpp::R_X86_64_GOTPCREL64:
       {
         gold_assert(have_got_offset);
-        elfcpp::Elf_types<64>::Elf_Addr value;
+        typename elfcpp::Elf_types<size>::Elf_Addr value;
         value = target->got_plt_section()->address() + got_offset;
-        Relocate_functions<64, false>::pcrela64(view, value, addend, address);
+        Relocate_functions<size, false>::pcrela64(view, value, addend, address);
       }
       break;
 
@@ -3109,32 +3221,34 @@ Target_x86_64::Relocate::relocate(const Relocate_info<64, false>* relinfo,
 
 // Perform a TLS relocation.
 
+template<int size>
 inline void
-Target_x86_64::Relocate::relocate_tls(const Relocate_info<64, false>* relinfo,
-                                      Target_x86_64* target,
-                                      size_t relnum,
-                                      const elfcpp::Rela<64, false>& rela,
-                                      unsigned int r_type,
-                                      const Sized_symbol<64>* gsym,
-                                      const Symbol_value<64>* psymval,
-                                      unsigned char* view,
-                                      elfcpp::Elf_types<64>::Elf_Addr address,
-                                      section_size_type view_size)
+Target_x86_64<size>::Relocate::relocate_tls(
+    const Relocate_info<size, false>* relinfo,
+    Target_x86_64<size>* target,
+    size_t relnum,
+    const elfcpp::Rela<size, false>& rela,
+    unsigned int r_type,
+    const Sized_symbol<size>* gsym,
+    const Symbol_value<size>* psymval,
+    unsigned char* view,
+    typename elfcpp::Elf_types<size>::Elf_Addr address,
+    section_size_type view_size)
 {
   Output_segment* tls_segment = relinfo->layout->tls_segment();
 
-  const Sized_relobj_file<64, false>* object = relinfo->object;
+  const Sized_relobj_file<size, false>* object = relinfo->object;
   const elfcpp::Elf_Xword addend = rela.get_r_addend();
-  elfcpp::Shdr<64, false> data_shdr(relinfo->data_shdr);
+  elfcpp::Shdr<size, false> data_shdr(relinfo->data_shdr);
   bool is_executable = (data_shdr.get_sh_flags() & elfcpp::SHF_EXECINSTR) != 0;
 
-  elfcpp::Elf_types<64>::Elf_Addr value = psymval->value(relinfo->object, 0);
+  typename elfcpp::Elf_types<size>::Elf_Addr value = psymval->value(relinfo->object, 0);
 
   const bool is_final = (gsym == NULL
 			 ? !parameters->options().shared()
 			 : gsym->final_value_is_known());
   tls::Tls_optimization optimized_type
-      = Target_x86_64::optimize_tls_reloc(is_final, r_type);
+      = Target_x86_64<size>::optimize_tls_reloc(is_final, r_type);
   switch (r_type)
     {
     case elfcpp::R_X86_64_TLSGD:            // Global-dynamic
@@ -3174,19 +3288,13 @@ Target_x86_64::Relocate::relocate_tls(const Relocate_info<64, false>* relinfo,
             }
           else
             {
-              unsigned int r_sym = elfcpp::elf_r_sym<64>(rela.get_r_info());
+              unsigned int r_sym = elfcpp::elf_r_sym<size>(rela.get_r_info());
               gold_assert(object->local_has_got_offset(r_sym, got_type));
               got_offset = (object->local_got_offset(r_sym, got_type)
                             - target->got_size());
             }
           if (optimized_type == tls::TLSOPT_TO_IE)
             {
-	      if (tls_segment == NULL)
-		{
-		  gold_assert(parameters->errors()->error_count() > 0
-			      || issue_undefined_symbol_error(gsym));
-		  return;
-		}
               value = target->got_plt_section()->address() + got_offset;
               this->tls_gd_to_ie(relinfo, relnum, tls_segment, rela, r_type,
                                  value, view, address, view_size);
@@ -3197,8 +3305,8 @@ Target_x86_64::Relocate::relocate_tls(const Relocate_info<64, false>* relinfo,
               // Relocate the field with the offset of the pair of GOT
               // entries.
 	      value = target->got_plt_section()->address() + got_offset;
-              Relocate_functions<64, false>::pcrela32(view, value, addend,
-                                                      address);
+              Relocate_functions<size, false>::pcrela32(view, value, addend,
+							address);
               break;
             }
         }
@@ -3248,7 +3356,7 @@ Target_x86_64::Relocate::relocate_tls(const Relocate_info<64, false>* relinfo,
             }
           else
             {
-              unsigned int r_sym = elfcpp::elf_r_sym<64>(rela.get_r_info());
+              unsigned int r_sym = elfcpp::elf_r_sym<size>(rela.get_r_info());
               gold_assert(object->local_has_got_offset(r_sym, got_type));
               got_offset += (object->local_got_offset(r_sym, got_type)
 			     - target->got_size());
@@ -3274,8 +3382,8 @@ Target_x86_64::Relocate::relocate_tls(const Relocate_info<64, false>* relinfo,
                   // Relocate the field with the offset of the pair of GOT
                   // entries.
 	          value = target->got_plt_section()->address() + got_offset;
-                  Relocate_functions<64, false>::pcrela32(view, value, addend,
-                                                          address);
+                  Relocate_functions<size, false>::pcrela32(view, value, addend,
+							    address);
                 }
               break;
             }
@@ -3310,8 +3418,8 @@ Target_x86_64::Relocate::relocate_tls(const Relocate_info<64, false>* relinfo,
           got_offset = (target->got_mod_index_entry(NULL, NULL, NULL)
 			- target->got_size());
 	  value = target->got_plt_section()->address() + got_offset;
-          Relocate_functions<64, false>::pcrela32(view, value, addend,
-                                                  address);
+          Relocate_functions<size, false>::pcrela32(view, value, addend,
+						    address);
           break;
         }
       gold_error_at_location(relinfo, relnum, rela.get_r_offset(),
@@ -3335,7 +3443,7 @@ Target_x86_64::Relocate::relocate_tls(const Relocate_info<64, false>* relinfo,
 	    }
 	  value -= tls_segment->memsz();
 	}
-      Relocate_functions<64, false>::rela32(view, value, addend);
+      Relocate_functions<size, false>::rela32(view, value, addend);
       break;
 
     case elfcpp::R_X86_64_DTPOFF64:
@@ -3350,7 +3458,7 @@ Target_x86_64::Relocate::relocate_tls(const Relocate_info<64, false>* relinfo,
 	    }
 	  value -= tls_segment->memsz();
 	}
-      Relocate_functions<64, false>::rela64(view, value, addend);
+      Relocate_functions<size, false>::rela64(view, value, addend);
       break;
 
     case elfcpp::R_X86_64_GOTTPOFF:         // Initial-exec
@@ -3362,9 +3470,10 @@ Target_x86_64::Relocate::relocate_tls(const Relocate_info<64, false>* relinfo,
 			  || issue_undefined_symbol_error(gsym));
 	      return;
 	    }
-	  Target_x86_64::Relocate::tls_ie_to_le(relinfo, relnum, tls_segment,
-                                                rela, r_type, value, view,
-                                                view_size);
+	  Target_x86_64<size>::Relocate::tls_ie_to_le(relinfo, relnum,
+						      tls_segment, rela,
+						      r_type, value, view,
+						      view_size);
 	  break;
 	}
       else if (optimized_type == tls::TLSOPT_NONE)
@@ -3380,14 +3489,15 @@ Target_x86_64::Relocate::relocate_tls(const Relocate_info<64, false>* relinfo,
             }
           else
             {
-              unsigned int r_sym = elfcpp::elf_r_sym<64>(rela.get_r_info());
+              unsigned int r_sym = elfcpp::elf_r_sym<size>(rela.get_r_info());
               gold_assert(object->local_has_got_offset(r_sym,
                                                        GOT_TYPE_TLS_OFFSET));
               got_offset = (object->local_got_offset(r_sym, GOT_TYPE_TLS_OFFSET)
                             - target->got_size());
             }
 	  value = target->got_plt_section()->address() + got_offset;
-          Relocate_functions<64, false>::pcrela32(view, value, addend, address);
+          Relocate_functions<size, false>::pcrela32(view, value, addend,
+						    address);
           break;
         }
       gold_error_at_location(relinfo, relnum, rela.get_r_offset(),
@@ -3403,7 +3513,7 @@ Target_x86_64::Relocate::relocate_tls(const Relocate_info<64, false>* relinfo,
 	  return;
 	}
       value -= tls_segment->memsz();
-      Relocate_functions<64, false>::rela32(view, value, addend);
+      Relocate_functions<size, false>::rela32(view, value, addend);
       break;
     }
 }
@@ -3411,33 +3521,54 @@ Target_x86_64::Relocate::relocate_tls(const Relocate_info<64, false>* relinfo,
 // Do a relocation in which we convert a TLS General-Dynamic to an
 // Initial-Exec.
 
+template<int size>
 inline void
-Target_x86_64::Relocate::tls_gd_to_ie(const Relocate_info<64, false>* relinfo,
-                                      size_t relnum,
-                                      Output_segment*,
-                                      const elfcpp::Rela<64, false>& rela,
-                                      unsigned int,
-                                      elfcpp::Elf_types<64>::Elf_Addr value,
-                                      unsigned char* view,
-                                      elfcpp::Elf_types<64>::Elf_Addr address,
-                                      section_size_type view_size)
+Target_x86_64<size>::Relocate::tls_gd_to_ie(
+    const Relocate_info<size, false>* relinfo,
+    size_t relnum,
+    Output_segment*,
+    const elfcpp::Rela<size, false>& rela,
+    unsigned int,
+    typename elfcpp::Elf_types<size>::Elf_Addr value,
+    unsigned char* view,
+    typename elfcpp::Elf_types<size>::Elf_Addr address,
+    section_size_type view_size)
 {
-  // .byte 0x66; leaq foo@tlsgd(%rip),%rdi;
-  // .word 0x6666; rex64; call __tls_get_addr
-  // ==> movq %fs:0,%rax; addq x@gottpoff(%rip),%rax
+  // For SIZE == 64:
+  //	.byte 0x66; leaq foo@tlsgd(%rip),%rdi;
+  //	.word 0x6666; rex64; call __tls_get_addr
+  //	==> movq %fs:0,%rax; addq x@gottpoff(%rip),%rax
+  // For SIZE == 32:
+  //	leaq foo@tlsgd(%rip),%rdi;
+  //	.word 0x6666; rex64; call __tls_get_addr
+  //	==> movl %fs:0,%eax; addq x@gottpoff(%rip),%rax
 
-  tls::check_range(relinfo, relnum, rela.get_r_offset(), view_size, -4);
   tls::check_range(relinfo, relnum, rela.get_r_offset(), view_size, 12);
-
-  tls::check_tls(relinfo, relnum, rela.get_r_offset(),
-                 (memcmp(view - 4, "\x66\x48\x8d\x3d", 4) == 0));
   tls::check_tls(relinfo, relnum, rela.get_r_offset(),
                  (memcmp(view + 4, "\x66\x66\x48\xe8", 4) == 0));
 
-  memcpy(view - 4, "\x64\x48\x8b\x04\x25\0\0\0\0\x48\x03\x05\0\0\0\0", 16);
+  if (size == 64)
+    {
+      tls::check_range(relinfo, relnum, rela.get_r_offset(), view_size,
+		       -4);
+      tls::check_tls(relinfo, relnum, rela.get_r_offset(),
+		     (memcmp(view - 4, "\x66\x48\x8d\x3d", 4) == 0));
+      memcpy(view - 4, "\x64\x48\x8b\x04\x25\0\0\0\0\x48\x03\x05\0\0\0\0",
+	     16);
+    }
+  else
+    {
+      tls::check_range(relinfo, relnum, rela.get_r_offset(), view_size,
+		       -3);
+      tls::check_tls(relinfo, relnum, rela.get_r_offset(),
+		     (memcmp(view - 3, "\x48\x8d\x3d", 3) == 0));
+      memcpy(view - 3, "\x64\x8b\x04\x25\0\0\0\0\x48\x03\x05\0\0\0\0",
+	     15);
+    }
 
   const elfcpp::Elf_Xword addend = rela.get_r_addend();
-  Relocate_functions<64, false>::pcrela32(view + 8, value, addend - 8, address);
+  Relocate_functions<size, false>::pcrela32(view + 8, value, addend - 8,
+					    address);
 
   // The next reloc should be a PLT32 reloc against __tls_get_addr.
   // We can skip it.
@@ -3447,32 +3578,53 @@ Target_x86_64::Relocate::tls_gd_to_ie(const Relocate_info<64, false>* relinfo,
 // Do a relocation in which we convert a TLS General-Dynamic to a
 // Local-Exec.
 
+template<int size>
 inline void
-Target_x86_64::Relocate::tls_gd_to_le(const Relocate_info<64, false>* relinfo,
-                                      size_t relnum,
-                                      Output_segment* tls_segment,
-                                      const elfcpp::Rela<64, false>& rela,
-                                      unsigned int,
-                                      elfcpp::Elf_types<64>::Elf_Addr value,
-                                      unsigned char* view,
-                                      section_size_type view_size)
+Target_x86_64<size>::Relocate::tls_gd_to_le(
+    const Relocate_info<size, false>* relinfo,
+    size_t relnum,
+    Output_segment* tls_segment,
+    const elfcpp::Rela<size, false>& rela,
+    unsigned int,
+    typename elfcpp::Elf_types<size>::Elf_Addr value,
+    unsigned char* view,
+    section_size_type view_size)
 {
-  // .byte 0x66; leaq foo@tlsgd(%rip),%rdi;
-  // .word 0x6666; rex64; call __tls_get_addr
-  // ==> movq %fs:0,%rax; leaq x@tpoff(%rax),%rax
+  // For SIZE == 64:
+  //	.byte 0x66; leaq foo@tlsgd(%rip),%rdi;
+  //	.word 0x6666; rex64; call __tls_get_addr
+  //	==> movq %fs:0,%rax; leaq x@tpoff(%rax),%rax
+  // For SIZE == 32:
+  //	leaq foo@tlsgd(%rip),%rdi;
+  //	.word 0x6666; rex64; call __tls_get_addr
+  //	==> movl %fs:0,%eax; leaq x@tpoff(%rax),%rax
 
-  tls::check_range(relinfo, relnum, rela.get_r_offset(), view_size, -4);
   tls::check_range(relinfo, relnum, rela.get_r_offset(), view_size, 12);
-
   tls::check_tls(relinfo, relnum, rela.get_r_offset(),
-                 (memcmp(view - 4, "\x66\x48\x8d\x3d", 4) == 0));
-  tls::check_tls(relinfo, relnum, rela.get_r_offset(),
-                 (memcmp(view + 4, "\x66\x66\x48\xe8", 4) == 0));
+		 (memcmp(view + 4, "\x66\x66\x48\xe8", 4) == 0));
 
-  memcpy(view - 4, "\x64\x48\x8b\x04\x25\0\0\0\0\x48\x8d\x80\0\0\0\0", 16);
+  if (size == 64)
+    {
+      tls::check_range(relinfo, relnum, rela.get_r_offset(), view_size,
+		       -4);
+      tls::check_tls(relinfo, relnum, rela.get_r_offset(),
+		     (memcmp(view - 4, "\x66\x48\x8d\x3d", 4) == 0));
+      memcpy(view - 4, "\x64\x48\x8b\x04\x25\0\0\0\0\x48\x8d\x80\0\0\0\0",
+	     16);
+    }
+  else
+    {
+      tls::check_range(relinfo, relnum, rela.get_r_offset(), view_size,
+		       -3);
+      tls::check_tls(relinfo, relnum, rela.get_r_offset(),
+		     (memcmp(view - 3, "\x48\x8d\x3d", 3) == 0));
+
+      memcpy(view - 3, "\x64\x8b\x04\x25\0\0\0\0\x48\x8d\x80\0\0\0\0",
+	     15);
+    }
 
   value -= tls_segment->memsz();
-  Relocate_functions<64, false>::rela32(view + 8, value, 0);
+  Relocate_functions<size, false>::rela32(view + 8, value, 0);
 
   // The next reloc should be a PLT32 reloc against __tls_get_addr.
   // We can skip it.
@@ -3481,16 +3633,17 @@ Target_x86_64::Relocate::tls_gd_to_le(const Relocate_info<64, false>* relinfo,
 
 // Do a TLSDESC-style General-Dynamic to Initial-Exec transition.
 
+template<int size>
 inline void
-Target_x86_64::Relocate::tls_desc_gd_to_ie(
-    const Relocate_info<64, false>* relinfo,
+Target_x86_64<size>::Relocate::tls_desc_gd_to_ie(
+    const Relocate_info<size, false>* relinfo,
     size_t relnum,
     Output_segment*,
-    const elfcpp::Rela<64, false>& rela,
+    const elfcpp::Rela<size, false>& rela,
     unsigned int r_type,
-    elfcpp::Elf_types<64>::Elf_Addr value,
+    typename elfcpp::Elf_types<size>::Elf_Addr value,
     unsigned char* view,
-    elfcpp::Elf_types<64>::Elf_Addr address,
+    typename elfcpp::Elf_types<size>::Elf_Addr address,
     section_size_type view_size)
 {
   if (r_type == elfcpp::R_X86_64_GOTPC32_TLSDESC)
@@ -3503,7 +3656,7 @@ Target_x86_64::Relocate::tls_desc_gd_to_ie(
                      view[-3] == 0x48 && view[-2] == 0x8d && view[-1] == 0x05);
       view[-2] = 0x8b;
       const elfcpp::Elf_Xword addend = rela.get_r_addend();
-      Relocate_functions<64, false>::pcrela32(view, value, addend, address);
+      Relocate_functions<size, false>::pcrela32(view, value, addend, address);
     }
   else
     {
@@ -3520,14 +3673,15 @@ Target_x86_64::Relocate::tls_desc_gd_to_ie(
 
 // Do a TLSDESC-style General-Dynamic to Local-Exec transition.
 
+template<int size>
 inline void
-Target_x86_64::Relocate::tls_desc_gd_to_le(
-    const Relocate_info<64, false>* relinfo,
+Target_x86_64<size>::Relocate::tls_desc_gd_to_le(
+    const Relocate_info<size, false>* relinfo,
     size_t relnum,
     Output_segment* tls_segment,
-    const elfcpp::Rela<64, false>& rela,
+    const elfcpp::Rela<size, false>& rela,
     unsigned int r_type,
-    elfcpp::Elf_types<64>::Elf_Addr value,
+    typename elfcpp::Elf_types<size>::Elf_Addr value,
     unsigned char* view,
     section_size_type view_size)
 {
@@ -3542,7 +3696,7 @@ Target_x86_64::Relocate::tls_desc_gd_to_le(
       view[-2] = 0xc7;
       view[-1] = 0xc0;
       value -= tls_segment->memsz();
-      Relocate_functions<64, false>::rela32(view, value, 0);
+      Relocate_functions<size, false>::rela32(view, value, 0);
     }
   else
     {
@@ -3557,15 +3711,17 @@ Target_x86_64::Relocate::tls_desc_gd_to_le(
     }
 }
 
+template<int size>
 inline void
-Target_x86_64::Relocate::tls_ld_to_le(const Relocate_info<64, false>* relinfo,
-                                      size_t relnum,
-                                      Output_segment*,
-                                      const elfcpp::Rela<64, false>& rela,
-                                      unsigned int,
-                                      elfcpp::Elf_types<64>::Elf_Addr,
-                                      unsigned char* view,
-                                      section_size_type view_size)
+Target_x86_64<size>::Relocate::tls_ld_to_le(
+    const Relocate_info<size, false>* relinfo,
+    size_t relnum,
+    Output_segment*,
+    const elfcpp::Rela<size, false>& rela,
+    unsigned int,
+    typename elfcpp::Elf_types<size>::Elf_Addr,
+    unsigned char* view,
+    section_size_type view_size)
 {
   // leaq foo@tlsld(%rip),%rdi; call __tls_get_addr@plt;
   // ... leq foo@dtpoff(%rax),%reg
@@ -3589,15 +3745,17 @@ Target_x86_64::Relocate::tls_ld_to_le(const Relocate_info<64, false>* relinfo,
 // Do a relocation in which we convert a TLS Initial-Exec to a
 // Local-Exec.
 
+template<int size>
 inline void
-Target_x86_64::Relocate::tls_ie_to_le(const Relocate_info<64, false>* relinfo,
-                                      size_t relnum,
-                                      Output_segment* tls_segment,
-                                      const elfcpp::Rela<64, false>& rela,
-                                      unsigned int,
-                                      elfcpp::Elf_types<64>::Elf_Addr value,
-                                      unsigned char* view,
-                                      section_size_type view_size)
+Target_x86_64<size>::Relocate::tls_ie_to_le(
+    const Relocate_info<size, false>* relinfo,
+    size_t relnum,
+    Output_segment* tls_segment,
+    const elfcpp::Rela<size, false>& rela,
+    unsigned int,
+    typename elfcpp::Elf_types<size>::Elf_Addr value,
+    unsigned char* view,
+    section_size_type view_size)
 {
   // We need to examine the opcodes to figure out which instruction we
   // are looking at.
@@ -3639,28 +3797,29 @@ Target_x86_64::Relocate::tls_ie_to_le(const Relocate_info<64, false>* relinfo,
     }
 
   value -= tls_segment->memsz();
-  Relocate_functions<64, false>::rela32(view, value, 0);
+  Relocate_functions<size, false>::rela32(view, value, 0);
 }
 
 // Relocate section data.
 
+template<int size>
 void
-Target_x86_64::relocate_section(
-    const Relocate_info<64, false>* relinfo,
+Target_x86_64<size>::relocate_section(
+    const Relocate_info<size, false>* relinfo,
     unsigned int sh_type,
     const unsigned char* prelocs,
     size_t reloc_count,
     Output_section* output_section,
     bool needs_special_offset_handling,
     unsigned char* view,
-    elfcpp::Elf_types<64>::Elf_Addr address,
+    typename elfcpp::Elf_types<size>::Elf_Addr address,
     section_size_type view_size,
     const Reloc_symbol_changes* reloc_symbol_changes)
 {
   gold_assert(sh_type == elfcpp::SHT_RELA);
 
-  gold::relocate_section<64, false, Target_x86_64, elfcpp::SHT_RELA,
-			 Target_x86_64::Relocate>(
+  gold::relocate_section<size, false, Target_x86_64<size>, elfcpp::SHT_RELA,
+			 typename Target_x86_64<size>::Relocate>(
     relinfo,
     this,
     prelocs,
@@ -3676,18 +3835,20 @@ Target_x86_64::relocate_section(
 // Apply an incremental relocation.  Incremental relocations always refer
 // to global symbols.
 
+template<int size>
 void
-Target_x86_64::apply_relocation(
-    const Relocate_info<64, false>* relinfo,
-    elfcpp::Elf_types<64>::Elf_Addr r_offset,
+Target_x86_64<size>::apply_relocation(
+    const Relocate_info<size, false>* relinfo,
+    typename elfcpp::Elf_types<size>::Elf_Addr r_offset,
     unsigned int r_type,
-    elfcpp::Elf_types<64>::Elf_Swxword r_addend,
+    typename elfcpp::Elf_types<size>::Elf_Swxword r_addend,
     const Symbol* gsym,
     unsigned char* view,
-    elfcpp::Elf_types<64>::Elf_Addr address,
+    typename elfcpp::Elf_types<size>::Elf_Addr address,
     section_size_type view_size)
 {
-  gold::apply_relocation<64, false, Target_x86_64, Target_x86_64::Relocate>(
+  gold::apply_relocation<size, false, Target_x86_64<size>,
+			 typename Target_x86_64<size>::Relocate>(
     relinfo,
     this,
     r_offset,
@@ -3702,8 +3863,9 @@ Target_x86_64::apply_relocation(
 // Return the size of a relocation while scanning during a relocatable
 // link.
 
+template<int size>
 unsigned int
-Target_x86_64::Relocatable_size_for_reloc::get_size_for_reloc(
+Target_x86_64<size>::Relocatable_size_for_reloc::get_size_for_reloc(
     unsigned int r_type,
     Relobj* object)
 {
@@ -3771,26 +3933,28 @@ Target_x86_64::Relocatable_size_for_reloc::get_size_for_reloc(
 
 // Scan the relocs during a relocatable link.
 
+template<int size>
 void
-Target_x86_64::scan_relocatable_relocs(Symbol_table* symtab,
-				       Layout* layout,
-				       Sized_relobj_file<64, false>* object,
-				       unsigned int data_shndx,
-				       unsigned int sh_type,
-				       const unsigned char* prelocs,
-				       size_t reloc_count,
-				       Output_section* output_section,
-				       bool needs_special_offset_handling,
-				       size_t local_symbol_count,
-				       const unsigned char* plocal_symbols,
-				       Relocatable_relocs* rr)
+Target_x86_64<size>::scan_relocatable_relocs(
+    Symbol_table* symtab,
+    Layout* layout,
+    Sized_relobj_file<size, false>* object,
+    unsigned int data_shndx,
+    unsigned int sh_type,
+    const unsigned char* prelocs,
+    size_t reloc_count,
+    Output_section* output_section,
+    bool needs_special_offset_handling,
+    size_t local_symbol_count,
+    const unsigned char* plocal_symbols,
+    Relocatable_relocs* rr)
 {
   gold_assert(sh_type == elfcpp::SHT_RELA);
 
   typedef gold::Default_scan_relocatable_relocs<elfcpp::SHT_RELA,
     Relocatable_size_for_reloc> Scan_relocatable_relocs;
 
-  gold::scan_relocatable_relocs<64, false, elfcpp::SHT_RELA,
+  gold::scan_relocatable_relocs<size, false, elfcpp::SHT_RELA,
       Scan_relocatable_relocs>(
     symtab,
     layout,
@@ -3807,9 +3971,10 @@ Target_x86_64::scan_relocatable_relocs(Symbol_table* symtab,
 
 // Relocate a section during a relocatable link.
 
+template<int size>
 void
-Target_x86_64::relocate_for_relocatable(
-    const Relocate_info<64, false>* relinfo,
+Target_x86_64<size>::relocate_for_relocatable(
+    const Relocate_info<size, false>* relinfo,
     unsigned int sh_type,
     const unsigned char* prelocs,
     size_t reloc_count,
@@ -3817,14 +3982,14 @@ Target_x86_64::relocate_for_relocatable(
     off_t offset_in_output_section,
     const Relocatable_relocs* rr,
     unsigned char* view,
-    elfcpp::Elf_types<64>::Elf_Addr view_address,
+    typename elfcpp::Elf_types<size>::Elf_Addr view_address,
     section_size_type view_size,
     unsigned char* reloc_view,
     section_size_type reloc_view_size)
 {
   gold_assert(sh_type == elfcpp::SHT_RELA);
 
-  gold::relocate_for_relocatable<64, false, elfcpp::SHT_RELA>(
+  gold::relocate_for_relocatable<size, false, elfcpp::SHT_RELA>(
     relinfo,
     prelocs,
     reloc_count,
@@ -3843,8 +4008,9 @@ Target_x86_64::relocate_for_relocatable(
 // pointers across shared library boundaries, as described in the
 // processor specific ABI supplement.
 
+template<int size>
 uint64_t
-Target_x86_64::do_dynsym_value(const Symbol* gsym) const
+Target_x86_64<size>::do_dynsym_value(const Symbol* gsym) const
 {
   gold_assert(gsym->is_from_dynobj() && gsym->has_plt_offset());
   return this->plt_address_for_global(gsym) + gsym->plt_offset();
@@ -3853,8 +4019,9 @@ Target_x86_64::do_dynsym_value(const Symbol* gsym) const
 // Return a string used to fill a code section with nops to take up
 // the specified length.
 
+template<int size>
 std::string
-Target_x86_64::do_code_fill(section_size_type length) const
+Target_x86_64<size>::do_code_fill(section_size_type length) const
 {
   if (length >= 16)
     {
@@ -3863,46 +4030,55 @@ Target_x86_64::do_code_fill(section_size_type length) const
       jmp[0] = 0xe9;
       elfcpp::Swap_unaligned<32, false>::writeval(jmp + 1, length - 5);
       return (std::string(reinterpret_cast<char*>(&jmp[0]), 5)
-              + std::string(length - 5, '\0'));
+              + std::string(length - 5, static_cast<char>(0x90)));
     }
 
   // Nop sequences of various lengths.
-  const char nop1[1] = { 0x90 };                   // nop
-  const char nop2[2] = { 0x66, 0x90 };             // xchg %ax %ax
-  const char nop3[3] = { 0x0f, 0x1f, 0x00 };       // nop (%rax)
-  const char nop4[4] = { 0x0f, 0x1f, 0x40, 0x00};  // nop 0(%rax)
-  const char nop5[5] = { 0x0f, 0x1f, 0x44, 0x00,   // nop 0(%rax,%rax,1)
-                         0x00 };
-  const char nop6[6] = { 0x66, 0x0f, 0x1f, 0x44,   // nopw 0(%rax,%rax,1)
-                         0x00, 0x00 };
-  const char nop7[7] = { 0x0f, 0x1f, 0x80, 0x00,   // nopl 0L(%rax)
-                         0x00, 0x00, 0x00 };
-  const char nop8[8] = { 0x0f, 0x1f, 0x84, 0x00,   // nopl 0L(%rax,%rax,1)
-                         0x00, 0x00, 0x00, 0x00 };
-  const char nop9[9] = { 0x66, 0x0f, 0x1f, 0x84,   // nopw 0L(%rax,%rax,1)
-                         0x00, 0x00, 0x00, 0x00,
-                         0x00 };
-  const char nop10[10] = { 0x66, 0x2e, 0x0f, 0x1f, // nopw %cs:0L(%rax,%rax,1)
-                           0x84, 0x00, 0x00, 0x00,
-                           0x00, 0x00 };
-  const char nop11[11] = { 0x66, 0x66, 0x2e, 0x0f, // data16
-                           0x1f, 0x84, 0x00, 0x00, // nopw %cs:0L(%rax,%rax,1)
-                           0x00, 0x00, 0x00 };
-  const char nop12[12] = { 0x66, 0x66, 0x66, 0x2e, // data16; data16
-                           0x0f, 0x1f, 0x84, 0x00, // nopw %cs:0L(%rax,%rax,1)
-                           0x00, 0x00, 0x00, 0x00 };
-  const char nop13[13] = { 0x66, 0x66, 0x66, 0x66, // data16; data16; data16
-                           0x2e, 0x0f, 0x1f, 0x84, // nopw %cs:0L(%rax,%rax,1)
-                           0x00, 0x00, 0x00, 0x00,
-                           0x00 };
-  const char nop14[14] = { 0x66, 0x66, 0x66, 0x66, // data16; data16; data16
-                           0x66, 0x2e, 0x0f, 0x1f, // data16
-                           0x84, 0x00, 0x00, 0x00, // nopw %cs:0L(%rax,%rax,1)
-                           0x00, 0x00 };
-  const char nop15[15] = { 0x66, 0x66, 0x66, 0x66, // data16; data16; data16
-                           0x66, 0x66, 0x2e, 0x0f, // data16; data16
-                           0x1f, 0x84, 0x00, 0x00, // nopw %cs:0L(%rax,%rax,1)
-                           0x00, 0x00, 0x00 };
+  const char nop1[1] = { '\x90' };                 // nop
+  const char nop2[2] = { '\x66', '\x90' };         // xchg %ax %ax
+  const char nop3[3] = { '\x0f', '\x1f', '\x00' }; // nop (%rax)
+  const char nop4[4] = { '\x0f', '\x1f', '\x40',   // nop 0(%rax)
+  			 '\x00'};
+  const char nop5[5] = { '\x0f', '\x1f', '\x44',   // nop 0(%rax,%rax,1)
+			 '\x00', '\x00' };
+  const char nop6[6] = { '\x66', '\x0f', '\x1f',   // nopw 0(%rax,%rax,1)
+  			 '\x44', '\x00', '\x00' };
+  const char nop7[7] = { '\x0f', '\x1f', '\x80',   // nopl 0L(%rax)
+  			 '\x00', '\x00', '\x00',
+			 '\x00' };
+  const char nop8[8] = { '\x0f', '\x1f', '\x84',   // nopl 0L(%rax,%rax,1)
+  			 '\x00', '\x00', '\x00',
+			 '\x00', '\x00' };
+  const char nop9[9] = { '\x66', '\x0f', '\x1f',   // nopw 0L(%rax,%rax,1)
+  			 '\x84', '\x00', '\x00',
+			 '\x00', '\x00', '\x00' };
+  const char nop10[10] = { '\x66', '\x2e', '\x0f', // nopw %cs:0L(%rax,%rax,1)
+  			   '\x1f', '\x84', '\x00',
+			   '\x00', '\x00', '\x00',
+			   '\x00' };
+  const char nop11[11] = { '\x66', '\x66', '\x2e', // data16
+  			   '\x0f', '\x1f', '\x84', // nopw %cs:0L(%rax,%rax,1)
+			   '\x00', '\x00', '\x00',
+			   '\x00', '\x00' };
+  const char nop12[12] = { '\x66', '\x66', '\x66', // data16; data16
+  			   '\x2e', '\x0f', '\x1f', // nopw %cs:0L(%rax,%rax,1)
+			   '\x84', '\x00', '\x00',
+			   '\x00', '\x00', '\x00' };
+  const char nop13[13] = { '\x66', '\x66', '\x66', // data16; data16; data16
+  			   '\x66', '\x2e', '\x0f', // nopw %cs:0L(%rax,%rax,1)
+			   '\x1f', '\x84', '\x00',
+			   '\x00', '\x00', '\x00',
+                           '\x00' };
+  const char nop14[14] = { '\x66', '\x66', '\x66', // data16; data16; data16
+  			   '\x66', '\x66', '\x2e', // data16
+			   '\x0f', '\x1f', '\x84', // nopw %cs:0L(%rax,%rax,1)
+			   '\x00', '\x00', '\x00',
+                           '\x00', '\x00' };
+  const char nop15[15] = { '\x66', '\x66', '\x66', // data16; data16; data16
+  			   '\x66', '\x66', '\x66', // data16; data16
+			   '\x2e', '\x0f', '\x1f', // nopw %cs:0L(%rax,%rax,1)
+			   '\x84', '\x00', '\x00',
+                           '\x00', '\x00', '\x00' };
 
   const char* nops[16] = {
     NULL,
@@ -3918,15 +4094,16 @@ Target_x86_64::do_code_fill(section_size_type length) const
 // symbol.  We want to set the addend is the offset of the local
 // symbol in the TLS segment.
 
+template<int size>
 uint64_t
-Target_x86_64::do_reloc_addend(void* arg, unsigned int r_type,
-			       uint64_t) const
+Target_x86_64<size>::do_reloc_addend(void* arg, unsigned int r_type,
+				     uint64_t) const
 {
   gold_assert(r_type == elfcpp::R_X86_64_TLSDESC);
   uintptr_t intarg = reinterpret_cast<uintptr_t>(arg);
   gold_assert(intarg < this->tlsdesc_reloc_info_.size());
   const Tlsdesc_info& ti(this->tlsdesc_reloc_info_[intarg]);
-  const Symbol_value<64>* psymval = ti.object->local_symbol(ti.r_sym);
+  const Symbol_value<size>* psymval = ti.object->local_symbol(ti.r_sym);
   gold_assert(psymval->is_tls_symbol());
   // The value of a TLS symbol is the offset in the TLS segment.
   return psymval->value(ti.object, 0);
@@ -3938,12 +4115,13 @@ Target_x86_64::do_reloc_addend(void* arg, unsigned int r_type,
 // different sections, so instead of using a pc-relative value they
 // use an offset from the GOT.
 
+template<int size>
 uint64_t
-Target_x86_64::do_ehframe_datarel_base() const
+Target_x86_64<size>::do_ehframe_datarel_base() const
 {
   gold_assert(this->global_offset_table_ != NULL);
   Symbol* sym = this->global_offset_table_;
-  Sized_symbol<64>* ssym = static_cast<Sized_symbol<64>*>(sym);
+  Sized_symbol<size>* ssym = static_cast<Sized_symbol<size>*>(sym);
   return ssym->value();
 }
 
@@ -3952,14 +4130,15 @@ Target_x86_64::do_ehframe_datarel_base() const
 // code.  We have to change the function so that it always ensures
 // that it has enough stack space to run some random function.
 
+template<int size>
 void
-Target_x86_64::do_calls_non_split(Relobj* object, unsigned int shndx,
-				  section_offset_type fnoffset,
-				  section_size_type fnsize,
-				  unsigned char* view,
-				  section_size_type view_size,
-				  std::string* from,
-				  std::string* to) const
+Target_x86_64<size>::do_calls_non_split(Relobj* object, unsigned int shndx,
+					section_offset_type fnoffset,
+					section_size_type fnsize,
+					unsigned char* view,
+					section_size_type view_size,
+					std::string* from,
+					std::string* to) const
 {
   // The function starts with a comparison of the stack pointer and a
   // field in the TCB.  This is followed by a jump.
@@ -4010,20 +4189,27 @@ Target_x86_64::do_calls_non_split(Relobj* object, unsigned int shndx,
 
 // The selector for x86_64 object files.
 
+template<int size>
 class Target_selector_x86_64 : public Target_selector_freebsd
 {
 public:
   Target_selector_x86_64()
-    : Target_selector_freebsd(elfcpp::EM_X86_64, 64, false, "elf64-x86-64",
-			      "elf64-x86-64-freebsd", "elf_x86_64")
+    : Target_selector_freebsd(elfcpp::EM_X86_64, size, false,
+			      (size == 64 
+			       ? "elf64-x86-64" : "elf32-x86-64"),
+			      (size == 64 
+			       ? "elf64-x86-64-freebsd"
+			       : "elf32-x86-64-freebsd"),
+			      (size == 64 ? "elf_x86_64" : "elf32_x86_64"))
   { }
 
   Target*
   do_instantiate_target()
-  { return new Target_x86_64(); }
+  { return new Target_x86_64<size>(); }
 
 };
 
-Target_selector_x86_64 target_selector_x86_64;
+Target_selector_x86_64<64> target_selector_x86_64;
+Target_selector_x86_64<32> target_selector_x32;
 
 } // End anonymous namespace.

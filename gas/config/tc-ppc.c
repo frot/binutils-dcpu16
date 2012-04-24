@@ -1,6 +1,6 @@
 /* tc-ppc.c -- Assemble for the PowerPC or POWER (RS/6000)
    Copyright 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003,
-   2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
+   2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
    Written by Ian Lance Taylor, Cygnus Support.
 
@@ -1265,6 +1265,8 @@ PowerPC options:\n\
 -me500, -me500x2        generate code for Motorola e500 core complex\n\
 -me500mc,               generate code for Freescale e500mc core complex\n\
 -me500mc64,             generate code for Freescale e500mc64 core complex\n\
+-me5500,                generate code for Freescale e5500 core complex\n\
+-me6500,                generate code for Freescale e6500 core complex\n\
 -mspe                   generate code for Motorola SPE instructions\n\
 -mtitan                 generate code for AppliedMicro Titan core complex\n\
 -mregnames              Allow symbolic names for registers\n\
@@ -1363,14 +1365,16 @@ ppc_target_format (void)
   return "xcoff-powermac";
 #else
 #  ifdef TE_AIX5
-    return (ppc_obj64 ? "aix5coff64-rs6000" : "aixcoff-rs6000");
+  return (ppc_obj64 ? "aix5coff64-rs6000" : "aixcoff-rs6000");
 #  else
-    return (ppc_obj64 ? "aixcoff64-rs6000" : "aixcoff-rs6000");
+  return (ppc_obj64 ? "aixcoff64-rs6000" : "aixcoff-rs6000");
 #  endif
 #endif
 #endif
 #ifdef OBJ_ELF
-# ifdef TE_VXWORKS
+# ifdef TE_FreeBSD
+  return (ppc_obj64 ? "elf64-powerpc-freebsd" : "elf32-powerpc-freebsd");
+# elif defined (TE_VXWORKS)
   return "elf32-powerpc-vxworks";
 # else
   return (target_big_endian
@@ -6012,8 +6016,14 @@ ppc_handle_align (struct frag *fragP)
 	    }
 
 	  if ((ppc_cpu & PPC_OPCODE_POWER7) != 0)
-	    /* power7 group terminating nop: "ori 2,2,0".  */
-	    md_number_to_chars (dest, 0x60420000, 4);
+	    {
+	      if (ppc_cpu & PPC_OPCODE_E500MC)
+		/* e500mc group terminating nop: "ori 0,0,0".  */
+		md_number_to_chars (dest, 0x60000000, 4);
+	      else
+		/* power7 group terminating nop: "ori 2,2,0".  */
+		md_number_to_chars (dest, 0x60420000, 4);
+	    }
 	  else
 	    /* power6 group terminating nop: "ori 1,1,0".  */
 	    md_number_to_chars (dest, 0x60210000, 4);

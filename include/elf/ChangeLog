@@ -1,8 +1,98 @@
-2011-10-25  Alan Modra  <amodra@gmail.com>
+2012-03-07  Nick Clifton  <nickc@redhat.com>
 
-	Apply mainline patches
-	2011-10-10  Alan Modra  <amodra@gmail.com>
+	* mn10300.h (elf_mn10300_reloc_type): Add R_MN10300_TLS_GD,
+	R_MN10300_TLS_LD, R_MN10300_TLS_LDO, R_MN10300_TLS_GOTIE,
+	R_MN10300_TLS_IE, R_MN10300_TLS_LE, R_MN10300_TLS_DPTMOD,
+	R_MN10300_TLS_DTPOFF and R_MN10300_TLS_TPOFF.
+
+2012-02-25  Walter Lee  <walt@tilera.com>
+
+	* tilegx.h (R_TILEGX_IMM16_X0_HW1_GOT): Delete.
+	(R_TILEGX_IMM16_X1_HW1_GOT): Ditto.
+	(R_TILEGX_IMM16_X0_HW2_GOT): Ditto.
+	(R_TILEGX_IMM16_X1_HW2_GOT): Ditto.
+	(R_TILEGX_IMM16_X0_HW3_GOT): Ditto.
+	(R_TILEGX_IMM16_X1_HW3_GOT): Ditto.
+	(R_TILEGX_IMM16_X0_HW2_LAST_GOT): Ditto.
+	(R_TILEGX_IMM16_X1_HW2_LAST_GOT): Ditto.
+	(R_TILEGX_IMM16_X0_HW1_TLS_GD): Ditto.
+	(R_TILEGX_IMM16_X1_HW1_TLS_GD): Ditto.
+	(R_TILEGX_IMM16_X0_HW2_TLS_GD): Ditto.
+	(R_TILEGX_IMM16_X1_HW2_TLS_GD): Ditto.
+	(R_TILEGX_IMM16_X0_HW3_TLS_GD): Ditto.
+	(R_TILEGX_IMM16_X1_HW3_TLS_GD): Ditto.
+	(R_TILEGX_IMM16_X0_HW2_LAST_TLS_GD): Ditto.
+	(R_TILEGX_IMM16_X1_HW2_LAST_TLS_GD): Ditto.
+	(R_TILEGX_IMM16_X0_HW1_TLS_IE): Ditto.
+	(R_TILEGX_IMM16_X1_HW1_TLS_IE): Ditto.
+	(R_TILEGX_IMM16_X0_HW2_TLS_IE): Ditto.
+	(R_TILEGX_IMM16_X1_HW2_TLS_IE): Ditto.
+	(R_TILEGX_IMM16_X0_HW3_TLS_IE): Ditto.
+	(R_TILEGX_IMM16_X1_HW3_TLS_IE): Ditto.
+	(R_TILEGX_IMM16_X0_HW2_LAST_TLS_IE): Ditto.
+	(R_TILEGX_IMM16_X1_HW2_LAST_TLS_IE): Ditto.
+	(R_TILEGX_IMM16_X0_HW0_TLS_LE): New relocation.
+	(R_TILEGX_IMM16_X1_HW0_TLS_LE): Ditto.
+	(R_TILEGX_IMM16_X0_HW0_LAST_TLS_LE): Ditto.
+	(R_TILEGX_IMM16_X1_HW0_LAST_TLS_LE): Ditto.
+	(R_TILEGX_IMM16_X0_HW1_LAST_TLS_LE): Ditto.
+	(R_TILEGX_IMM16_X1_HW1_LAST_TLS_LE): Ditto.
+	(R_TILEGX_TLS_GD_CALL): Ditto.
+	(R_TILEGX_IMM8_X0_TLS_GD_ADD): Ditto.
+	(R_TILEGX_IMM8_X1_TLS_GD_ADD): Ditto.
+	(R_TILEGX_IMM8_Y0_TLS_GD_ADD): Ditto.
+	(R_TILEGX_IMM8_Y1_TLS_GD_ADD): Ditto.
+	(R_TILEGX_TLS_IE_LOAD): Ditto.
+	(R_TILEGX_IMM8_X0_TLS_ADD): Ditto.
+	(R_TILEGX_IMM8_X1_TLS_ADD): Ditto.
+	(R_TILEGX_IMM8_Y0_TLS_ADD): Ditto.
+	(R_TILEGX_IMM8_Y1_TLS_ADD): Ditto.
+	* tilepro.h (R_TILEPRO_TLS_GD_CALL): New relocation.
+	(R_TILEPRO_IMM8_X0_TLS_GD_ADD): Ditto.
+	(R_TILEPRO_IMM8_X1_TLS_GD_ADD): Ditto.
+	(R_TILEPRO_IMM8_Y0_TLS_GD_ADD): Ditto.
+	(R_TILEPRO_IMM8_Y1_TLS_GD_ADD): Ditto.
+	(R_TILEPRO_TLS_IE_LOAD): Ditto.
+	(R_TILEPRO_IMM16_X0_TLS_LE): Ditto.
+	(R_TILEPRO_IMM16_X1_TLS_LE): Ditto.
+	(R_TILEPRO_IMM16_X0_TLS_LE_LO): Ditto.
+	(R_TILEPRO_IMM16_X1_TLS_LE_LO): Ditto.
+	(R_TILEPRO_IMM16_X0_TLS_LE_HI): Ditto.
+	(R_TILEPRO_IMM16_X1_TLS_LE_HI): Ditto.
+	(R_TILEPRO_IMM16_X0_TLS_LE_HA): Ditto.
+	(R_TILEPRO_IMM16_X1_TLS_LE_HA): Ditto.
+
+2011-12-22  DJ Delorie  <dj@redhat.com>
+
+	* rl78.h (R_RL78_RH_RELAX, R_RL78_RH_SFR, R_RL78_RH_SADDR): New.
+	(RL78_RELAXA_BRA, RL78_RELAXA_ADDR16: New.
+
+2011-12-19  Chung-Lin Tang  <cltang@codesourcery.com>
+
+	* mips.h (elf_mips_reloc_type): Add R_MIPS16_TLS_* entries.
+
+2011-12-06  Ulrich Weigand  <uweigand@de.ibm.com>
+
+	* common.h (NT_S390_LAST_BREAK): Define.
+	(NT_S390_SYSTEM_CALL): Likewise.
+
+2011-11-01  DJ Delorie  <dj@redhat.com>
+
+	* common.h (EM_RL78, EM_78K0R): New.
+	* rl78.h: New.
+
+2011-10-25  Joern Rennecke  <joern.rennecke@embecosm.com>
+
+	* epiphany.h: New file.
+	* common.h (EM_ADAPTEVA_EPIPHANY): Define.
+
+2011-10-10  Alan Modra  <amodra@gmail.com>
+
 	* ppc64.h (R_PPC64_TOCSAVE): Add.
+
+2011-10-05  DJ Delorie  <dj@redhat.com>
+
+	* rx.h (E_FLAG_RX_PID): New.
 
 2011-09-21  David S. Miller  <davem@davemloft.net>
 
@@ -81,6 +171,12 @@
 2011-05-31  Paul Brook  <paul@codesourcery.com>
 
 	* arm.h (arm_st_branch_type): Add ST_BRANCH_UNKNOWN.
+
+2011-05-09  Paul Brook  <paul@codesourcery.com>
+
+	* tic6x.h (ELF_STRING_C6000_unwind,
+	ELF_STRING_C6000_unwind_info, ELF_STRING_C6000_unwind_once,
+	ELF_STRING_C6000_unwind_info_once): Define.
 
 2011-04-15  Sergio Durigan Junior  <sergiodj@redhat.com>
 
@@ -365,6 +461,11 @@
 	* ppc.h (R_PPC_RELAX32, R_PPC_RELAX32PC, R_PPC_RELAX32_PLT,
 	R_PPC_RELAX32PC_PLT): Delete.
 	(R_PPC_RELAX, R_PPC_RELAX_PLT, R_PPC_RELAX_PLTREL24): Define.
+
+2009-12-03  David Daney  <ddaney@caviumnetworks.com>
+	    Adam Nemet  <adambnemet@gmail.com>
+
+	* mips.h (E_MIPS_MACH_OCTEON2): New machine flag.
 
 2009-11-28  Joseph Myers  <joseph@codesourcery.com>
 

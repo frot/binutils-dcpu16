@@ -599,6 +599,8 @@ HAVE_ZLIB_FALSE
 HAVE_ZLIB_TRUE
 LIBOBJS
 LFS_CFLAGS
+GOLD_LDADD
+GOLD_LDFLAGS
 WARN_CXXFLAGS
 NO_WERROR
 WARN_CFLAGS
@@ -773,10 +775,13 @@ enable_gold
 enable_threads
 enable_plugins
 enable_targets
+with_lib_path
 enable_dependency_tracking
 enable_nls
 enable_werror
 enable_build_warnings
+with_gold_ldflags
+with_gold_ldadd
 enable_maintainer_mode
 '
       ac_precious_vars='build_alias
@@ -1431,6 +1436,9 @@ Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
   --with-sysroot=DIR    search for usr/lib et al within DIR
+  --with-lib-path=dir1:dir2...  set default LIB_PATH
+  --with-gold-ldflags=FLAGS  additional link flags for gold
+  --with-gold-ldadd=LIBS     additional libraries for gold
 
 Some influential environment variables:
   CC          C compiler command
@@ -3528,6 +3536,29 @@ cat >>confdefs.h <<_ACEOF
 #define GOLD_DEFAULT_OSABI $default_osabi
 _ACEOF
 
+
+
+# Check whether --with-lib-path was given.
+if test "${with_lib_path+set}" = set; then :
+  withval=$with_lib_path; case "$withval" in
+ yes) LIB_PATH='"/lib:/usr/lib"' ;;
+ no) LIB_PATH='""' ;;
+ *) LIB_PATH='"'"$withval"'"' ;;
+ esac
+else
+  LIB_PATH='"::DEFAULT::"'
+fi
+
+
+cat >>confdefs.h <<_ACEOF
+#define LIB_PATH $LIB_PATH
+_ACEOF
+
+if test "x$target_alias" = "x" -o "x$host_alias" = "x$target_alias"; then
+
+$as_echo "#define NATIVE_LINKER 1" >>confdefs.h
+
+fi
 
 if test -n "$ac_tool_prefix"; then
   # Extract the first word of "${ac_tool_prefix}nm", so it can be a program name with args.
@@ -6281,7 +6312,20 @@ fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $gold_cv_prog_gcc41" >&5
 $as_echo "$gold_cv_prog_gcc41" >&6; }
 
- if test "$target_cpu" = "x86_64" -a "$gold_cv_prog_gcc41" = "yes"; then
+save_CFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS -mcmodel=medium"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+int i;
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  have_mcmodel_medium=yes
+else
+  have_mcmodel_medium=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+CFLAGS="$save_CFLAGS"
+ if test "$target_cpu" = "x86_64" -a "$have_mcmodel_medium" = "yes" -a "$gold_cv_prog_gcc41" = "yes"; then
   MCMODEL_MEDIUM_TRUE=
   MCMODEL_MEDIUM_FALSE='#'
 else
@@ -6393,10 +6437,16 @@ fi
 
 
 save_CFLAGS="$CFLAGS"
-CFLAGS="$CFLAGS -mtls-dialect=gnu2"
+CFLAGS="$CFLAGS -fpic -mtls-dialect=gnu2"
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
-int i;
+
+__thread int i;
+void foo (void)
+{
+  i = 10;
+}
+
 _ACEOF
 if ac_fn_c_try_compile "$LINENO"; then :
   have_tls_gnu2=yes
@@ -6617,6 +6667,34 @@ fi
 
 
 WARN_CXXFLAGS=`echo ${WARN_CFLAGS} | sed -e 's/-Wstrict-prototypes//' -e 's/-Wmissing-prototypes//' -e 's/-Wshadow//'`
+
+
+
+# Check whether --with-gold-ldflags was given.
+if test "${with_gold_ldflags+set}" = set; then :
+  withval=$with_gold_ldflags; if test "$withval" = "no" -o "$withval" = "yes"; then
+   GOLD_LDFLAGS=
+ else
+   GOLD_LDFLAGS=$withval
+ fi
+else
+  GOLD_LDFLAGS=
+fi
+
+
+
+
+# Check whether --with-gold-ldadd was given.
+if test "${with_gold_ldadd+set}" = set; then :
+  withval=$with_gold_ldadd; if test "$withval" = "no" -o "$withval" = "yes"; then
+   GOLD_LDADD=
+ else
+   GOLD_LDADD=$withval
+ fi
+else
+  GOLD_LDADD=
+fi
+
 
 
 LFS_CFLAGS="-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
@@ -7256,6 +7334,63 @@ ac_cpp='$CPP $CPPFLAGS'
 ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
 ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
 ac_compiler_gnu=$ac_cv_c_compiler_gnu
+
+
+for ac_header in locale.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "locale.h" "ac_cv_header_locale_h" "$ac_includes_default"
+if test "x$ac_cv_header_locale_h" = x""yes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LOCALE_H 1
+_ACEOF
+
+fi
+
+done
+
+for ac_func in setlocale
+do :
+  ac_fn_c_check_func "$LINENO" "setlocale" "ac_cv_func_setlocale"
+if test "x$ac_cv_func_setlocale" = x""yes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_SETLOCALE 1
+_ACEOF
+
+fi
+done
+
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for LC_MESSAGES" >&5
+$as_echo_n "checking for LC_MESSAGES... " >&6; }
+if test "${am_cv_val_LC_MESSAGES+set}" = set; then :
+  $as_echo_n "(cached) " >&6
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <locale.h>
+int
+main ()
+{
+return LC_MESSAGES
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  am_cv_val_LC_MESSAGES=yes
+else
+  am_cv_val_LC_MESSAGES=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $am_cv_val_LC_MESSAGES" >&5
+$as_echo "$am_cv_val_LC_MESSAGES" >&6; }
+  if test $am_cv_val_LC_MESSAGES = yes; then
+
+$as_echo "#define HAVE_LC_MESSAGES 1" >>confdefs.h
+
+  fi
 
 
 

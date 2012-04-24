@@ -1,6 +1,6 @@
 /* tc-mips.c -- assemble code for a MIPS chip.
    Copyright 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002,
-   2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by the OSF and Ralph Campbell.
    Written by Keith Knowles and Ralph Campbell, working independently.
@@ -370,7 +370,8 @@ static int file_ase_mt;
 			     || mips_opts.isa == ISA_MIPS64R2)
 
 #define ISA_SUPPORTS_MCU_ASE (mips_opts.isa == ISA_MIPS32R2		\
-			      || mips_opts.isa == ISA_MIPS64R2)
+			      || mips_opts.isa == ISA_MIPS64R2		\
+			      || mips_opts.micromips)
 
 /* The argument of the -march= flag.  The architecture we are assembling.  */
 static int file_mips_arch = CPU_UNKNOWN;
@@ -496,13 +497,16 @@ static int mips_32bitmode = 0;
 /* True if CPU has a ror instruction.  */
 #define CPU_HAS_ROR(CPU)	CPU_HAS_DROR (CPU)
 
+/* True if CPU is in the Octeon family */
+#define CPU_IS_OCTEON(CPU) ((CPU) == CPU_OCTEON || (CPU) == CPU_OCTEONP || (CPU) == CPU_OCTEON2)
+
 /* True if CPU has seq/sne and seqi/snei instructions.  */
-#define CPU_HAS_SEQ(CPU)	((CPU) == CPU_OCTEON)
+#define CPU_HAS_SEQ(CPU)	(CPU_IS_OCTEON (CPU))
 
 /* True if CPU does not implement the all the coprocessor insns.  For these
    CPUs only those COP insns are accepted that are explicitly marked to be
    available on the CPU.  ISA membership for COP insns is ignored.  */
-#define NO_ISA_COP(CPU)		((CPU) == CPU_OCTEON)
+#define NO_ISA_COP(CPU)		(CPU_IS_OCTEON (CPU))
 
 /* True if mflo and mfhi can be immediately followed by instructions
    which write to the HI and LO registers.
@@ -1352,6 +1356,8 @@ static void s_cprestore (int);
 static void s_cpreturn (int);
 static void s_dtprelword (int);
 static void s_dtpreldword (int);
+static void s_tprelword (int);
+static void s_tpreldword (int);
 static void s_gpvalue (int);
 static void s_gpword (int);
 static void s_gpdword (int);
@@ -1431,6 +1437,8 @@ static const pseudo_typeS mips_pseudo_table[] =
   {"cpreturn", s_cpreturn, 0},
   {"dtprelword", s_dtprelword, 0},
   {"dtpreldword", s_dtpreldword, 0},
+  {"tprelword", s_tprelword, 0},
+  {"tpreldword", s_tpreldword, 0},
   {"gpvalue", s_gpvalue, 0},
   {"gpword", s_gpword, 0},
   {"gpdword", s_gpdword, 0},
@@ -2753,25 +2761,34 @@ reg_needs_delay (unsigned int reg)
   return 0;
 }
 
-/* Move all labels in insn_labels to the current insertion point.  */
+/* Move all labels in LABELS to the current insertion point.  TEXT_P
+   says whether the labels refer to text or data.  */
 
 static void
-mips_move_labels (void)
+mips_move_labels (struct insn_label_list *labels, bfd_boolean text_p)
 {
-  segment_info_type *si = seg_info (now_seg);
   struct insn_label_list *l;
   valueT val;
 
-  for (l = si->label_list; l != NULL; l = l->next)
+  for (l = labels; l != NULL; l = l->next)
     {
       gas_assert (S_GET_SEGMENT (l->label) == now_seg);
       symbol_set_frag (l->label, frag_now);
       val = (valueT) frag_now_fix ();
       /* MIPS16/microMIPS text labels are stored as odd.  */
-      if (HAVE_CODE_COMPRESSION)
+      if (text_p && HAVE_CODE_COMPRESSION)
 	++val;
       S_SET_VALUE (l->label, val);
     }
+}
+
+/* Move all labels in insn_labels to the current insertion point
+   and treat them as text labels.  */
+
+static void
+mips_move_text_labels (void)
+{
+  mips_move_labels (seg_info (now_seg)->label_list, TRUE);
 }
 
 static bfd_boolean
@@ -3687,7 +3704,6 @@ can_swap_branch_p (struct mips_cl_insn *ip)
   unsigned long pinfo, pinfo2, prev_pinfo, prev_pinfo2;
   unsigned int gpr_read, gpr_write, prev_gpr_read, prev_gpr_write;
 
-
   /* -O2 and above is required for this optimization.  */
   if (mips_optimize < 2)
     return FALSE;
@@ -3919,6 +3935,8 @@ micromips_add_label (void)
 #if defined(OBJ_ELF) || defined(OBJ_MAYBE_ELF)
   if (IS_ELF)
     S_SET_OTHER (s, ELF_ST_SET_MICROMIPS (S_GET_OTHER (s)));
+#else
+  (void) s;
 #endif
 }
 
@@ -4140,7 +4158,7 @@ append_insn (struct mips_cl_insn *ip, expressionS *address_expr,
 	      frag_grow (40);
 	    }
 
-	  mips_move_labels ();
+	  mips_move_text_labels ();
 
 #ifndef NO_ECOFF_DEBUGGING
 	  if (ECOFF_DEBUGGING)
@@ -4532,7 +4550,7 @@ mips_emit_delays (void)
 	{
 	  while (nops-- > 0)
 	    add_fixed_insn (NOP_INSN);
-	  mips_move_labels ();
+	  mips_move_text_labels ();
 	}
     }
   mips_no_prev_insn ();
@@ -4576,7 +4594,7 @@ start_noreorder (void)
 	     decrease the size of prev_nop_frag.  */
 	  frag_wane (frag_now);
 	  frag_new (0);
-	  mips_move_labels ();
+	  mips_move_text_labels ();
 	}
       mips_mark_labels ();
       mips_clear_insn_labels ();
@@ -4590,7 +4608,6 @@ start_noreorder (void)
 static void
 end_noreorder (void)
 {
-
   mips_opts.noreorder--;
   if (mips_opts.noreorder == 0 && prev_nop_frag != NULL)
     {
@@ -5260,9 +5277,7 @@ macro_build_jalr (expressionS *ep, int cprestore)
       frag_grow (8);
       f = frag_more (0);
     }
-  if (!mips_opts.micromips)
-    macro_build (NULL, "jalr", "d,s", RA, PIC_CALL_REG);
-  else
+  if (mips_opts.micromips)
     {
       jalr = mips_opts.noreorder && !cprestore ? "jalr" : "jalrs";
       if (MIPS_JALR_HINT_P (ep))
@@ -5270,6 +5285,8 @@ macro_build_jalr (expressionS *ep, int cprestore)
       else
 	macro_build (NULL, jalr, "mj", PIC_CALL_REG);
     }
+  else
+    macro_build (NULL, "jalr", "d,s", RA, PIC_CALL_REG);
   if (MIPS_JALR_HINT_P (ep))
     fix_new_exp (frag_now, f - frag_now->fr_literal, 4, ep, FALSE, jalr_reloc);
 }
@@ -5944,7 +5961,7 @@ move_register (int dest, int source)
      instruction specifically requires a 32-bit one.  */
   if (mips_opts.micromips
       && !(history[0].insn_mo->pinfo2 & INSN2_BRANCH_DELAY_32BIT))
-    macro_build (NULL, "move", "mp,mj", dest, source );
+    macro_build (NULL, "move", "mp,mj", dest, source);
   else
     macro_build (NULL, HAVE_32BIT_GPRS ? "addu" : "daddu", "d,v,t",
 		 dest, source, 0);
@@ -6260,6 +6277,7 @@ macro (struct mips_cl_insn *ip)
   int ust = 0;
   int lp = 0;
   int ab = 0;
+  int off0 = 0;
   int off;
   offsetT maxnum;
   bfd_reloc_code_real_type r;
@@ -8294,20 +8312,29 @@ macro (struct mips_cl_insn *ip)
 			     tempreg, tempreg, breg);
 	      breg = tempreg;
 	    }
-	  if (!off12)
+	  if (off0)
+	    {
+	      if (offset_expr.X_add_number == 0)
+		tempreg = breg;
+	      else
+		macro_build (&offset_expr, ADDRESS_ADDI_INSN,
+			     "t,r,j", tempreg, breg, BFD_RELOC_LO16);
+	      macro_build (NULL, s, fmt, treg, tempreg);
+	    }
+	  else if (!off12)
 	    macro_build (&offset_expr, s, fmt, treg, BFD_RELOC_LO16, breg);
 	  else
 	    macro_build (NULL, s, fmt,
 			 treg, (unsigned long) offset_expr.X_add_number, breg);
 	}
-      else if (off12)
+      else if (off12 || off0)
 	{
-	  /* A 12-bit offset field is too narrow to be used for a low-part
-	     relocation, so load the whole address into the auxillary
-	     register.  In the case of "A(b)" addresses, we first load
-	     absolute address "A" into the register and then add base
-	     register "b".  In the case of "o(b)" addresses, we simply
-	     need to add 16-bit offset "o" to base register "b", and
+	  /* A 12-bit or 0-bit offset field is too narrow to be used
+	     for a low-part relocation, so load the whole address into
+	     the auxillary register.  In the case of "A(b)" addresses,
+	     we first load absolute address "A" into the register and
+	     then add base register "b".  In the case of "o(b)" addresses,
+	     we simply need to add 16-bit offset "o" to base register "b", and
 	     offset_reloc already contains the relocations associated
 	     with "o".  */
 	  if (ab)
@@ -8322,8 +8349,11 @@ macro (struct mips_cl_insn *ip)
 			 tempreg, breg, -1,
 			 offset_reloc[0], offset_reloc[1], offset_reloc[2]);
 	  expr1.X_add_number = 0;
-	  macro_build (NULL, s, fmt,
-		       treg, (unsigned long) expr1.X_add_number, tempreg);
+	  if (off0)
+	    macro_build (NULL, s, fmt, treg, tempreg);
+	  else
+	    macro_build (NULL, s, fmt,
+		         treg, (unsigned long) expr1.X_add_number, tempreg);
 	}
       else if (mips_pic == NO_PIC)
 	{
@@ -9117,6 +9147,22 @@ macro (struct mips_cl_insn *ip)
 	}
       break;
 
+	
+    case M_SAA_AB:
+      ab = 1;
+    case M_SAA_OB:
+      s = "saa";
+      off0 = 1;
+      fmt = "t,(b)";
+      goto ld_st;
+    case M_SAAD_AB:
+      ab = 1;
+    case M_SAAD_OB:
+      s = "saad";
+      off0 = 1;
+      fmt = "t,(b)";
+      goto ld_st;
+
    /* New code added to support COPZ instructions.
       This code builds table entries out of the macros in mip_opcodes.
       R4000 uses interlocks to handle coproc delays.
@@ -9150,7 +9196,7 @@ macro (struct mips_cl_insn *ip)
       if (NO_ISA_COP (mips_opts.arch)
 	  && (ip->insn_mo->pinfo2 & INSN2_M_FP_S) == 0)
 	{
-	  as_bad (_("opcode not supported on this processor: %s"),
+	  as_bad (_("Opcode not supported on this processor: %s"),
 		  mips_cpu_info_from_arch (mips_opts.arch)->name);
 	  break;
 	}
@@ -10447,7 +10493,7 @@ validate_micromips_insn (const struct mips_opcode *opc)
       case 'D': USE_BITS (FD);		break;
       case 'E': USE_BITS (RT);		break;
       case 'G': USE_BITS (RS);		break;
-      case 'H': USE_BITS (SEL);	break;
+      case 'H': USE_BITS (SEL);		break;
       case 'K': USE_BITS (RS);		break;
       case 'M': USE_BITS (CCC);		break;
       case 'N': USE_BITS (BCC);		break;
@@ -10699,7 +10745,7 @@ mips_ip (char *str, struct mips_cl_insn *ip)
 	    return;
 
 	  if (!ok)
-	    sprintf (buf, _("opcode not supported on this processor: %s (%s)"),
+	    sprintf (buf, _("Opcode not supported on this processor: %s (%s)"),
 		     mips_cpu_info_from_arch (mips_opts.arch)->name,
 		     mips_cpu_info_from_isa (mips_opts.isa)->name);
 	  else
@@ -10964,9 +11010,9 @@ mips_ip (char *str, struct mips_cl_insn *ip)
 
 	    case '\\':		/* 3-bit bit position.  */
 	      {
-		unsigned long mask = (!mips_opts.micromips
-				      ? OP_MASK_3BITPOS
-				      : MICROMIPSOP_MASK_3BITPOS);
+		unsigned long mask = (mips_opts.micromips
+				      ? MICROMIPSOP_MASK_3BITPOS
+				      : OP_MASK_3BITPOS);
 
 		my_getExpression (&imm_expr, s);
 		check_absolute_expr (ip, &imm_expr);
@@ -13228,7 +13274,7 @@ mips16_ip (char *str, struct mips_cl_insn *ip)
 		{
 		  static char buf[100];
 		  sprintf (buf,
-			   _("opcode not supported on this processor: %s (%s)"),
+			   _("Opcode not supported on this processor: %s (%s)"),
 			   mips_cpu_info_from_arch (mips_opts.arch)->name,
 			   mips_cpu_info_from_isa (mips_opts.isa)->name);
 		  insn_error = buf;
@@ -14040,7 +14086,14 @@ static const struct percent_op_match mips16_percent_op[] =
   {"%gprel", BFD_RELOC_MIPS16_GPREL},
   {"%got", BFD_RELOC_MIPS16_GOT16},
   {"%call16", BFD_RELOC_MIPS16_CALL16},
-  {"%hi", BFD_RELOC_MIPS16_HI16_S}
+  {"%hi", BFD_RELOC_MIPS16_HI16_S},
+  {"%tlsgd", BFD_RELOC_MIPS16_TLS_GD},
+  {"%tlsldm", BFD_RELOC_MIPS16_TLS_LDM},
+  {"%dtprel_hi", BFD_RELOC_MIPS16_TLS_DTPREL_HI16},
+  {"%dtprel_lo", BFD_RELOC_MIPS16_TLS_DTPREL_LO16},
+  {"%tprel_hi", BFD_RELOC_MIPS16_TLS_TPREL_HI16},
+  {"%tprel_lo", BFD_RELOC_MIPS16_TLS_TPREL_LO16},
+  {"%gottprel", BFD_RELOC_MIPS16_TLS_GOTTPREL}
 };
 
 
@@ -15369,6 +15422,8 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg ATTRIBUTE_UNUSED)
     case BFD_RELOC_MIPS_TLS_DTPREL_HI16:
     case BFD_RELOC_MIPS_TLS_DTPREL_LO16:
     case BFD_RELOC_MIPS_TLS_GOTTPREL:
+    case BFD_RELOC_MIPS_TLS_TPREL32:
+    case BFD_RELOC_MIPS_TLS_TPREL64:
     case BFD_RELOC_MIPS_TLS_TPREL_HI16:
     case BFD_RELOC_MIPS_TLS_TPREL_LO16:
     case BFD_RELOC_MICROMIPS_TLS_GD:
@@ -15378,6 +15433,13 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg ATTRIBUTE_UNUSED)
     case BFD_RELOC_MICROMIPS_TLS_GOTTPREL:
     case BFD_RELOC_MICROMIPS_TLS_TPREL_HI16:
     case BFD_RELOC_MICROMIPS_TLS_TPREL_LO16:
+    case BFD_RELOC_MIPS16_TLS_GD:
+    case BFD_RELOC_MIPS16_TLS_LDM:
+    case BFD_RELOC_MIPS16_TLS_DTPREL_HI16:
+    case BFD_RELOC_MIPS16_TLS_DTPREL_LO16:
+    case BFD_RELOC_MIPS16_TLS_GOTTPREL:
+    case BFD_RELOC_MIPS16_TLS_TPREL_HI16:
+    case BFD_RELOC_MIPS16_TLS_TPREL_LO16:
       S_SET_THREAD_LOCAL (fixP->fx_addsy);
       /* fall through */
 
@@ -15596,11 +15658,18 @@ get_symbol (void)
    fill byte should be used, FILL points to an integer that contains
    that byte, otherwise FILL is null.
 
-   The MIPS assembler also automatically adjusts any preceding
-   label.  */
+   This function used to have the comment:
+
+      The MIPS assembler also automatically adjusts any preceding label.
+
+   The implementation therefore applied the adjustment to a maximum of
+   one label.  However, other label adjustments are applied to batches
+   of labels, and adjusting just one caused problems when new labels
+   were added for the sake of debugging or unwind information.
+   We therefore adjust all preceding labels (given as LABELS) instead.  */
 
 static void
-mips_align (int to, int *fill, symbolS *label)
+mips_align (int to, int *fill, struct insn_label_list *labels)
 {
   mips_emit_delays ();
   mips_record_compressed_mode ();
@@ -15609,12 +15678,7 @@ mips_align (int to, int *fill, symbolS *label)
   else
     frag_align (to, fill ? *fill : 0, 0);
   record_alignment (now_seg, to);
-  if (label != NULL)
-    {
-      gas_assert (S_GET_SEGMENT (label) == now_seg);
-      symbol_set_frag (label, frag_now);
-      S_SET_VALUE (label, (valueT) frag_now_fix ());
-    }
+  mips_move_labels (labels, FALSE);
 }
 
 /* Align to a given power of two.  .align 0 turns off the automatic
@@ -15656,7 +15720,7 @@ s_align (int x ATTRIBUTE_UNUSED)
       struct insn_label_list *l = si->label_list;
       /* Auto alignment should be switched on by next section change.  */
       auto_align = 1;
-      mips_align (temp, fill_ptr, l != NULL ? l->label : NULL);
+      mips_align (temp, fill_ptr, l);
     }
   else
     {
@@ -15826,12 +15890,10 @@ s_cons (int log_size)
 {
   segment_info_type *si = seg_info (now_seg);
   struct insn_label_list *l = si->label_list;
-  symbolS *label;
 
-  label = l != NULL ? l->label : NULL;
   mips_emit_delays ();
   if (log_size > 0 && auto_align)
-    mips_align (log_size, 0, label);
+    mips_align (log_size, 0, l);
   cons (1 << log_size);
   mips_clear_insn_labels ();
 }
@@ -15841,18 +15903,15 @@ s_float_cons (int type)
 {
   segment_info_type *si = seg_info (now_seg);
   struct insn_label_list *l = si->label_list;
-  symbolS *label;
-
-  label = l != NULL ? l->label : NULL;
 
   mips_emit_delays ();
 
   if (auto_align)
     {
       if (type == 'd')
-	mips_align (3, 0, label);
+	mips_align (3, 0, l);
       else
-	mips_align (2, 0, label);
+	mips_align (2, 0, l);
     }
 
   float_cons (type);
@@ -15942,7 +16001,7 @@ s_option (int x ATTRIBUTE_UNUSED)
 	mips_pic = NO_PIC;
       else if (i == 2)
 	{
-	mips_pic = SVR4_PIC;
+	  mips_pic = SVR4_PIC;
 	  mips_abicalls = TRUE;
 	}
       else
@@ -16547,12 +16606,14 @@ s_cpreturn (int ignore ATTRIBUTE_UNUSED)
   demand_empty_rest_of_line ();
 }
 
-/* Handle the .dtprelword and .dtpreldword pseudo-ops.  They generate
-   a 32-bit or 64-bit DTP-relative relocation (BYTES says which) for
-   use in DWARF debug information.  */
+/* Handle a .dtprelword, .dtpreldword, .tprelword, or .tpreldword
+   pseudo-op; DIRSTR says which. The pseudo-op generates a BYTES-size
+   DTP- or TP-relative relocation of type RTYPE, for use in either DWARF
+   debug information or MIPS16 TLS.  */
 
 static void
-s_dtprel_internal (size_t bytes)
+s_tls_rel_directive (const size_t bytes, const char *dirstr,
+		     bfd_reloc_code_real_type rtype)
 {
   expressionS ex;
   char *p;
@@ -16561,20 +16622,15 @@ s_dtprel_internal (size_t bytes)
 
   if (ex.X_op != O_symbol)
     {
-      as_bad (_("Unsupported use of %s"), (bytes == 8
-					   ? ".dtpreldword"
-					   : ".dtprelword"));
+      as_bad (_("Unsupported use of %s"), dirstr);
       ignore_rest_of_line ();
     }
 
   p = frag_more (bytes);
   md_number_to_chars (p, 0, bytes);
-  fix_new_exp (frag_now, p - frag_now->fr_literal, bytes, &ex, FALSE,
-	       (bytes == 8
-		? BFD_RELOC_MIPS_TLS_DTPREL64
-		: BFD_RELOC_MIPS_TLS_DTPREL32));
-
+  fix_new_exp (frag_now, p - frag_now->fr_literal, bytes, &ex, FALSE, rtype);
   demand_empty_rest_of_line ();
+  mips_clear_insn_labels ();
 }
 
 /* Handle .dtprelword.  */
@@ -16582,7 +16638,7 @@ s_dtprel_internal (size_t bytes)
 static void
 s_dtprelword (int ignore ATTRIBUTE_UNUSED)
 {
-  s_dtprel_internal (4);
+  s_tls_rel_directive (4, ".dtprelword", BFD_RELOC_MIPS_TLS_DTPREL32);
 }
 
 /* Handle .dtpreldword.  */
@@ -16590,7 +16646,23 @@ s_dtprelword (int ignore ATTRIBUTE_UNUSED)
 static void
 s_dtpreldword (int ignore ATTRIBUTE_UNUSED)
 {
-  s_dtprel_internal (8);
+  s_tls_rel_directive (8, ".dtpreldword", BFD_RELOC_MIPS_TLS_DTPREL64);
+}
+
+/* Handle .tprelword.  */
+
+static void
+s_tprelword (int ignore ATTRIBUTE_UNUSED)
+{
+  s_tls_rel_directive (4, ".tprelword", BFD_RELOC_MIPS_TLS_TPREL32);
+}
+
+/* Handle .tpreldword.  */
+
+static void
+s_tpreldword (int ignore ATTRIBUTE_UNUSED)
+{
+  s_tls_rel_directive (8, ".tpreldword", BFD_RELOC_MIPS_TLS_TPREL64);
 }
 
 /* Handle the .gpvalue pseudo-op.  This is used when generating NewABI PIC
@@ -16620,7 +16692,6 @@ s_gpword (int ignore ATTRIBUTE_UNUSED)
 {
   segment_info_type *si;
   struct insn_label_list *l;
-  symbolS *label;
   expressionS ex;
   char *p;
 
@@ -16633,10 +16704,9 @@ s_gpword (int ignore ATTRIBUTE_UNUSED)
 
   si = seg_info (now_seg);
   l = si->label_list;
-  label = l != NULL ? l->label : NULL;
   mips_emit_delays ();
   if (auto_align)
-    mips_align (2, 0, label);
+    mips_align (2, 0, l);
 
   expression (&ex);
   mips_clear_insn_labels ();
@@ -16660,7 +16730,6 @@ s_gpdword (int ignore ATTRIBUTE_UNUSED)
 {
   segment_info_type *si;
   struct insn_label_list *l;
-  symbolS *label;
   expressionS ex;
   char *p;
 
@@ -16673,10 +16742,9 @@ s_gpdword (int ignore ATTRIBUTE_UNUSED)
 
   si = seg_info (now_seg);
   l = si->label_list;
-  label = l != NULL ? l->label : NULL;
   mips_emit_delays ();
   if (auto_align)
-    mips_align (3, 0, label);
+    mips_align (3, 0, l);
 
   expression (&ex);
   mips_clear_insn_labels ();
@@ -18227,7 +18295,7 @@ md_convert_frag (bfd *abfd ATTRIBUTE_UNUSED, segT asec, fragS *fragp)
 			 | RELAX_DELAY_SLOT_SIZE_SECOND);
 	  msg = macro_warning (s);
 	  if (msg != NULL)
-	    as_warn_where (fragp->fr_file, fragp->fr_line, msg);
+	    as_warn_where (fragp->fr_file, fragp->fr_line, "%s", msg);
 	  subtype &= ~s;
 	}
 
@@ -18241,7 +18309,7 @@ md_convert_frag (bfd *abfd ATTRIBUTE_UNUSED, segT asec, fragS *fragp)
 	       & (RELAX_SECOND_LONGER | RELAX_NOMACRO | RELAX_DELAY_SLOT));
 	  msg = macro_warning (s);
 	  if (msg != NULL)
-	    as_warn_where (fragp->fr_file, fragp->fr_line, msg);
+	    as_warn_where (fragp->fr_file, fragp->fr_line, "%s", msg);
 	  subtype &= ~s;
 	}
 
@@ -18397,7 +18465,7 @@ mips_elf_final_processing (void)
     elf_elfheader (stdoutput)->e_flags |= EF_MIPS_NOREORDER;
   if (mips_pic != NO_PIC)
     {
-    elf_elfheader (stdoutput)->e_flags |= EF_MIPS_PIC;
+      elf_elfheader (stdoutput)->e_flags |= EF_MIPS_PIC;
       elf_elfheader (stdoutput)->e_flags |= EF_MIPS_CPIC;
     }
   if (mips_abicalls)
@@ -18963,6 +19031,10 @@ static const struct mips_cpu_info mips_cpu_info_table[] =
   { "m4kp",           0,			ISA_MIPS32R2,   CPU_MIPS32R2 },
   { "m14k",           MIPS_CPU_ASE_MCU,		ISA_MIPS32R2,   CPU_MIPS32R2 },
   { "m14kc",          MIPS_CPU_ASE_MCU,		ISA_MIPS32R2,   CPU_MIPS32R2 },
+  { "m14ke",          MIPS_CPU_ASE_DSP | MIPS_CPU_ASE_DSPR2 | MIPS_CPU_ASE_MCU,
+						ISA_MIPS32R2,   CPU_MIPS32R2 },
+  { "m14kec",         MIPS_CPU_ASE_DSP | MIPS_CPU_ASE_DSPR2 | MIPS_CPU_ASE_MCU,
+						ISA_MIPS32R2,   CPU_MIPS32R2 },
   { "24kc",           0,			ISA_MIPS32R2,   CPU_MIPS32R2 },
   { "24kf2_1",        0,			ISA_MIPS32R2,   CPU_MIPS32R2 },
   { "24kf",           0,			ISA_MIPS32R2,   CPU_MIPS32R2 },
@@ -19037,9 +19109,16 @@ static const struct mips_cpu_info mips_cpu_info_table[] =
 
   /* Cavium Networks Octeon CPU core */
   { "octeon",	      0,      ISA_MIPS64R2,   CPU_OCTEON },
+  { "octeon+",	      0,      ISA_MIPS64R2,   CPU_OCTEONP },
+  { "octeon2",	      0,      ISA_MIPS64R2,   CPU_OCTEON2 },
 
   /* RMI Xlr */
   { "xlr",	      0,      ISA_MIPS64,     CPU_XLR },
+
+  /* Broadcom XLP.
+     XLP is mostly like XLR, with the prominent exception that it is
+     MIPS64R2 rather than MIPS64.  */
+  { "xlp",	      0,      ISA_MIPS64R2,     CPU_XLR },
 
   /* End marker */
   { NULL, 0, 0, 0 }

@@ -1,6 +1,6 @@
 /* readelf.c -- display contents of an ELF format file
    Copyright 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007,
-   2008, 2009, 2010, 2011
+   2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
 
    Originally developed by Eric Youngdale <eric@andante.jic.com>
@@ -42,10 +42,8 @@
   ELF file than is provided by objdump.  In particular it can display DWARF
   debugging information which (at the moment) objdump cannot.  */
 
-#include "config.h"
 #include "sysdep.h"
 #include <assert.h>
-#include <sys/stat.h>
 #include <time.h>
 #ifdef HAVE_ZLIB_H
 #include <zlib.h>
@@ -103,6 +101,7 @@
 #include "elf/d10v.h"
 #include "elf/d30v.h"
 #include "elf/dlx.h"
+#include "elf/epiphany.h"
 #include "elf/fr30.h"
 #include "elf/frv.h"
 #include "elf/h8.h"
@@ -133,6 +132,7 @@
 #include "elf/pj.h"
 #include "elf/ppc.h"
 #include "elf/ppc64.h"
+#include "elf/rl78.h"
 #include "elf/rx.h"
 #include "elf/s390.h"
 #include "elf/score.h"
@@ -271,9 +271,9 @@ print_mode;
 
 #define DT_VERSIONTAGIDX(tag)	(DT_VERNEEDNUM - (tag))	/* Reverse order!  */
 
-#define GET_ELF_SYMBOLS(file, section)			\
-  (is_32bit_elf ? get_32bit_elf_symbols (file, section)	\
-   : get_64bit_elf_symbols (file, section))
+#define GET_ELF_SYMBOLS(file, section, sym_count)			\
+  (is_32bit_elf ? get_32bit_elf_symbols (file, section, sym_count)	\
+   : get_64bit_elf_symbols (file, section, sym_count))
 
 #define VALID_DYNAMIC_NAME(offset)	((dynamic_strings != NULL) && (offset < dynamic_strings_length))
 /* GET_DYNAMIC_NAME asssumes that VALID_DYNAMIC_NAME has
@@ -552,6 +552,7 @@ guess_is_rela (unsigned int e_machine)
       /* Targets that use RELA relocations.  */
     case EM_68K:
     case EM_860:
+    case EM_ADAPTEVA_EPIPHANY:
     case EM_ALPHA:
     case EM_ALTERA_NIOS2:
     case EM_AVR:
@@ -591,6 +592,7 @@ guess_is_rela (unsigned int e_machine)
     case EM_NIOS32:
     case EM_PPC64:
     case EM_PPC:
+    case EM_RL78:
     case EM_RX:
     case EM_S390:
     case EM_S390_OLD:
@@ -654,7 +656,7 @@ slurp_rela_relocs (FILE * file,
       Elf32_External_Rela * erelas;
 
       erelas = (Elf32_External_Rela *) get_data (NULL, file, rel_offset, 1,
-                                                 rel_size, _("relocs"));
+                                                 rel_size, _("32-bit relocation data"));
       if (!erelas)
 	return 0;
 
@@ -684,7 +686,7 @@ slurp_rela_relocs (FILE * file,
       Elf64_External_Rela * erelas;
 
       erelas = (Elf64_External_Rela *) get_data (NULL, file, rel_offset, 1,
-                                                 rel_size, _("relocs"));
+                                                 rel_size, _("64-bit relocation data"));
       if (!erelas)
 	return 0;
 
@@ -752,7 +754,7 @@ slurp_rel_relocs (FILE * file,
       Elf32_External_Rel * erels;
 
       erels = (Elf32_External_Rel *) get_data (NULL, file, rel_offset, 1,
-                                               rel_size, _("relocs"));
+                                               rel_size, _("32-bit relocation data"));
       if (!erels)
 	return 0;
 
@@ -781,7 +783,7 @@ slurp_rel_relocs (FILE * file,
       Elf64_External_Rel * erels;
 
       erels = (Elf64_External_Rel *) get_data (NULL, file, rel_offset, 1,
-                                               rel_size, _("relocs"));
+                                               rel_size, _("64-bit relocation data"));
       if (!erels)
 	return 0;
 
@@ -1168,6 +1170,10 @@ dump_relocations (FILE * file,
 	  rtype = elf_vax_reloc_type (type);
 	  break;
 
+	case EM_ADAPTEVA_EPIPHANY:
+	  rtype = elf_epiphany_reloc_type (type);
+	  break;
+
 	case EM_IP2K:
 	case EM_IP2K_OLD:
 	  rtype = elf_ip2k_reloc_type (type);
@@ -1211,6 +1217,10 @@ dump_relocations (FILE * file,
 	case EM_MICROBLAZE:
 	case EM_MICROBLAZE_OLD:
 	  rtype = elf_microblaze_reloc_type (type);
+	  break;
+
+	case EM_RL78:
+	  rtype = elf_rl78_reloc_type (type);
 	  break;
 
 	case EM_RX:
@@ -1911,6 +1921,7 @@ get_machine_name (unsigned e_machine)
     case EM_OR32:		return "OpenRISC";
     case EM_ARC_A5:		return "ARC International ARCompact processor";
     case EM_CRX:		return "National Semiconductor CRX microprocessor";
+    case EM_ADAPTEVA_EPIPHANY:	return "Adapteva EPIPHANY";
     case EM_DLX:		return "OpenDLX";
     case EM_IP2K_OLD:
     case EM_IP2K:		return "Ubicom IP2xxx 8-bit microcontrollers";
@@ -1971,6 +1982,7 @@ get_machine_name (unsigned e_machine)
     case EM_CR16_OLD:		return "National Semiconductor's CR16";
     case EM_MICROBLAZE:		return "Xilinx MicroBlaze";
     case EM_MICROBLAZE_OLD:	return "Xilinx MicroBlaze";
+    case EM_RL78:		return "Renesas RL78";
     case EM_RX:			return "Renesas RX";
     case EM_METAG:		return "Imagination Technologies META processor architecture";
     case EM_MCST_ELBRUS:	return "MCST Elbrus general purpose hardware architecture";
@@ -2595,14 +2607,19 @@ get_machine_flags (unsigned e_flags, unsigned e_machine)
 	    strcat (buf, ", 64-bit doubles");
 	  if (e_flags & E_FLAG_RX_DSP)
 	    strcat (buf, ", dsp");
+	  if (e_flags & E_FLAG_RX_PID)
+	    strcat (buf, ", pid");	  
+	  break;
 
 	case EM_S390:
 	  if (e_flags & EF_S390_HIGH_GPRS)
 	    strcat (buf, ", highgprs");
+	  break;
 
 	case EM_TI_C6000:
 	  if ((e_flags & EF_C6000_REL))
 	    strcat (buf, ", relocatable module");
+	  break;
 	}
     }
 
@@ -3168,7 +3185,7 @@ usage (FILE * stream)
   -u --unwind            Display the unwind info (if present)\n\
   -d --dynamic           Display the dynamic section (if present)\n\
   -V --version-info      Display the version sections (if present)\n\
-  -A --arch-specific     Display architecture specific information (if any).\n\
+  -A --arch-specific     Display architecture specific information (if any)\n\
   -c --archive-index     Display the symbol/file index in an archive\n\
   -D --use-dynamic       Use the dynamic section info when displaying symbols\n\
   -x --hex-dump=<number|name>\n\
@@ -3790,7 +3807,7 @@ process_program_headers (FILE * file)
 		printf ("0x%6.6lx", (unsigned long) segment->p_memsz);
 	      else
 		{
-		  print_vma (segment->p_offset, FULL_HEX);
+		  print_vma (segment->p_memsz, FULL_HEX);
 		}
 
 	      printf (" %c%c%c ",
@@ -4045,11 +4062,13 @@ get_64bit_section_headers (FILE * file, unsigned int num)
 }
 
 static Elf_Internal_Sym *
-get_32bit_elf_symbols (FILE * file, Elf_Internal_Shdr * section)
+get_32bit_elf_symbols (FILE * file,
+		       Elf_Internal_Shdr * section,
+		       unsigned long * num_syms_return)
 {
-  unsigned long number;
+  unsigned long number = 0;
   Elf32_External_Sym * esyms = NULL;
-  Elf_External_Sym_Shndx * shndx;
+  Elf_External_Sym_Shndx * shndx = NULL;
   Elf_Internal_Sym * isyms = NULL;
   Elf_Internal_Sym * psym;
   unsigned int j;
@@ -4058,7 +4077,7 @@ get_32bit_elf_symbols (FILE * file, Elf_Internal_Shdr * section)
   if (section->sh_entsize == 0)
     {
       error (_("sh_entsize is zero\n"));
-      return NULL;
+      goto exit_point;
     }
 
   number = section->sh_size / section->sh_entsize;
@@ -4066,13 +4085,13 @@ get_32bit_elf_symbols (FILE * file, Elf_Internal_Shdr * section)
   if (number * sizeof (Elf32_External_Sym) > section->sh_size + 1)
     {
       error (_("Invalid sh_entsize\n"));
-      return NULL;
+      goto exit_point;
     }
 
   esyms = (Elf32_External_Sym *) get_data (NULL, file, section->sh_offset, 1,
                                            section->sh_size, _("symbols"));
   if (esyms == NULL)
-    return NULL;
+    goto exit_point;
 
   shndx = NULL;
   if (symtab_shndx_hdr != NULL
@@ -4082,7 +4101,7 @@ get_32bit_elf_symbols (FILE * file, Elf_Internal_Shdr * section)
       shndx = (Elf_External_Sym_Shndx *) get_data (NULL, file,
                                                    symtab_shndx_hdr->sh_offset,
                                                    1, symtab_shndx_hdr->sh_size,
-                                                   _("symtab shndx"));
+                                                   _("symbol table section indicies"));
       if (shndx == NULL)
 	goto exit_point;
     }
@@ -4111,21 +4130,26 @@ get_32bit_elf_symbols (FILE * file, Elf_Internal_Shdr * section)
     }
 
  exit_point:
-  if (shndx)
+  if (shndx != NULL)
     free (shndx);
-  if (esyms)
+  if (esyms != NULL)
     free (esyms);
+
+  if (num_syms_return != NULL)
+    * num_syms_return = isyms == NULL ? 0 : number;
 
   return isyms;
 }
 
 static Elf_Internal_Sym *
-get_64bit_elf_symbols (FILE * file, Elf_Internal_Shdr * section)
+get_64bit_elf_symbols (FILE * file,
+		       Elf_Internal_Shdr * section,
+		       unsigned long * num_syms_return)
 {
-  unsigned long number;
-  Elf64_External_Sym * esyms;
-  Elf_External_Sym_Shndx * shndx;
-  Elf_Internal_Sym * isyms;
+  unsigned long number = 0;
+  Elf64_External_Sym * esyms = NULL;
+  Elf_External_Sym_Shndx * shndx = NULL;
+  Elf_Internal_Sym * isyms = NULL;
   Elf_Internal_Sym * psym;
   unsigned int j;
 
@@ -4133,7 +4157,7 @@ get_64bit_elf_symbols (FILE * file, Elf_Internal_Shdr * section)
   if (section->sh_entsize == 0)
     {
       error (_("sh_entsize is zero\n"));
-      return NULL;
+      goto exit_point;
     }
 
   number = section->sh_size / section->sh_entsize;
@@ -4141,15 +4165,14 @@ get_64bit_elf_symbols (FILE * file, Elf_Internal_Shdr * section)
   if (number * sizeof (Elf64_External_Sym) > section->sh_size + 1)
     {
       error (_("Invalid sh_entsize\n"));
-      return NULL;
+      goto exit_point;
     }
 
   esyms = (Elf64_External_Sym *) get_data (NULL, file, section->sh_offset, 1,
                                            section->sh_size, _("symbols"));
   if (!esyms)
-    return NULL;
+    goto exit_point;
 
-  shndx = NULL;
   if (symtab_shndx_hdr != NULL
       && (symtab_shndx_hdr->sh_link
 	  == (unsigned long) (section - section_headers)))
@@ -4157,12 +4180,9 @@ get_64bit_elf_symbols (FILE * file, Elf_Internal_Shdr * section)
       shndx = (Elf_External_Sym_Shndx *) get_data (NULL, file,
                                                    symtab_shndx_hdr->sh_offset,
                                                    1, symtab_shndx_hdr->sh_size,
-                                                   _("symtab shndx"));
-      if (!shndx)
-	{
-	  free (esyms);
-	  return NULL;
-	}
+                                                   _("symbol table section indicies"));
+      if (shndx == NULL)
+	goto exit_point;
     }
 
   isyms = (Elf_Internal_Sym *) cmalloc (number, sizeof (Elf_Internal_Sym));
@@ -4170,32 +4190,34 @@ get_64bit_elf_symbols (FILE * file, Elf_Internal_Shdr * section)
   if (isyms == NULL)
     {
       error (_("Out of memory\n"));
-      if (shndx)
-	free (shndx);
-      free (esyms);
-      return NULL;
+      goto exit_point;
     }
 
-  for (j = 0, psym = isyms;
-       j < number;
-       j++, psym++)
+  for (j = 0, psym = isyms; j < number; j++, psym++)
     {
       psym->st_name  = BYTE_GET (esyms[j].st_name);
       psym->st_info  = BYTE_GET (esyms[j].st_info);
       psym->st_other = BYTE_GET (esyms[j].st_other);
       psym->st_shndx = BYTE_GET (esyms[j].st_shndx);
+
       if (psym->st_shndx == (SHN_XINDEX & 0xffff) && shndx != NULL)
 	psym->st_shndx
 	  = byte_get ((unsigned char *) &shndx[j], sizeof (shndx[j]));
       else if (psym->st_shndx >= (SHN_LORESERVE & 0xffff))
 	psym->st_shndx += SHN_LORESERVE - (SHN_LORESERVE & 0xffff);
+
       psym->st_value = BYTE_GET (esyms[j].st_value);
       psym->st_size  = BYTE_GET (esyms[j].st_size);
     }
 
-  if (shndx)
+ exit_point:
+  if (shndx != NULL)
     free (shndx);
-  free (esyms);
+  if (esyms != NULL)
+    free (esyms);
+
+  if (num_syms_return != NULL)
+    * num_syms_return = isyms == NULL ? 0 : number;
 
   return isyms;
 }
@@ -4563,8 +4585,7 @@ process_section_headers (FILE * file)
 	    }
 
 	  CHECK_ENTSIZE (section, i, Sym);
-	  num_dynamic_syms = section->sh_size / section->sh_entsize;
-	  dynamic_symbols = GET_ELF_SYMBOLS (file, section);
+	  dynamic_symbols = GET_ELF_SYMBOLS (file, section, & num_dynamic_syms);
 	}
       else if (section->sh_type == SHT_STRTAB
 	       && streq (name, ".dynstr"))
@@ -4919,6 +4940,7 @@ process_section_groups (FILE * file)
   Elf_Internal_Shdr * symtab_sec;
   Elf_Internal_Shdr * strtab_sec;
   Elf_Internal_Sym * symtab;
+  unsigned long num_syms;
   char * strtab;
   size_t strtab_size;
 
@@ -4937,7 +4959,8 @@ process_section_groups (FILE * file)
   if (section_headers == NULL)
     {
       error (_("Section headers are not available!\n"));
-      abort ();
+      /* PR 13622: This can happen with a corrupt ELF header.  */
+      return 0;
     }
 
   section_headers_groups = (struct group **) calloc (elf_header.e_shnum,
@@ -4976,6 +4999,7 @@ process_section_groups (FILE * file)
   symtab_sec = NULL;
   strtab_sec = NULL;
   symtab = NULL;
+  num_syms = 0;
   strtab = NULL;
   strtab_size = 0;
   for (i = 0, section = section_headers, group = section_groups;
@@ -5006,12 +5030,18 @@ process_section_groups (FILE * file)
 	      symtab_sec = sec;
 	      if (symtab)
 		free (symtab);
-	      symtab = GET_ELF_SYMBOLS (file, symtab_sec);
+	      symtab = GET_ELF_SYMBOLS (file, symtab_sec, & num_syms);
 	    }
 
 	  if (symtab == NULL)
 	    {
 	      error (_("Corrupt header in group section `%s'\n"), name);
+	      continue;
+	    }
+
+	  if (section->sh_info >= num_syms)
+	    {
+	      error (_("Bad sh_info in group section `%s'\n"), name);
 	      continue;
 	    }
 
@@ -5225,7 +5255,7 @@ dump_ia64_vms_dynamic_relocs (FILE *file, struct ia64_vms_dynimgrela *imgrela)
 
   imrs = get_data (NULL, file, dynamic_addr + imgrela->img_rela_off,
 		   1, imgrela->img_rela_cnt * sizeof (*imrs),
-		   _("dynamic section image relas"));
+		   _("dynamic section image relocations"));
   if (!imrs)
     return;
 
@@ -5431,7 +5461,7 @@ process_relocs (FILE * file)
 	      if (string_table == NULL)
 		printf ("%d", section->sh_name);
 	      else
-		printf (_("'%s'"), SECTION_NAME (section));
+		printf ("'%s'", SECTION_NAME (section));
 
 	      printf (_(" at offset 0x%lx contains %lu entries:\n"),
 		 rel_offset, (unsigned long) (rel_size / section->sh_entsize));
@@ -5452,8 +5482,7 @@ process_relocs (FILE * file)
 		      && symsec->sh_type != SHT_DYNSYM)
                     continue;
 
-		  nsyms = symsec->sh_size / symsec->sh_entsize;
-		  symtab = GET_ELF_SYMBOLS (file, symsec);
+		  symtab = GET_ELF_SYMBOLS (file, symsec, & nsyms);
 
 		  if (symtab == NULL)
 		    continue;
@@ -5565,6 +5594,7 @@ find_symbol_for_address (Elf_Internal_Sym * symtab,
 	    break;
 	}
     }
+
   if (best)
     {
       *symname = (best->st_name >= strtab_size
@@ -5572,6 +5602,7 @@ find_symbol_for_address (Elf_Internal_Sym * symtab,
       *offset = dist;
       return;
     }
+
   *symname = NULL;
   *offset = addr.offset;
 }
@@ -5749,7 +5780,7 @@ slurp_ia64_unwind_table (FILE * file,
   return 1;
 }
 
-static int
+static void
 ia64_process_unwind (FILE * file)
 {
   Elf_Internal_Shdr * sec;
@@ -5765,8 +5796,7 @@ ia64_process_unwind (FILE * file)
       if (sec->sh_type == SHT_SYMTAB
 	  && sec->sh_link < elf_header.e_shnum)
 	{
-	  aux.nsyms = sec->sh_size / sec->sh_entsize;
-	  aux.symtab = GET_ELF_SYMBOLS (file, sec);
+	  aux.symtab = GET_ELF_SYMBOLS (file, sec, & aux.nsyms);
 
 	  strsec = section_headers + sec->sh_link;
 	  assert (aux.strtab == NULL);
@@ -5887,8 +5917,6 @@ ia64_process_unwind (FILE * file)
     free (aux.symtab);
   if (aux.strtab)
     free ((char *) aux.strtab);
-
-  return 1;
 }
 
 struct hppa_unw_table_entry
@@ -6160,7 +6188,7 @@ slurp_hppa_unwind_table (FILE * file,
   return 1;
 }
 
-static int
+static void
 hppa_process_unwind (FILE * file)
 {
   struct hppa_unw_aux_info aux;
@@ -6169,18 +6197,17 @@ hppa_process_unwind (FILE * file)
   Elf_Internal_Shdr * sec;
   unsigned long i;
 
-  memset (& aux, 0, sizeof (aux));
-
   if (string_table == NULL)
-    return 1;
+    return;
+
+  memset (& aux, 0, sizeof (aux));
 
   for (i = 0, sec = section_headers; i < elf_header.e_shnum; ++i, ++sec)
     {
       if (sec->sh_type == SHT_SYMTAB
 	  && sec->sh_link < elf_header.e_shnum)
 	{
-	  aux.nsyms = sec->sh_size / sec->sh_entsize;
-	  aux.symtab = GET_ELF_SYMBOLS (file, sec);
+	  aux.symtab = GET_ELF_SYMBOLS (file, sec, & aux.nsyms);
 
 	  strsec = section_headers + sec->sh_link;
 	  assert (aux.strtab == NULL);
@@ -6221,30 +6248,25 @@ hppa_process_unwind (FILE * file)
     free (aux.symtab);
   if (aux.strtab)
     free ((char *) aux.strtab);
-
-  return 1;
 }
 
 struct arm_section
 {
-  unsigned char *data;
-
-  Elf_Internal_Shdr *sec;
-  Elf_Internal_Rela *rela;
-  unsigned long nrelas;
-  unsigned int rel_type;
-
-  Elf_Internal_Rela *next_rela;
+  unsigned char *      data;		/* The unwind data.  */
+  Elf_Internal_Shdr *  sec;		/* The cached unwind section header.  */
+  Elf_Internal_Rela *  rela;		/* The cached relocations for this section.  */
+  unsigned long        nrelas;		/* The number of relocations.  */
+  unsigned int         rel_type;	/* REL or RELA ?  */
+  Elf_Internal_Rela *  next_rela;	/* Cyclic pointer to the next reloc to process.  */
 };
 
 struct arm_unw_aux_info
 {
-  FILE *file;
-
-  Elf_Internal_Sym *symtab;	/* The symbol table.  */
-  unsigned long nsyms;		/* Number of symbols.  */
-  char *strtab;			/* The string table.  */
-  unsigned long strtab_size;	/* Size of string table.  */
+  FILE *              file;		/* The file containing the unwind sections.  */
+  Elf_Internal_Sym *  symtab;		/* The file's symbol table.  */
+  unsigned long       nsyms;		/* Number of symbols.  */
+  char *              strtab;		/* The file's string table.  */
+  unsigned long       strtab_size;	/* Size of string table.  */
 };
 
 static const char *
@@ -6286,11 +6308,25 @@ arm_free_section (struct arm_section *arm_sec)
     free (arm_sec->rela);
 }
 
-static int
-arm_section_get_word (struct arm_unw_aux_info *aux,
-		      struct arm_section *arm_sec,
-		      Elf_Internal_Shdr *sec, bfd_vma word_offset,
-		      unsigned int *wordp, struct absaddr *addr)
+/* 1) If SEC does not match the one cached in ARM_SEC, then free the current
+      cached section and install SEC instead.
+   2) Locate the 32-bit word at WORD_OFFSET in unwind section SEC
+      and return its valued in * WORDP, relocating if necessary.
+   3) Update the NEXT_RELA field in ARM_SEC and store the section index and
+      relocation's offset in ADDR.
+   4) If SYM_NAME is non-NULL and a relocation was applied, record the offset
+      into the string table of the symbol associated with the reloc.  If no
+      reloc was applied store -1 there.
+   5) Return TRUE upon success, FALSE otherwise.  */
+
+static bfd_boolean
+get_unwind_section_word (struct arm_unw_aux_info *  aux,
+			 struct arm_section *       arm_sec,
+			 Elf_Internal_Shdr *        sec,
+			 bfd_vma 		    word_offset,
+			 unsigned int *             wordp,
+			 struct absaddr *           addr,
+			 bfd_vma *		    sym_name)
 {
   Elf_Internal_Rela *rp;
   Elf_Internal_Sym *sym;
@@ -6301,6 +6337,10 @@ arm_section_get_word (struct arm_unw_aux_info *aux,
   addr->section = SHN_UNDEF;
   addr->offset = 0;
 
+  if (sym_name != NULL)
+    *sym_name = (bfd_vma) -1;
+
+  /* If necessary, update the section cache.  */
   if (sec != arm_sec->sec)
     {
       Elf_Internal_Shdr *relsec;
@@ -6321,12 +6361,13 @@ arm_section_get_word (struct arm_unw_aux_info *aux,
 	      || section_headers + relsec->sh_info != sec)
 	    continue;
 
+	  arm_sec->rel_type = relsec->sh_type;
 	  if (relsec->sh_type == SHT_REL)
 	    {
 	      if (!slurp_rel_relocs (aux->file, relsec->sh_offset,
 				     relsec->sh_size,
 				     & arm_sec->rela, & arm_sec->nrelas))
-		return 0;
+		return FALSE;
 	      break;
 	    }
 	  else if (relsec->sh_type == SHT_RELA)
@@ -6334,19 +6375,25 @@ arm_section_get_word (struct arm_unw_aux_info *aux,
 	      if (!slurp_rela_relocs (aux->file, relsec->sh_offset,
 				      relsec->sh_size,
 				      & arm_sec->rela, & arm_sec->nrelas))
-		return 0;
+		return FALSE;
 	      break;
 	    }
+	  else
+	    warn (_("unexpected relocation type (%d) for section %d"),
+		  relsec->sh_type, relsec->sh_info);
 	}
 
       arm_sec->next_rela = arm_sec->rela;
     }
 
+  /* If there is no unwind data we can do nothing.  */
   if (arm_sec->data == NULL)
-    return 0;
+    return FALSE;
 
+  /* Get the word at the required offset.  */
   word = byte_get (arm_sec->data + word_offset, 4);
 
+  /* Look through the relocs to find the one that applies to the provided offset.  */
   wrapped = FALSE;
   for (rp = arm_sec->next_rela; rp != arm_sec->rela + arm_sec->nrelas; rp++)
     {
@@ -6370,31 +6417,6 @@ arm_section_get_word (struct arm_unw_aux_info *aux,
       if (rp->r_offset < word_offset)
 	continue;
 
-      switch (elf_header.e_machine)
-	{
-	case EM_ARM:
-	  relname = elf_arm_reloc_type (ELF32_R_TYPE (rp->r_info));
-	  break;
-
-	case EM_TI_C6000:
-	  relname = elf_tic6x_reloc_type (ELF32_R_TYPE (rp->r_info));
-	  break;
-
-	default:
-	    abort();
-	}
-
-      if (streq (relname, "R_ARM_NONE")
-	  || streq (relname, "R_C6000_NONE"))
-	continue;
-
-      if (!(streq (relname, "R_ARM_PREL31")
-	    || streq (relname, "R_C6000_PREL31")))
-	{
-	  warn (_("Skipping unexpected relocation type %s\n"), relname);
-	  continue;
-	}
-
       sym = aux->symtab + ELF32_R_SYM (rp->r_info);
 
       if (arm_sec->rel_type == SHT_REL)
@@ -6403,31 +6425,67 @@ arm_section_get_word (struct arm_unw_aux_info *aux,
 	  if (offset & 0x40000000)
 	    offset |= ~ (bfd_vma) 0x7fffffff;
 	}
-      else
+      else if (arm_sec->rel_type == SHT_RELA)
 	offset = rp->r_addend;
+      else
+	abort ();
 
       offset += sym->st_value;
       prelval = offset - (arm_sec->sec->sh_addr + rp->r_offset);
 
-      if (streq (relname, "R_C6000_PREL31"))
-	prelval >>= 1;
+      /* Check that we are processing the expected reloc type.  */
+      if (elf_header.e_machine == EM_ARM)
+	{
+	  relname = elf_arm_reloc_type (ELF32_R_TYPE (rp->r_info));
+
+	  if (streq (relname, "R_ARM_NONE"))
+	      continue;
+	  
+	  if (! streq (relname, "R_ARM_PREL31"))
+	    {
+	      warn (_("Skipping unexpected relocation type %s\n"), relname);
+	      continue;
+	    }
+	}
+      else if (elf_header.e_machine == EM_TI_C6000)
+	{
+	  relname = elf_tic6x_reloc_type (ELF32_R_TYPE (rp->r_info));
+	  
+	  if (streq (relname, "R_C6000_NONE"))
+	    continue;
+
+	  if (! streq (relname, "R_C6000_PREL31"))
+	    {
+	      warn (_("Skipping unexpected relocation type %s\n"), relname);
+	      continue;
+	    }
+
+	  prelval >>= 1;
+	}
+      else
+	/* This function currently only supports ARM and TI unwinders.  */
+	abort ();
 
       word = (word & ~ (bfd_vma) 0x7fffffff) | (prelval & 0x7fffffff);
       addr->section = sym->st_shndx;
       addr->offset = offset;
+      if (sym_name)
+	* sym_name = sym->st_name;
       break;
     }
 
   *wordp = word;
   arm_sec->next_rela = rp;
 
-  return 1;
+  return TRUE;
 }
 
-static const char *tic6x_unwind_regnames[16] = {
-    "A15", "B15", "B14", "B13", "B12", "B11", "B10", "B3", 
-    "A14", "A13", "A12", "A11", "A10", 
-    "[invalid reg 13]", "[invalid reg 14]", "[invalid reg 15]"};
+static const char *tic6x_unwind_regnames[16] =
+{
+  "A15", "B15", "B14", "B13", "B12", "B11", "B10", "B3", 
+  "A14", "A13", "A12", "A11", "A10", 
+  "[invalid reg 13]", "[invalid reg 14]", "[invalid reg 15]"
+};
 
 static void
 decode_tic6x_unwind_regmask (unsigned int mask)
@@ -6449,8 +6507,8 @@ decode_tic6x_unwind_regmask (unsigned int mask)
   if (remaining == 0 && more_words)				\
     {								\
       data_offset += 4;						\
-      if (!arm_section_get_word (aux, data_arm_sec, data_sec,	\
-				 data_offset, &word, &addr))	\
+      if (! get_unwind_section_word (aux, data_arm_sec, data_sec,	\
+				     data_offset, & word, & addr, NULL))	\
 	return;							\
       remaining = 4;						\
       more_words--;						\
@@ -6554,7 +6612,7 @@ decode_arm_unwind_bytecode (struct arm_unw_aux_info *aux,
 	    }
 	  if (op & 0x08)
 	    {
-	      if (first)
+	      if (!first)
 		printf (", ");
 	      printf ("r14");
 	    }
@@ -6699,12 +6757,12 @@ decode_tic6x_unwind_bytecode (struct arm_unw_aux_info *aux,
       op = word >> 24;
       word <<= 8;
 
-      printf (_("  0x%02x "), op);
+      printf ("  0x%02x ", op);
 
       if ((op & 0xc0) == 0x00)
 	{
 	  int offset = ((op & 0x3f) << 3) + 8;
-	  printf (_("     sp = sp + %d"), offset);
+	  printf ("     sp = sp + %d", offset);
 	}
       else if ((op & 0xc0) == 0x80)
 	{
@@ -6729,7 +6787,8 @@ decode_tic6x_unwind_bytecode (struct arm_unw_aux_info *aux,
 	  unsigned int nregs;
 	  unsigned int i;
 	  const char *name;
-	  struct {
+	  struct
+	  {
 	      unsigned int offset;
 	      unsigned int reg;
 	  } regpos[16];
@@ -6786,6 +6845,7 @@ decode_tic6x_unwind_bytecode (struct arm_unw_aux_info *aux,
 	  unsigned char buf[9];
 	  unsigned int i, len;
 	  unsigned long offset;
+
 	  for (i = 0; i < sizeof (buf); i++)
 	    {
 	      GET_OP (buf[i]);
@@ -6814,7 +6874,7 @@ decode_tic6x_unwind_bytecode (struct arm_unw_aux_info *aux,
 }
 
 static bfd_vma
-expand_prel31 (bfd_vma word, bfd_vma where)
+arm_expand_prel31 (bfd_vma word, bfd_vma where)
 {
   bfd_vma offset;
 
@@ -6829,21 +6889,29 @@ expand_prel31 (bfd_vma word, bfd_vma where)
 }
 
 static void
-decode_arm_unwind (struct arm_unw_aux_info *aux,
-		   unsigned int word, unsigned int remaining,
-		   bfd_vma data_offset, Elf_Internal_Shdr *data_sec,
-		   struct arm_section *data_arm_sec)
+decode_arm_unwind (struct arm_unw_aux_info *  aux,
+		   unsigned int               word,
+		   unsigned int               remaining,
+		   bfd_vma                    data_offset,
+		   Elf_Internal_Shdr *        data_sec,
+		   struct arm_section *       data_arm_sec)
 {
   int per_index;
   unsigned int more_words = 0;
   struct absaddr addr;
+  bfd_vma sym_name = (bfd_vma) -1;
 
   if (remaining == 0)
     {
-      /* Fetch the first word.  */
-      if (!arm_section_get_word (aux, data_arm_sec, data_sec, data_offset,
-				 &word, &addr))
+      /* Fetch the first word.
+	 Note - when decoding an object file the address extracted
+	 here will always be 0.  So we also pass in the sym_name
+	 parameter so that we can find the symbol associated with
+	 the personality routine.  */
+      if (! get_unwind_section_word (aux, data_arm_sec, data_sec, data_offset,
+				     & word, & addr, & sym_name))
 	return;
+
       remaining = 4;
     }
 
@@ -6853,9 +6921,23 @@ decode_arm_unwind (struct arm_unw_aux_info *aux,
       bfd_vma fn;
       const char *procname;
 
-      fn = expand_prel31 (word, data_sec->sh_addr + data_offset);
+      fn = arm_expand_prel31 (word, data_sec->sh_addr + data_offset);
       printf (_("  Personality routine: "));
-      procname = arm_print_vma_and_name (aux, fn, addr);
+      if (fn == 0
+	  && addr.section == SHN_UNDEF && addr.offset == 0
+	  && sym_name != (bfd_vma) -1 && sym_name < aux->strtab_size)
+	{
+	  procname = aux->strtab + sym_name;
+	  print_vma (fn, PREFIX_HEX);
+	  if (procname)
+	    {
+	      fputs (" <", stdout);
+	      fputs (procname, stdout);
+	      fputc ('>', stdout);
+	    }
+	}
+      else
+	procname = arm_print_vma_and_name (aux, fn, addr);
       fputc ('\n', stdout);
 
       /* The GCC personality routines use the standard compact
@@ -6885,9 +6967,20 @@ decode_arm_unwind (struct arm_unw_aux_info *aux,
     }
   else
     {
-      
+      /* ARM EHABI Section 6.3:
+	 
+	 An exception-handling table entry for the compact model looks like:
+	 
+           31 30-28 27-24 23-0
+	   -- ----- ----- ----
+            1   0   index Data for personalityRoutine[index]    */
+
+      if (elf_header.e_machine == EM_ARM
+	  && (word & 0x70000000))
+	warn (_("Corrupt ARM compact model table entry: %x \n"), word);
+
       per_index = (word >> 24) & 0x7f;
-      printf (_("  Compact model %d\n"), per_index);
+      printf (_("  Compact model index: %d\n"), per_index);
       if (per_index == 0)
 	{
 	  more_words = 0;
@@ -6911,14 +7004,17 @@ decode_arm_unwind (struct arm_unw_aux_info *aux,
 				      data_offset, data_sec, data_arm_sec);
 	}
       else
-	printf ("  [reserved]\n");
+	{
+	  warn (_("Unknown ARM compact model index encountered\n"));
+	  printf (_("  [reserved]\n"));
+	}
       break;
 
     case EM_TI_C6000:
       if (per_index < 3)
 	{
 	  decode_tic6x_unwind_bytecode (aux, word, remaining, more_words,
-				      data_offset, data_sec, data_arm_sec);
+					data_offset, data_sec, data_arm_sec);
 	}
       else if (per_index < 5)
 	{
@@ -6935,11 +7031,12 @@ decode_arm_unwind (struct arm_unw_aux_info *aux,
 		  tic6x_unwind_regnames[word & 0xf]);
 	}
       else
-	printf ("  [reserved]\n");
+	printf (_("  [reserved (%d)]\n"), per_index);
       break;
 
     default:
-      abort ();
+      error (_("Unsupported architecture type %d encountered when decoding unwind table"),
+	     elf_header.e_machine);
     }
 
   /* Decode the descriptors.  Not implemented.  */
@@ -6963,19 +7060,25 @@ dump_arm_unwind (struct arm_unw_aux_info *aux, Elf_Internal_Shdr *exidx_sec)
 
       fputc ('\n', stdout);
 
-      if (!arm_section_get_word (aux, &exidx_arm_sec, exidx_sec,
-				 8 * i, &exidx_fn, &fn_addr)
-	  || !arm_section_get_word (aux, &exidx_arm_sec, exidx_sec,
-				    8 * i + 4, &exidx_entry, &entry_addr))
+      if (! get_unwind_section_word (aux, & exidx_arm_sec, exidx_sec,
+				     8 * i, & exidx_fn, & fn_addr, NULL)
+	  || ! get_unwind_section_word (aux, & exidx_arm_sec, exidx_sec,
+					8 * i + 4, & exidx_entry, & entry_addr, NULL))
 	{
-	  arm_free_section (&exidx_arm_sec);
-	  arm_free_section (&extab_arm_sec);
+	  arm_free_section (& exidx_arm_sec);
+	  arm_free_section (& extab_arm_sec);
 	  return;
 	}
 
-      fn = expand_prel31 (exidx_fn, exidx_sec->sh_addr + 8 * i);
+      /* ARM EHABI, Section 5:
+	 An index table entry consists of 2 words.
+         The first word contains a prel31 offset to the start of a function, with bit 31 clear.  */
+      if (exidx_fn & 0x80000000)
+	warn (_("corrupt index table entry: %x\n"), exidx_fn);
 
-      arm_print_vma_and_name (aux, fn, entry_addr);
+      fn = arm_expand_prel31 (exidx_fn, exidx_sec->sh_addr + 8 * i);
+
+      arm_print_vma_and_name (aux, fn, fn_addr);
       fputs (": ", stdout);
 
       if (exidx_entry == 1)
@@ -6995,7 +7098,7 @@ dump_arm_unwind (struct arm_unw_aux_info *aux, Elf_Internal_Shdr *exidx_sec)
 	  Elf_Internal_Shdr *table_sec;
 
 	  fputs ("@", stdout);
-	  table = expand_prel31 (exidx_entry, exidx_sec->sh_addr + 8 * i + 4);
+	  table = arm_expand_prel31 (exidx_entry, exidx_sec->sh_addr + 8 * i + 4);
 	  print_vma (table, PREFIX_HEX);
 	  printf ("\n");
 
@@ -7030,7 +7133,8 @@ dump_arm_unwind (struct arm_unw_aux_info *aux, Elf_Internal_Shdr *exidx_sec)
 }
 
 /* Used for both ARM and C6X unwinding tables.  */
-static int
+
+static void
 arm_process_unwind (FILE *file)
 {
   struct arm_unw_aux_info aux;
@@ -7039,9 +7143,6 @@ arm_process_unwind (FILE *file)
   Elf_Internal_Shdr *sec;
   unsigned long i;
   unsigned int sec_type;
-
-  memset (& aux, 0, sizeof (aux));
-  aux.file = file;
 
   switch (elf_header.e_machine)
     {
@@ -7053,19 +7154,23 @@ arm_process_unwind (FILE *file)
       sec_type = SHT_C6000_UNWIND;
       break;
 
-    default:
-	abort();
+    default: 
+      error (_("Unsupported architecture type %d encountered when processing unwind table"),
+	     elf_header.e_machine);
+      return;
     }
 
   if (string_table == NULL)
-    return 1;
+    return;
+
+  memset (& aux, 0, sizeof (aux));
+  aux.file = file;
 
   for (i = 0, sec = section_headers; i < elf_header.e_shnum; ++i, ++sec)
     {
       if (sec->sh_type == SHT_SYMTAB && sec->sh_link < elf_header.e_shnum)
 	{
-	  aux.nsyms = sec->sh_size / sec->sh_entsize;
-	  aux.symtab = GET_ELF_SYMBOLS (file, sec);
+	  aux.symtab = GET_ELF_SYMBOLS (file, sec, & aux.nsyms);
 
 	  strsec = section_headers + sec->sh_link;
 	  assert (aux.strtab == NULL);
@@ -7077,37 +7182,35 @@ arm_process_unwind (FILE *file)
 	unwsec = sec;
     }
 
-  if (!unwsec)
+  if (unwsec == NULL)
     printf (_("\nThere are no unwind sections in this file.\n"));
+  else
+    for (i = 0, sec = section_headers; i < elf_header.e_shnum; ++i, ++sec)
+      {
+	if (sec->sh_type == sec_type)
+	  {
+	    printf (_("\nUnwind table index '%s' at offset 0x%lx contains %lu entries:\n"),
+		    SECTION_NAME (sec),
+		    (unsigned long) sec->sh_offset,
+		    (unsigned long) (sec->sh_size / (2 * eh_addr_size)));
 
-  for (i = 0, sec = section_headers; i < elf_header.e_shnum; ++i, ++sec)
-    {
-      if (sec->sh_type == sec_type)
-	{
-	  printf (_("\nUnwind table index '%s' at offset 0x%lx contains %lu entries:\n"),
-		  SECTION_NAME (sec),
-		  (unsigned long) sec->sh_offset,
-		  (unsigned long) (sec->sh_size / (2 * eh_addr_size)));
-
-	  dump_arm_unwind (&aux, sec);
-	}
-    }
+	    dump_arm_unwind (&aux, sec);
+	  }
+      }
 
   if (aux.symtab)
     free (aux.symtab);
   if (aux.strtab)
     free ((char *) aux.strtab);
-
-  return 1;
 }
 
-static int
+static void
 process_unwind (FILE * file)
 {
   struct unwind_handler
   {
     int machtype;
-    int (* handler)(FILE *);
+    void (* handler)(FILE *);
   } handlers[] =
   {
     { EM_ARM, arm_process_unwind },
@@ -7119,14 +7222,14 @@ process_unwind (FILE * file)
   int i;
 
   if (!do_unwind)
-    return 1;
+    return;
 
   for (i = 0; handlers[i].handler != NULL; i++)
     if (elf_header.e_machine == handlers[i].machtype)
       return handlers[i].handler (file);
 
-  printf (_("\nThere are no unwind sections in this file.\n"));
-  return 1;
+  printf (_("\nThe decoding of unwind sections for machine type %s is not currently supported.\n"),
+	  get_machine_name (elf_header.e_machine));
 }
 
 static void
@@ -7136,7 +7239,7 @@ dynamic_section_mips_val (Elf_Internal_Dyn * entry)
     {
     case DT_MIPS_FLAGS:
       if (entry->d_un.d_val == 0)
-	printf (_("NONE\n"));
+	printf (_("NONE"));
       else
 	{
 	  static const char * opts[] =
@@ -7156,15 +7259,14 @@ dynamic_section_mips_val (Elf_Internal_Dyn * entry)
 		printf ("%s%s", first ? "" : " ", opts[cnt]);
 		first = 0;
 	      }
-	  puts ("");
 	}
       break;
 
     case DT_MIPS_IVERSION:
       if (VALID_DYNAMIC_NAME (entry->d_un.d_val))
-	printf (_("Interface Version: %s\n"), GET_DYNAMIC_NAME (entry->d_un.d_val));
+	printf (_("Interface Version: %s"), GET_DYNAMIC_NAME (entry->d_un.d_val));
       else
-	printf (_("<corrupt: %ld>\n"), (long) entry->d_un.d_ptr);
+	printf (_("<corrupt: %" BFD_VMA_FMT "d>"), entry->d_un.d_ptr);
       break;
 
     case DT_MIPS_TIME_STAMP:
@@ -7177,7 +7279,7 @@ dynamic_section_mips_val (Elf_Internal_Dyn * entry)
 	snprintf (timebuf, sizeof (timebuf), "%04u-%02u-%02uT%02u:%02u:%02u",
 		  tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday,
 		  tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
-	printf (_("Time Stamp: %s\n"), timebuf);
+	printf (_("Time Stamp: %s"), timebuf);
       }
       break;
 
@@ -7194,12 +7296,13 @@ dynamic_section_mips_val (Elf_Internal_Dyn * entry)
     case DT_MIPS_DELTA_SYM_NO:
     case DT_MIPS_DELTA_CLASSSYM_NO:
     case DT_MIPS_COMPACT_SIZE:
-      printf ("%ld\n", (long) entry->d_un.d_ptr);
+      print_vma (entry->d_un.d_ptr, DEC);
       break;
 
     default:
-      printf ("%#lx\n", (unsigned long) entry->d_un.d_ptr);
+      print_vma (entry->d_un.d_ptr, PREFIX_HEX);
     }
+    putchar ('\n');
 }
 
 static void
@@ -7526,14 +7629,12 @@ process_dynamic_section (FILE * file)
 	  else
 	    section.sh_entsize = sizeof (Elf64_External_Sym);
 
-	  num_dynamic_syms = section.sh_size / section.sh_entsize;
+	  dynamic_symbols = GET_ELF_SYMBOLS (file, &section, & num_dynamic_syms);
 	  if (num_dynamic_syms < 1)
 	    {
 	      error (_("Unable to determine the number of symbols to load\n"));
 	      continue;
 	    }
-
-	  dynamic_symbols = GET_ELF_SYMBOLS (file, &section);
 	}
     }
 
@@ -8234,7 +8335,7 @@ process_version_sections (FILE * file)
 	    eneed = (Elf_External_Verneed *) get_data (NULL, file,
                                                        section->sh_offset, 1,
                                                        section->sh_size,
-                                                       _("version need section"));
+                                                       _("Version Needs section"));
 	    if (!eneed)
 	      break;
 	    endbuf = (char *) eneed + section->sh_size;
@@ -8311,13 +8412,15 @@ process_version_sections (FILE * file)
 		    isum   += aux.vna_next;
 		    vstart += aux.vna_next;
 		  }
+
 		if (j < ent.vn_cnt)
-		  printf (_("  Version need aux past end of section\n"));
+		  warn (_("Missing Version Needs auxillary information\n"));
 
 		idx += ent.vn_next;
 	      }
+
 	    if (cnt < section->sh_info)
-	      printf (_("  Version need past end of section\n"));
+	      warn (_("Missing Version Needs information\n"));
 
 	    free (eneed);
 	  }
@@ -8333,6 +8436,7 @@ process_version_sections (FILE * file)
 	    char * strtab;
 	    Elf_Internal_Sym * symbols;
 	    Elf_Internal_Shdr * string_sec;
+	    unsigned long num_syms;
 	    long off;
 
 	    if (section->sh_link >= elf_header.e_shnum)
@@ -8346,7 +8450,7 @@ process_version_sections (FILE * file)
 
 	    found = 1;
 
-	    symbols = GET_ELF_SYMBOLS (file, link_section);
+	    symbols = GET_ELF_SYMBOLS (file, link_section, & num_syms);
 	    if (symbols == NULL)
 	      break;
 
@@ -8415,10 +8519,8 @@ process_version_sections (FILE * file)
 				   data[cnt + j] & VERSYM_HIDDEN ? 'h' : ' ');
 
 		      /* If this index value is greater than the size of the symbols
-		         array, break to avoid an out-of-bounds read,  */
-		      if ((unsigned long)(cnt + j) >=
-		         ((unsigned long)link_section->sh_size /
-			  (unsigned long)link_section->sh_entsize))
+		         array, break to avoid an out-of-bounds read.  */
+		      if ((unsigned long)(cnt + j) >= num_syms)
 		        {
 		          warn (_("invalid index into symbol array\n"));
 		          break;
@@ -8653,6 +8755,7 @@ get_symbol_type (unsigned int type)
 
 	  if (type == STT_GNU_IFUNC
 	      && (elf_header.e_ident[EI_OSABI] == ELFOSABI_GNU
+		  || elf_header.e_ident[EI_OSABI] == ELFOSABI_FREEBSD
 		  /* GNU is still using the default value 0.  */
 		  || elf_header.e_ident[EI_OSABI] == ELFOSABI_NONE))
 	    return "IFUNC";
@@ -9150,6 +9253,7 @@ process_symbol_table (FILE * file)
 	  unsigned long int strtab_size = 0;
 	  Elf_Internal_Sym * symtab;
 	  Elf_Internal_Sym * psym;
+	  unsigned long num_syms;
 
 	  if ((section->sh_type != SHT_SYMTAB
 	       && section->sh_type != SHT_DYNSYM)
@@ -9173,7 +9277,7 @@ process_symbol_table (FILE * file)
 	  else
 	    printf (_("   Num:    Value          Size Type    Bind   Vis      Ndx Name\n"));
 
-	  symtab = GET_ELF_SYMBOLS (file, section);
+	  symtab = GET_ELF_SYMBOLS (file, section, & num_syms);
 	  if (symtab == NULL)
 	    continue;
 
@@ -9194,9 +9298,7 @@ process_symbol_table (FILE * file)
 	      strtab_size = strtab != NULL ? string_sec->sh_size : 0;
 	    }
 
-	  for (si = 0, psym = symtab;
-	       si < section->sh_size / section->sh_entsize;
-	       si++, psym++)
+	  for (si = 0, psym = symtab; si < num_syms; si++, psym++)
 	    {
 	      printf ("%6d: ", si);
 	      print_vma (psym->st_value, LONG_HEX);
@@ -9669,6 +9771,8 @@ is_32bit_abs_reloc (unsigned int reloc_type)
     case EM_AVR_OLD:
     case EM_AVR:
       return reloc_type == 1;
+    case EM_ADAPTEVA_EPIPHANY:
+      return reloc_type == 3;
     case EM_BLACKFIN:
       return reloc_type == 0x12; /* R_byte4_data.  */
     case EM_CRIS:
@@ -9748,6 +9852,8 @@ is_32bit_abs_reloc (unsigned int reloc_type)
       return reloc_type == 1; /* R_PPC64_ADDR32.  */
     case EM_PPC:
       return reloc_type == 1; /* R_PPC_ADDR32.  */
+    case EM_RL78:
+      return reloc_type == 1; /* R_RL78_DIR32.  */
     case EM_RX:
       return reloc_type == 1; /* R_RX_DIR32.  */
     case EM_S370:
@@ -9809,6 +9915,8 @@ is_32bit_pcrel_reloc (unsigned int reloc_type)
       return reloc_type == 2;  /* R_386_PC32.  */
     case EM_68K:
       return reloc_type == 4;  /* R_68K_PC32.  */
+    case EM_ADAPTEVA_EPIPHANY:
+      return reloc_type == 6;
     case EM_ALPHA:
       return reloc_type == 10; /* R_ALPHA_SREL32.  */
     case EM_ARM:
@@ -9950,6 +10058,8 @@ is_16bit_abs_reloc (unsigned int reloc_type)
     case EM_AVR_OLD:
     case EM_AVR:
       return reloc_type == 4; /* R_AVR_16.  */
+    case EM_ADAPTEVA_EPIPHANY:
+      return reloc_type == 5;
     case EM_CYGNUS_D10V:
     case EM_D10V:
       return reloc_type == 3; /* R_D10V_16.  */
@@ -9974,6 +10084,9 @@ is_16bit_abs_reloc (unsigned int reloc_type)
     case EM_XC16X:
     case EM_C166:
       return reloc_type == 2; /* R_XC16C_ABS_16.  */
+    case EM_CYGNUS_MN10300:
+    case EM_MN10300:
+      return reloc_type == 2; /* R_MN10300_16.  */
     default:
       return FALSE;
     }
@@ -9995,6 +10108,7 @@ is_none_reloc (unsigned int reloc_type)
     case EM_MIPS:    /* R_MIPS_NONE.  */
     case EM_PARISC:  /* R_PARISC_NONE.  */
     case EM_ALPHA:   /* R_ALPHA_NONE.  */
+    case EM_ADAPTEVA_EPIPHANY:
     case EM_PPC:     /* R_PPC_NONE.  */
     case EM_PPC64:   /* R_PPC64_NONE.  */
     case EM_ARM:     /* R_ARM_NONE.  */
@@ -10052,6 +10166,7 @@ apply_relocations (void * file,
       Elf_Internal_Rela * rp;
       Elf_Internal_Shdr * symsec;
       Elf_Internal_Sym * symtab;
+      unsigned long num_syms;
       Elf_Internal_Sym * sym;
 
       if ((relsec->sh_type != SHT_RELA && relsec->sh_type != SHT_REL)
@@ -10081,7 +10196,7 @@ apply_relocations (void * file,
 	is_rela = FALSE;
 
       symsec = section_headers + relsec->sh_link;
-      symtab = GET_ELF_SYMBOLS ((FILE *) file, symsec);
+      symtab = GET_ELF_SYMBOLS ((FILE *) file, symsec, & num_syms);
 
       for (rp = relocs; rp < relocs + num_relocs; ++rp)
 	{
@@ -10089,6 +10204,7 @@ apply_relocations (void * file,
 	  unsigned int    reloc_type;
 	  unsigned int    reloc_size;
 	  unsigned char * rloc;
+	  unsigned long   sym_index;
 
 	  reloc_type = get_reloc_type (rp->r_info);
 
@@ -10122,7 +10238,14 @@ apply_relocations (void * file,
 	      continue;
 	    }
 
-	  sym = symtab + get_reloc_symindex (rp->r_info);
+	  sym_index = (unsigned long) get_reloc_symindex (rp->r_info);
+	  if (sym_index >= num_syms)
+	    {
+	      warn (_("skipping invalid relocation symbol index 0x%lx in section %s\n"),
+		    sym_index, SECTION_NAME (section));
+	      continue;
+	    }
+	  sym = symtab + sym_index;
 
 	  /* If the reloc has a symbol associated with it,
 	     make sure that it is of an appropriate type.
@@ -11773,7 +11896,7 @@ process_mips_specific (FILE * file)
       elib = (Elf32_External_Lib *) get_data (NULL, file, liblist_offset,
                                               liblistno,
                                               sizeof (Elf32_External_Lib),
-                                              _("liblist"));
+                                              _("liblist section data"));
       if (elib)
 	{
 	  printf (_("\nSection '.liblist' contains %lu entries:\n"),
@@ -12129,7 +12252,8 @@ process_mips_specific (FILE * file)
 
       offset = offset_from_vma (file, pltgot, global_end - pltgot);
       data = (unsigned char *) get_data (NULL, file, offset,
-                                         global_end - pltgot, 1, _("GOT"));
+                                         global_end - pltgot, 1,
+					 _("Global Offset Table data"));
       if (data == NULL)
 	return 0;
 
@@ -12173,9 +12297,14 @@ process_mips_specific (FILE * file)
 
 	  printf (_(" Global entries:\n"));
 	  printf ("  %*s %10s %*s %*s %-7s %3s %s\n",
-		  addr_size * 2, _("Address"), _("Access"),
+		  addr_size * 2, _("Address"),
+		  _("Access"),
 		  addr_size * 2, _("Initial"),
-		  addr_size * 2, _("Sym.Val."), _("Type"), _("Ndx"), _("Name"));
+		  addr_size * 2, _("Sym.Val."),
+		  _("Type"),
+		  /* Note for translators: "Ndx" = abbreviated form of "Index".  */
+		  _("Ndx"), _("Name"));
+	  
 	  sym_width = (is_32bit_elf ? 80 : 160) - 28 - addr_size * 6 - 1;
 	  for (i = gotsym; i < symtabno; i++)
 	    {
@@ -12228,11 +12357,11 @@ process_mips_specific (FILE * file)
 
       offset = offset_from_vma (file, mips_pltgot, end - mips_pltgot);
       data = (unsigned char *) get_data (NULL, file, offset, end - mips_pltgot,
-                                         1, _("PLT GOT"));
+                                         1, _("Procedure Linkage Table data"));
       if (data == NULL)
 	return 0;
 
-      printf (_("\nPLT GOT:\n\n"));
+      printf ("\nPLT GOT:\n\n");
       printf (_(" Reserved entries:\n"));
       printf (_("  %*s %*s Purpose\n"),
 	      addr_size * 2, _("Address"), addr_size * 2, _("Initial"));
@@ -12301,7 +12430,7 @@ process_gnu_liblist (FILE * file)
 
 	  elib = (Elf32_External_Lib *)
               get_data (NULL, file, section->sh_offset, 1, section->sh_size,
-                        _("liblist"));
+                        _("liblist section data"));
 
 	  if (elib == NULL)
 	    break;
@@ -12469,7 +12598,7 @@ print_gnu_note (Elf_Internal_Note *pnote)
 	printf (_("    Build ID: "));
 	for (i = 0; i < pnote->descsz; ++i)
 	  printf ("%02x", pnote->descdata[i] & 0xff);
-	printf (_("\n"));
+	printf ("\n");
       }
       break;
 
@@ -12571,7 +12700,7 @@ get_netbsd_elfcore_note_type (unsigned e_type)
 	}
     }
 
-  snprintf (buff, sizeof (buff), _("PT_FIRSTMACH+%d"),
+  snprintf (buff, sizeof (buff), "PT_FIRSTMACH+%d",
 	    e_type - NT_NETBSDCORE_FIRSTMACH);
   return buff;
 }
@@ -12625,7 +12754,7 @@ print_stapsdt_note (Elf_Internal_Note *pnote)
   print_vma (base_addr, FULL_HEX);
   printf (_(", Semaphore: "));
   print_vma (semaphore, FULL_HEX);
-  printf (_("\n"));
+  printf ("\n");
   printf (_("    Arguments: %s\n"), arg_fmt);
 
   return data == data_end;
@@ -12645,13 +12774,13 @@ get_ia64_vms_note_type (unsigned e_type)
     case NT_VMS_SRC:
       return _("NT_VMS_SRC (source files)");
     case NT_VMS_TITLE:
-      return _("NT_VMS_TITLE");
+      return "NT_VMS_TITLE";
     case NT_VMS_EIDC:
       return _("NT_VMS_EIDC (consistency check)");
     case NT_VMS_FPMODE:
       return _("NT_VMS_FPMODE (FP mode)");
     case NT_VMS_LINKTIME:
-      return _("NT_VMS_LINKTIME");
+      return "NT_VMS_LINKTIME";
     case NT_VMS_IMGNAM:
       return _("NT_VMS_IMGNAM (image name)");
     case NT_VMS_IMGID:
@@ -12663,9 +12792,9 @@ get_ia64_vms_note_type (unsigned e_type)
     case NT_VMS_GSTNAM:
       return _("NT_VMS_GSTNAM (sym table name)");
     case NT_VMS_ORIG_DYN:
-      return _("NT_VMS_ORIG_DYN");
+      return "NT_VMS_ORIG_DYN";
     case NT_VMS_PATCHTIME:
-      return _("NT_VMS_PATCHTIME");
+      return "NT_VMS_PATCHTIME";
     default:
       snprintf (buff, sizeof (buff), _("Unknown note type: (0x%08x)"), e_type);
       return buff;
@@ -12694,7 +12823,8 @@ print_ia64_vms_note (Elf_Internal_Note * pnote)
       break;
 #ifdef BFD64
     case NT_VMS_FPMODE:
-      printf (_("   FP mode: 0x%016" BFD_VMA_FMT "x\n"),
+      printf (_("   Floating Point mode: "));
+      printf ("0x%016" BFD_VMA_FMT "x\n",
               (bfd_vma)byte_get ((unsigned char *)pnote->descdata, 8));
       break;
     case NT_VMS_LINKTIME:
@@ -12713,11 +12843,11 @@ print_ia64_vms_note (Elf_Internal_Note * pnote)
       printf (_("   Major id: %u,  minor id: %u\n"),
               (unsigned) byte_get ((unsigned char *)pnote->descdata, 4),
               (unsigned) byte_get ((unsigned char *)pnote->descdata + 4, 4));
-      printf (_("   Manip date  : "));
+      printf (_("   Last modified  : "));
       print_vms_time
         ((bfd_int64_t) byte_get ((unsigned char *)pnote->descdata + 8, 8));
-      printf (_("\n"
-                "   Link flags  : 0x%016" BFD_VMA_FMT "x\n"),
+      printf (_("\n   Link flags  : "));
+      printf ("0x%016" BFD_VMA_FMT "x\n",
               (bfd_vma)byte_get ((unsigned char *)pnote->descdata + 16, 8));
       printf (_("   Header flags: 0x%08x\n"),
               (unsigned)byte_get ((unsigned char *)pnote->descdata + 24, 4));
@@ -12865,7 +12995,7 @@ process_corefile_note_segment (FILE * file, bfd_vma offset, bfd_vma length)
       external = next;
 
       /* Prevent out-of-bounds indexing.  */
-      if (inote.namedata + inote.namesz >= (char *) pnotes + length
+      if (inote.namedata + inote.namesz > (char *) pnotes + length
 	  || inote.namedata + inote.namesz < inote.namedata)
         {
           warn (_("corrupt note found at offset %lx into core notes\n"),
@@ -12879,7 +13009,7 @@ process_corefile_note_segment (FILE * file, bfd_vma offset, bfd_vma length)
 	 one version of Linux (RedHat 6.0) generates corefiles that don't
 	 comply with the ELF spec by failing to include the null byte in
 	 namesz.  */
-      if (inote.namedata[inote.namesz] != '\0')
+      if (inote.namedata[inote.namesz - 1] != '\0')
 	{
 	  temp = (char *) malloc (inote.namesz + 1);
 
@@ -12942,7 +13072,7 @@ process_note_sections (FILE * file)
   int res = 1;
 
   for (i = 0, section = section_headers;
-       i < elf_header.e_shnum;
+       i < elf_header.e_shnum && section != NULL;
        i++, section++)
     if (section->sh_type == SHT_NOTE)
       res &= process_corefile_note_segment (file,

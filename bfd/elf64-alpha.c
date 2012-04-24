@@ -1,6 +1,7 @@
 /* Alpha specific support for 64-bit ELF
    Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-   2006, 2007, 2008, 2009, 2010, 2011  Free Software Foundation, Inc.
+   2006, 2007, 2008, 2009, 2010, 2011, 2012
+   Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@tamu.edu>.
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -1448,7 +1449,8 @@ elf64_alpha_find_nearest_line (bfd *abfd, asection *section, asymbol **symbols,
 {
   asection *msec;
 
-  if (_bfd_dwarf2_find_nearest_line (abfd, section, symbols, offset,
+  if (_bfd_dwarf2_find_nearest_line (abfd, dwarf_debug_sections,
+                                     section, symbols, offset,
 				     filename_ptr, functionname_ptr,
 				     line_ptr, 0,
 				     &elf_tdata (abfd)->dwarf2_find_line_info))
@@ -4106,7 +4108,7 @@ elf64_alpha_relocate_section_r (bfd *output_bfd ATTRIBUTE_UNUSED,
 	  sec = h->root.u.def.section;
 	}
 
-      if (sec != NULL && elf_discarded_section (sec))
+      if (sec != NULL && discarded_section (sec))
 	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
 					 rel, relend,
 					 elf64_alpha_howto_table + r_type,
@@ -4212,6 +4214,7 @@ elf64_alpha_relocate_section (bfd *output_bfd, struct bfd_link_info *info,
       bfd_vma value;
       bfd_vma addend;
       bfd_boolean dynamic_symbol_p;
+      bfd_boolean unresolved_reloc = FALSE;
       bfd_boolean undef_weak_ref = FALSE;
       unsigned long r_type;
 
@@ -4263,7 +4266,7 @@ elf64_alpha_relocate_section (bfd *output_bfd, struct bfd_link_info *info,
 	     unless it has been done already.  */
 	  if ((sec->flags & SEC_MERGE)
 	      && ELF_ST_TYPE (sym->st_info) == STT_SECTION
-	      && sec->sec_info_type == ELF_INFO_TYPE_MERGE
+	      && sec->sec_info_type == SEC_INFO_TYPE_MERGE
 	      && gotent
 	      && !gotent->reloc_xlated)
 	    {
@@ -4293,7 +4296,6 @@ elf64_alpha_relocate_section (bfd *output_bfd, struct bfd_link_info *info,
       else
 	{
 	  bfd_boolean warned;
-	  bfd_boolean unresolved_reloc;
 	  struct elf_link_hash_entry *hh;
 	  struct elf_link_hash_entry **sym_hashes = elf_sym_hashes (input_bfd);
 
@@ -4315,7 +4317,7 @@ elf64_alpha_relocate_section (bfd *output_bfd, struct bfd_link_info *info,
 	  gotent = h->got_entries;
 	}
 
-      if (sec != NULL && elf_discarded_section (sec))
+      if (sec != NULL && discarded_section (sec))
 	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
 					 rel, relend, howto, contents);
 
@@ -4526,7 +4528,12 @@ elf64_alpha_relocate_section (bfd *output_bfd, struct bfd_link_info *info,
 	    else if (info->shared
 		     && r_symndx != STN_UNDEF
 		     && (input_section->flags & SEC_ALLOC)
-		     && !undef_weak_ref)
+		     && !undef_weak_ref
+		     && !(unresolved_reloc
+			  && (_bfd_elf_section_offset (output_bfd, info,
+						       input_section,
+						       rel->r_offset)
+			      == (bfd_vma) -1)))
 	      {
 		if (r_type == R_ALPHA_REFLONG)
 		  {
@@ -4572,7 +4579,11 @@ elf64_alpha_relocate_section (bfd *output_bfd, struct bfd_link_info *info,
 	  /* ??? .eh_frame references to discarded sections will be smashed
 	     to relocations against SHN_UNDEF.  The .eh_frame format allows
 	     NULL to be encoded as 0 in any format, so this works here.  */
-	  if (r_symndx == STN_UNDEF)
+	  if (r_symndx == STN_UNDEF
+	      || (unresolved_reloc
+		  && _bfd_elf_section_offset (output_bfd, info,
+					      input_section,
+					      rel->r_offset) == (bfd_vma) -1))
 	    howto = (elf64_alpha_howto_table
 		     + (r_type - R_ALPHA_SREL32 + R_ALPHA_REFLONG));
 	  goto default_reloc;
@@ -4717,7 +4728,7 @@ elf64_alpha_relocate_section (bfd *output_bfd, struct bfd_link_info *info,
 
 	    if (r_symndx < symtab_hdr->sh_info
 		&& sec != NULL && howto->pc_relative
-		&& elf_discarded_section (sec))
+		&& discarded_section (sec))
 	      break;
 
 	    if (h != NULL)

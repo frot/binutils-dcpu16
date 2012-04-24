@@ -45,6 +45,7 @@
 #include "gc.h"
 #include "icf.h"
 #include "incremental.h"
+#include "timer.h"
 
 namespace gold
 {
@@ -197,45 +198,28 @@ queue_initial_tasks(const General_options& options,
   // For incremental links, the base output file.
   Incremental_binary* ibase = NULL;
 
-  if (parameters->incremental())
+  if (parameters->incremental_update())
     {
-      if (options.relocatable())
-	gold_error(_("incremental linking is incompatible with -r"));
-      if (options.emit_relocs())
-	gold_error(_("incremental linking is incompatible with --emit-relocs"));
-      if (options.gc_sections())
-	gold_error(_("incremental linking is incompatible with --gc-sections"));
-      if (options.icf_enabled())
-	gold_error(_("incremental linking is incompatible with --icf"));
-      if (options.has_plugins())
-	gold_error(_("incremental linking is incompatible with --plugin"));
-      if (strcmp(options.compress_debug_sections(), "none") != 0)
-	gold_error(_("incremental linking is incompatible with "
-		     "--compress-debug-sections"));
-
-      if (parameters->incremental_update())
+      Output_file* of = new Output_file(options.output_file_name());
+      if (of->open_base_file(options.incremental_base(), true))
 	{
-	  Output_file* of = new Output_file(options.output_file_name());
-	  if (of->open_base_file(options.incremental_base(), true))
+	  ibase = open_incremental_binary(of);
+	  if (ibase != NULL
+	      && ibase->check_inputs(cmdline, layout->incremental_inputs()))
+	    ibase->init_layout(layout);
+	  else
 	    {
-	      ibase = open_incremental_binary(of);
-	      if (ibase != NULL
-		  && ibase->check_inputs(cmdline, layout->incremental_inputs()))
-		ibase->init_layout(layout);
-	      else
-		{
-		  delete ibase;
-		  ibase = NULL;
-		  of->close();
-		}
+	      delete ibase;
+	      ibase = NULL;
+	      of->close();
 	    }
-	  if (ibase == NULL)
-	    {
-	      if (set_parameters_incremental_full())
-		gold_info(_("linking with --incremental-full"));
-	      else
-		gold_fallback(_("restart link with --incremental-full"));
-	    }
+	}
+      if (ibase == NULL)
+	{
+	  if (set_parameters_incremental_full())
+	    gold_info(_("linking with --incremental-full"));
+	  else
+	    gold_fallback(_("restart link with --incremental-full"));
 	}
     }
 
@@ -504,6 +488,10 @@ queue_middle_tasks(const General_options& options,
 		   Workqueue* workqueue,
 		   Mapfile* mapfile)
 {
+  Timer* timer = parameters->timer();
+  if (timer != NULL)
+    timer->stamp(0);
+
   // Add any symbols named with -u options to the symbol table.
   symtab->add_undefined_symbols_from_command_line(layout);
 
@@ -554,6 +542,20 @@ queue_middle_tasks(const General_options& options,
           Task_lock_obj<Object> tlo(task, *p);
           (*p)->layout(symtab, layout, NULL);
         }
+    }
+
+  /* If plugins have specified a section order, re-arrange input sections
+     according to a specified section order.  If --section-ordering-file is
+     also specified, do not do anything here.  */
+  if (parameters->options().has_plugins()
+      && layout->is_section_ordering_specified()
+      && !parameters->options().section_ordering_file ())
+    {
+      for (Layout::Section_list::const_iterator p
+	     = layout->section_list().begin();
+           p != layout->section_list().end();
+           ++p)
+        (*p)->update_section_layout(layout->get_section_order_map());
     }
 
   // Layout deferred objects due to plugins.
@@ -677,6 +679,8 @@ queue_middle_tasks(const General_options& options,
   // Attach sections to segments.
   layout->attach_sections_to_segments();
 
+  // TODO(csilvers): figure out a more principled way to get the target
+  Target* target = const_cast<Target*>(&parameters->target());
   if (!parameters->options().relocatable())
     {
       // Predefine standard symbols.
@@ -685,6 +689,9 @@ queue_middle_tasks(const General_options& options,
       // Define __start and __stop symbols for output sections where
       // appropriate.
       layout->define_section_symbols(symtab);
+
+      // Define target-specific symbols.
+      target->define_standard_symbols(symtab, layout);
     }
 
   // Make sure we have symbols for any required group signatures.
@@ -766,8 +773,6 @@ queue_middle_tasks(const General_options& options,
 
   // When all those tasks are complete, we can start laying out the
   // output file.
-  // TODO(csilvers): figure out a more principled way to get the target
-  Target* target = const_cast<Target*>(&parameters->target());
   workqueue->queue(new Task_function(new Layout_task_runner(options,
 							    input_objects,
 							    symtab,
@@ -789,6 +794,10 @@ queue_final_tasks(const General_options& options,
 		  Workqueue* workqueue,
 		  Output_file* of)
 {
+  Timer* timer = parameters->timer();
+  if (timer != NULL)
+    timer->stamp(1);
+
   int thread_count = options.thread_count_final();
   if (thread_count == 0)
     thread_count = std::max(2, input_objects->number_of_input_objects());

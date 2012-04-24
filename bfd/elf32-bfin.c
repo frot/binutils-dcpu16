@@ -1,5 +1,5 @@
 /* ADI Blackfin BFD support for 32-bit ELF.
-   Copyright 2005, 2006, 2007, 2008, 2009, 2010, 2011
+   Copyright 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -1444,7 +1444,7 @@ bfin_relocate_section (bfd * output_bfd,
 				   unresolved_reloc, warned);
 	}
 
-      if (sec != NULL && elf_discarded_section (sec))
+      if (sec != NULL && discarded_section (sec))
 	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
 					 rel, relend, howto, contents);
 
@@ -1585,7 +1585,9 @@ bfin_relocate_section (bfd * output_bfd,
          because such sections are not SEC_ALLOC and thus ld.so will
          not process them.  */
       if (unresolved_reloc
-	  && !((input_section->flags & SEC_DEBUGGING) != 0 && h->def_dynamic))
+	  && !((input_section->flags & SEC_DEBUGGING) != 0 && h->def_dynamic)
+	  && _bfd_elf_section_offset (output_bfd, info, input_section,
+				      rel->r_offset) != (bfd_vma) -1)
 	{
 	  (*_bfd_error_handler)
 	    (_("%B(%A+0x%lx): unresolvable relocation against symbol `%s'"),
@@ -2663,7 +2665,7 @@ bfinfdpic_relocate_section (bfd * output_bfd,
 	  osec = sec;
 	}
 
-      if (sec != NULL && elf_discarded_section (sec))
+      if (sec != NULL && discarded_section (sec))
 	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
 					 rel, relend, howto, contents);
 
@@ -2731,7 +2733,9 @@ bfinfdpic_relocate_section (bfd * output_bfd,
 	default:
 	non_fdpic:
 	  picrel = NULL;
-	  if (h && ! BFINFDPIC_SYM_LOCAL (info, h))
+	  if (h && ! BFINFDPIC_SYM_LOCAL (info, h)
+	      && _bfd_elf_section_offset (output_bfd, info, input_section,
+					  rel->r_offset) != (bfd_vma) -1)
 	    {
 	      info->callbacks->warning
 		(info, _("relocation references symbol not defined in the module"),
@@ -4429,7 +4433,7 @@ bfinfdpic_elf_discard_info (bfd *ibfd,
 
   /* Account for relaxation of .eh_frame section.  */
   for (s = ibfd->sections; s; s = s->next)
-    if (s->sec_info_type == ELF_INFO_TYPE_EH_FRAME)
+    if (s->sec_info_type == SEC_INFO_TYPE_EH_FRAME)
       {
 	if (!_bfinfdpic_check_discarded_relocs (ibfd, s, info, &changed))
 	  return FALSE;

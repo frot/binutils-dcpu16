@@ -1,6 +1,6 @@
 // inremental.h -- incremental linking support for gold   -*- C++ -*-
 
-// Copyright 2009, 2010 Free Software Foundation, Inc.
+// Copyright 2009, 2010, 2011 Free Software Foundation, Inc.
 // Written by Mikolaj Zalewski <mikolajz@google.com>.
 
 // This file is part of gold.
@@ -1880,8 +1880,9 @@ class Sized_relobj_incr : public Sized_relobj<size, big_endian>
   do_section_name(unsigned int shndx);
 
   // Return a view of the contents of a section.
-  Object::Location
-  do_section_contents(unsigned int shndx);
+  const unsigned char*
+  do_section_contents(unsigned int shndx, section_size_type* plen,
+		      bool cache);
 
   // Return section flags.
   uint64_t
@@ -1923,6 +1924,15 @@ class Sized_relobj_incr : public Sized_relobj<size, big_endian>
   const Symbols*
   do_get_global_symbols() const
   { return &this->symbols_; }
+
+  // Return the value of a local symbol.
+  uint64_t
+  do_local_symbol_value(unsigned int, uint64_t) const
+  { gold_unreachable(); }
+
+  unsigned int
+  do_local_plt_offset(unsigned int) const
+  { gold_unreachable(); }
 
   // Return the number of local symbols.
   unsigned int
@@ -1996,6 +2006,8 @@ class Sized_relobj_incr : public Sized_relobj<size, big_endian>
   unsigned int local_dynsym_offset_;
   // The entries in the symbol table for the external symbols.
   Symbols symbols_;
+  // Number of symbols defined in object file itself.
+  size_t defined_count_;
   // The offset of the first incremental relocation for this object.
   unsigned int incr_reloc_offset_;
   // The number of incremental relocations for this object.
@@ -2075,8 +2087,9 @@ class Sized_incr_dynobj : public Dynobj
   do_section_name(unsigned int shndx);
 
   // Return a view of the contents of a section.
-  Object::Location
-  do_section_contents(unsigned int shndx);
+  const unsigned char*
+  do_section_contents(unsigned int shndx, section_size_type* plen,
+		      bool cache);
 
   // Return section flags.
   uint64_t
@@ -2127,6 +2140,8 @@ class Sized_incr_dynobj : public Dynobj
   Input_entry_reader input_reader_;
   // The entries in the symbol table for the external symbols.
   Symbols symbols_;
+  // Number of symbols defined in object file itself.
+  size_t defined_count_;
 };
 
 // Allocate an incremental object of the appropriate size and endianness.

@@ -632,7 +632,7 @@ Sized_incremental_binary<size, big_endian>::do_process_got_plt(
   // Tell the target how big the GOT and PLT sections are.
   unsigned int got_count = got_plt_reader.get_got_entry_count();
   unsigned int plt_count = got_plt_reader.get_plt_entry_count();
-  Output_data_got<size, big_endian>* got =
+  Output_data_got_base* got =
       target->init_got_plt_for_update(symtab, layout, got_count, plt_count);
 
   // Read the GOT entries from the base file and build the outgoing GOT.
@@ -685,7 +685,7 @@ Sized_incremental_binary<size, big_endian>::do_process_got_plt(
       gold_assert(plt_desc >= first_global && plt_desc < symtab_count);
       Symbol* sym = this->global_symbol(plt_desc - first_global);
       // Add the PLT entry only if the symbol is still referenced.
-      if (sym->in_reg())
+      if (sym != NULL && sym->in_reg())
 	{
 	  gold_debug(DEBUG_INCREMENTAL,
 		     "PLT entry %d: %s",
@@ -1632,7 +1632,8 @@ Output_section_incremental_inputs<size, big_endian>::write_info_blocks(
 		Swap32::writeval(pov + 4, shndx);
 		Swap32::writeval(pov + 8, chain);
 		Swap32::writeval(pov + 12, nrelocs);
-		Swap32::writeval(pov + 16, first_reloc * 3 * sizeof_addr);
+		Swap32::writeval(pov + 16,
+				 first_reloc * (8 + 2 * sizeof_addr));
 		pov += 20;
 	      }
 
@@ -1966,8 +1967,9 @@ Sized_relobj_incr<size, big_endian>::Sized_relobj_incr(
     input_reader_(ibase->inputs_reader().input_file(input_file_index)),
     local_symbol_count_(0), output_local_dynsym_count_(0),
     local_symbol_index_(0), local_symbol_offset_(0), local_dynsym_offset_(0),
-    symbols_(), incr_reloc_offset_(-1U), incr_reloc_count_(0),
-    incr_reloc_output_index_(0), incr_relocs_(NULL), local_symbols_()
+    symbols_(), defined_count_(0), incr_reloc_offset_(-1U),
+    incr_reloc_count_(0), incr_reloc_output_index_(0), incr_relocs_(NULL),
+    local_symbols_()
 {
   if (this->input_reader_.is_in_system_directory())
     this->set_is_in_system_directory();
@@ -2000,6 +2002,11 @@ Sized_relobj_incr<size, big_endian>::do_layout(
   Output_sections& out_sections(this->output_sections());
   out_sections.resize(shnum);
   this->section_offsets().resize(shnum);
+
+  // Keep track of .debug_info and .debug_types sections.
+  std::vector<unsigned int> debug_info_sections;
+  std::vector<unsigned int> debug_types_sections;
+
   for (unsigned int i = 1; i < shnum; i++)
     {
       typename Input_entry_reader::Input_section_info sect =
@@ -2013,6 +2020,18 @@ Sized_relobj_incr<size, big_endian>::do_layout(
       gold_assert(os != NULL);
       out_sections[i] = os;
       this->section_offsets()[i] = static_cast<Address>(sect.sh_offset);
+
+      // When generating a .gdb_index section, we do additional
+      // processing of .debug_info and .debug_types sections after all
+      // the other sections.
+      if (parameters->options().gdb_index())
+	{
+	  const char* name = os->name();
+	  if (strcmp(name, ".debug_info") == 0)
+	    debug_info_sections.push_back(i);
+	  else if (strcmp(name, ".debug_types") == 0)
+	    debug_types_sections.push_back(i);
+	}
     }
 
   // Process the COMDAT groups.
@@ -2029,6 +2048,25 @@ Sized_relobj_incr<size, big_endian>::do_layout(
       else
         this->error(_("COMDAT group %s included twice in incremental link"),
 		    signature);
+    }
+
+  // When building a .gdb_index section, scan the .debug_info and
+  // .debug_types sections.
+  for (std::vector<unsigned int>::const_iterator p
+	   = debug_info_sections.begin();
+       p != debug_info_sections.end();
+       ++p)
+    {
+      unsigned int i = *p;
+      layout->add_to_gdb_index(false, this, NULL, 0, i, 0, 0);
+    }
+  for (std::vector<unsigned int>::const_iterator p
+	   = debug_types_sections.begin();
+       p != debug_types_sections.end();
+       ++p)
+    {
+      unsigned int i = *p;
+      layout->add_to_gdb_index(true, this, 0, 0, i, 0, 0);
     }
 }
 
@@ -2120,6 +2158,9 @@ Sized_relobj_incr<size, big_endian>::do_add_symbols(
 
       Symbol* res = symtab->add_from_incrobj(this, name, NULL, &sym);
 
+      if (shndx != elfcpp::SHN_UNDEF)
+        ++this->defined_count_;
+
       // If this is a linker-defined symbol that hasn't yet been defined,
       // define it now.
       if (input_shndx == -1U && !res->is_defined())
@@ -2188,22 +2229,39 @@ Sized_relobj_incr<size, big_endian>::do_section_size(unsigned int)
   gold_unreachable();
 }
 
-// Get the name of a section.
+// Get the name of a section.  This returns the name of the output
+// section, because we don't usually track the names of the input
+// sections.
 
 template<int size, bool big_endian>
 std::string
-Sized_relobj_incr<size, big_endian>::do_section_name(unsigned int)
+Sized_relobj_incr<size, big_endian>::do_section_name(unsigned int shndx)
 {
-  gold_unreachable();
+  Output_sections& out_sections(this->output_sections());
+  Output_section* os = out_sections[shndx];
+  if (os == NULL)
+    return NULL;
+  return os->name();
 }
 
 // Return a view of the contents of a section.
 
 template<int size, bool big_endian>
-Object::Location
-Sized_relobj_incr<size, big_endian>::do_section_contents(unsigned int)
+const unsigned char*
+Sized_relobj_incr<size, big_endian>::do_section_contents(
+    unsigned int shndx,
+    section_size_type* plen,
+    bool)
 {
-  gold_unreachable();
+  Output_sections& out_sections(this->output_sections());
+  Output_section* os = out_sections[shndx];
+  gold_assert(os != NULL);
+  off_t section_offset = os->offset();
+  typename Input_entry_reader::Input_section_info sect =
+      this->input_reader_.get_input_section(shndx - 1);
+  section_offset += sect.sh_offset;
+  *plen = sect.sh_size;
+  return this->ibase_->view(section_offset, sect.sh_size).data();
 }
 
 // Return section flags.
@@ -2283,9 +2341,21 @@ Sized_relobj_incr<size, big_endian>::do_initialize_xindex()
 template<int size, bool big_endian>
 void
 Sized_relobj_incr<size, big_endian>::do_get_global_symbol_counts(
-    const Symbol_table*, size_t*, size_t*) const
+    const Symbol_table*,
+    size_t* defined,
+    size_t* used) const
 {
-  gold_unreachable();
+  *defined = this->defined_count_;
+  size_t count = 0;
+  for (typename Symbols::const_iterator p = this->symbols_.begin();
+       p != this->symbols_.end();
+       ++p)
+    if (*p != NULL
+	&& (*p)->source() == Symbol::FROM_OBJECT
+	&& (*p)->object() == this
+	&& (*p)->is_defined())
+      ++count;
+  *used = count;
 }
 
 // Read the relocs.
@@ -2579,7 +2649,7 @@ Sized_incr_dynobj<size, big_endian>::Sized_incr_dynobj(
   : Dynobj(name, NULL), ibase_(ibase),
     input_file_index_(input_file_index),
     input_reader_(ibase->inputs_reader().input_file(input_file_index)),
-    symbols_()
+    symbols_(), defined_count_(0)
 {
   if (this->input_reader_.is_in_system_directory())
     this->set_is_in_system_directory();
@@ -2677,6 +2747,7 @@ Sized_incr_dynobj<size, big_endian>::do_add_symbols(
 	  // is meaningless, as long as it's not SHN_UNDEF.
 	  shndx = 1;
 	  v = gsym.get_st_value();
+	  ++this->defined_count_;
 	}
 
       osym.put_st_name(0);
@@ -2762,8 +2833,11 @@ Sized_incr_dynobj<size, big_endian>::do_section_name(unsigned int)
 // Return a view of the contents of a section.
 
 template<int size, bool big_endian>
-Object::Location
-Sized_incr_dynobj<size, big_endian>::do_section_contents(unsigned int)
+const unsigned char*
+Sized_incr_dynobj<size, big_endian>::do_section_contents(
+    unsigned int,
+    section_size_type*,
+    bool)
 {
   gold_unreachable();
 }
@@ -2845,9 +2919,22 @@ Sized_incr_dynobj<size, big_endian>::do_initialize_xindex()
 template<int size, bool big_endian>
 void
 Sized_incr_dynobj<size, big_endian>::do_get_global_symbol_counts(
-    const Symbol_table*, size_t*, size_t*) const
+    const Symbol_table*,
+    size_t* defined,
+    size_t* used) const
 {
-  gold_unreachable();
+  *defined = this->defined_count_;
+  size_t count = 0;
+  for (typename Symbols::const_iterator p = this->symbols_.begin();
+       p != this->symbols_.end();
+       ++p)
+    if (*p != NULL
+	&& (*p)->source() == Symbol::FROM_OBJECT
+	&& (*p)->object() == this
+	&& (*p)->is_defined()
+	&& (*p)->dynsym_index() != -1U)
+      ++count;
+  *used = count;
 }
 
 // Allocate an incremental object of the appropriate size and endianness.

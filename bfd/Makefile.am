@@ -4,7 +4,7 @@ AUTOMAKE_OPTIONS = 1.11 no-dist foreign
 ACLOCAL_AMFLAGS = -I . -I .. -I ../config
 
 # Uncomment the following line when doing a release.
-RELEASE=y
+# RELEASE=y
 
 INCDIR = $(srcdir)/../include
 CSEARCH = -I. -I$(srcdir) -I$(INCDIR)
@@ -83,6 +83,7 @@ ALL_MACHINES = \
 	cpu-d10v.lo \
 	cpu-d30v.lo \
 	cpu-dlx.lo \
+	cpu-epiphany.lo \
 	cpu-fr30.lo \
 	cpu-frv.lo \
 	cpu-h8300.lo \
@@ -122,6 +123,7 @@ ALL_MACHINES = \
 	cpu-plugin.lo \
 	cpu-powerpc.lo \
 	cpu-rs6000.lo \
+	cpu-rl78.lo \
 	cpu-rx.lo \
 	cpu-s390.lo \
 	cpu-score.lo \
@@ -158,6 +160,7 @@ ALL_MACHINES_CFILES = \
 	cpu-d10v.c \
 	cpu-d30v.c \
 	cpu-dlx.c \
+	cpu-epiphany.c \
 	cpu-fr30.c \
 	cpu-frv.c \
 	cpu-h8300.c \
@@ -197,6 +200,7 @@ ALL_MACHINES_CFILES = \
 	cpu-plugin.c \
 	cpu-powerpc.c \
 	cpu-rs6000.c \
+	cpu-rl78.c \
 	cpu-rx.c \
 	cpu-s390.c \
 	cpu-score.c \
@@ -271,6 +275,7 @@ BFD32_BACKENDS = \
 	elf-ifunc.lo \
 	elf-m10200.lo \
 	elf-m10300.lo \
+	elf-nacl.lo \
 	elf-strtab.lo \
 	elf-vxworks.lo \
 	elf.lo \
@@ -286,6 +291,7 @@ BFD32_BACKENDS = \
 	elf32-d10v.lo \
 	elf32-d30v.lo \
 	elf32-dlx.lo \
+	elf32-epiphany.lo \
 	elf32-fr30.lo \
 	elf32-frv.lo \
 	elf32-gen.lo \
@@ -316,6 +322,7 @@ BFD32_BACKENDS = \
 	elf32-or32.lo \
 	elf32-pj.lo \
 	elf32-ppc.lo \
+	elf32-rl78.lo \
 	elf32-rx.lo \
 	elf32-s390.lo \
 	elf32-sh-symbian.lo \
@@ -455,6 +462,7 @@ BFD32_BACKENDS_CFILES = \
 	elf-ifunc.c \
 	elf-m10200.c \
 	elf-m10300.c \
+	elf-nacl.c \
 	elf-strtab.c \
 	elf-vxworks.c \
 	elf.c \
@@ -470,6 +478,7 @@ BFD32_BACKENDS_CFILES = \
 	elf32-d10v.c \
 	elf32-d30v.c \
 	elf32-dlx.c \
+	elf32-epiphany.c \
 	elf32-fr30.c \
 	elf32-frv.c \
 	elf32-gen.c \
@@ -500,6 +509,7 @@ BFD32_BACKENDS_CFILES = \
 	elf32-or32.c \
 	elf32-pj.c \
 	elf32-ppc.c \
+	elf32-rl78.c \
 	elf32-rx.c \
 	elf32-s390.c \
 	elf32-sh-symbian.c \
@@ -601,6 +611,7 @@ BFD64_BACKENDS = \
 	coff-x86_64.lo \
 	coff64-rs6000.lo \
 	demo64.lo \
+	elf-nacl.lo \
 	elf32-ia64.lo \
 	elf32-score.lo \
 	elf32-score7.lo \
@@ -608,6 +619,7 @@ BFD64_BACKENDS = \
 	elf64-gen.lo \
 	elf64-hppa.lo \
 	elf64-ia64.lo \
+	elf64-ia64-vms.lo \
 	elf64-mips.lo \
 	elf64-mmix.lo \
 	elf64-ppc.lo \
@@ -637,11 +649,13 @@ BFD64_BACKENDS_CFILES = \
 	coff-x86_64.c \
 	coff64-rs6000.c \
 	demo64.c \
+	elf-nacl.c \
 	elf32-score.c \
 	elf32-score7.c \
 	elf64-alpha.c \
 	elf64-gen.c \
 	elf64-hppa.c \
+	elf64-ia64-vms.c \
 	elf64-mips.c \
 	elf64-mmix.c \
 	elf64-ppc.c \

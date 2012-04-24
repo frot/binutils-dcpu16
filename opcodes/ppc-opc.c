@@ -1,6 +1,6 @@
 /* ppc-opc.c -- PowerPC opcode list
    Copyright 1994, 1995, 1996, 1997, 1998, 2000, 2001, 2002, 2003, 2004,
-   2005, 2006, 2007, 2008, 2009, 2010, 2011
+   2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
    Written by Ian Lance Taylor, Cygnus Support
 
@@ -53,6 +53,7 @@ static unsigned long insert_boe (unsigned long, long, ppc_cpu_t, const char **);
 static long extract_boe (unsigned long, ppc_cpu_t, int *);
 static unsigned long insert_fxm (unsigned long, long, ppc_cpu_t, const char **);
 static long extract_fxm (unsigned long, ppc_cpu_t, int *);
+static unsigned long insert_ls (unsigned long, long, ppc_cpu_t, const char **);
 static unsigned long insert_mbe (unsigned long, long, ppc_cpu_t, const char **);
 static long extract_mbe (unsigned long, ppc_cpu_t, int *);
 static unsigned long insert_mb6 (unsigned long, long, ppc_cpu_t, const char **);
@@ -477,6 +478,7 @@ const struct powerpc_operand powerpc_operands[] =
      lower 5 bits are stored in the upper 5 and vice- versa.  */
 #define SPR SISIGNOPT + 1
 #define PMR SPR
+#define TMR SPR
 #define SPR_MASK (0x3ff << 11)
   { 0x3ff, 11, insert_spr, extract_spr, 0 },
 
@@ -499,8 +501,12 @@ const struct powerpc_operand powerpc_operands[] =
 #define T STRM
   { 0x3, 21, NULL, NULL, 0 },
 
+  /* The ESYNC field in an X (sync) form instruction.  */
+#define ESYNC STRM + 1
+  { 0xf, 16, insert_ls, NULL, PPC_OPERAND_OPTIONAL },
+
   /* The SV field in a POWER SC form instruction.  */
-#define SV STRM + 1
+#define SV ESYNC + 1
   { 0x3fff, 2, NULL, NULL, 0 },
 
   /* The TBR field in an XFX form instruction.  This is like the SPR
@@ -542,6 +548,7 @@ const struct powerpc_operand powerpc_operands[] =
 
   /* The UIMM field in a VX form instruction.  */
 #define UIMM SIMM + 1
+#define DCTL UIMM
   { 0x1f, 16, NULL, NULL, 0 },
 
   /* The SHB field in a VA form instruction.  */
@@ -748,13 +755,15 @@ extract_bba (unsigned long insn,
    extract_bdp always occur in pairs.  One or the other will always
    be valid.  */
 
+#define ISA_V2 (PPC_OPCODE_POWER4 | PPC_OPCODE_E500MC | PPC_OPCODE_TITAN)
+
 static unsigned long
 insert_bdm (unsigned long insn,
 	    long value,
 	    ppc_cpu_t dialect,
 	    const char **errmsg ATTRIBUTE_UNUSED)
 {
-  if ((dialect & PPC_OPCODE_POWER4) == 0)
+  if ((dialect & ISA_V2) == 0)
     {
       if ((value & 0x8000) != 0)
 	insn |= 1 << 21;
@@ -774,7 +783,7 @@ extract_bdm (unsigned long insn,
 	     ppc_cpu_t dialect,
 	     int *invalid)
 {
-  if ((dialect & PPC_OPCODE_POWER4) == 0)
+  if ((dialect & ISA_V2) == 0)
     {
       if (((insn & (1 << 21)) == 0) != ((insn & (1 << 15)) == 0))
 	*invalid = 1;
@@ -799,7 +808,7 @@ insert_bdp (unsigned long insn,
 	    ppc_cpu_t dialect,
 	    const char **errmsg ATTRIBUTE_UNUSED)
 {
-  if ((dialect & PPC_OPCODE_POWER4) == 0)
+  if ((dialect & ISA_V2) == 0)
     {
       if ((value & 0x8000) == 0)
 	insn |= 1 << 21;
@@ -819,7 +828,7 @@ extract_bdp (unsigned long insn,
 	     ppc_cpu_t dialect,
 	     int *invalid)
 {
-  if ((dialect & PPC_OPCODE_POWER4) == 0)
+  if ((dialect & ISA_V2) == 0)
     {
       if (((insn & (1 << 21)) == 0) == ((insn & (1 << 15)) == 0))
 	*invalid = 1;
@@ -834,52 +843,41 @@ extract_bdp (unsigned long insn,
   return ((insn & 0xfffc) ^ 0x8000) - 0x8000;
 }
 
-/* Check for legal values of a BO field.  */
-
-static int
-valid_bo (long value, ppc_cpu_t dialect, int extract)
+static inline int
+valid_bo_pre_v2 (long value)
 {
-  if ((dialect & PPC_OPCODE_POWER4) == 0)
-    {
-      int valid;
-      /* Certain encodings have bits that are required to be zero.
-	 These are (z must be zero, y may be anything):
-	     001zy
-	     011zy
-	     1z00y
-	     1z01y
-	     1z1zz
-      */
-      switch (value & 0x14)
-	{
-	default:
-	case 0:
-	  valid = 1;
-	  break;
-	case 0x4:
-	  valid = (value & 0x2) == 0;
-	  break;
-	case 0x10:
-	  valid = (value & 0x8) == 0;
-	  break;
-	case 0x14:
-	  valid = value == 0x14;
-	  break;
-	}
-      /* When disassembling with -Many, accept power4 encodings too.  */
-      if (valid
-	  || (dialect & PPC_OPCODE_ANY) == 0
-	  || !extract)
-	return valid;
-    }
+  /* Certain encodings have bits that are required to be zero.
+     These are (z must be zero, y may be anything):
+	 0000y 
+	 0001y 
+	 001zy
+	 0100y 
+	 0101y 
+	 011zy
+	 1z00y
+	 1z01y
+	 1z1zz
+  */
+  if ((value & 0x14) == 0)
+    return 1;
+  else if ((value & 0x14) == 0x4)
+    return (value & 0x2) == 0;
+  else if ((value & 0x14) == 0x10)
+    return (value & 0x8) == 0;
+  else
+    return value == 0x14;
+}
 
+static inline int
+valid_bo_post_v2 (long value)
+{
   /* Certain encodings have bits that are required to be zero.
      These are (z must be zero, a & t may be anything):
 	 0000z
 	 0001z
+	 001at
 	 0100z
 	 0101z
-	 001at
 	 011at
 	 1a00t
 	 1a01t
@@ -891,6 +889,24 @@ valid_bo (long value, ppc_cpu_t dialect, int extract)
     return value == 0x14;
   else
     return 1;
+}
+
+/* Check for legal values of a BO field.  */
+
+static int
+valid_bo (long value, ppc_cpu_t dialect, int extract)
+{
+  int valid_y = valid_bo_pre_v2 (value);
+  int valid_at = valid_bo_post_v2 (value);
+
+  /* When disassembling with -Many, accept either encoding on the
+     second pass through opcodes.  */
+  if (extract && dialect == ~(ppc_cpu_t) PPC_OPCODE_ANY)
+    return valid_y || valid_at;
+  if ((dialect & ISA_V2) == 0)
+    return valid_y;
+  else
+    return valid_at;
 }
 
 /* The BO field in a B form instruction.  Warn about attempts to set
@@ -1025,6 +1041,32 @@ extract_fxm (unsigned long insn,
     }
 
   return mask;
+}
+
+/* The LS field in a sync instruction that accepts 2 operands
+   Values 2 and 3 are reserved,
+     must be treated as 0 for future compatibility
+   Values 0 and 1 can be accepted, if field ESYNC is zero
+   Otherwise L = complement of ESYNC-bit2 (1<<18) */
+
+static unsigned long
+insert_ls (unsigned long insn,
+	   long value,
+	   ppc_cpu_t dialect ATTRIBUTE_UNUSED,
+	   const char **errmsg ATTRIBUTE_UNUSED)
+{
+  unsigned long ls;
+
+  ls = (insn >> 21) & 0x03;
+  if (value == 0)
+    {
+      if (ls > 1)
+	return insn & ~(0x3 << 21);
+      return insn;
+    }
+  if ((value & 0x2) != 0)
+    return (insn & ~(0x3 << 21)) | ((value & 0xf) << 16);
+  return (insn & ~(0x3 << 21)) | (0x1 << 21) | ((value & 0xf) << 16);
 }
 
 /* The MB and ME fields in an M form instruction expressed as a single
@@ -1795,6 +1837,9 @@ extract_dm (unsigned long insn,
 /* An X form sync instruction with everything filled in except the LS field.  */
 #define XSYNC_MASK (0xff9fffff)
 
+/* An X form sync instruction with everything filled in except the L and E fields.  */
+#define XSYNCLE_MASK (0xff90ffff)
+
 /* An X_MASK, but with the EH bit clear.  */
 #define XEH_MASK (X_MASK & ~((unsigned long )1))
 
@@ -1989,6 +2034,7 @@ extract_dm (unsigned long insn,
 #define PPC860	PPC
 #define PPCPS	PPC_OPCODE_PPCPS
 #define PPCVEC	PPC_OPCODE_ALTIVEC
+#define PPCVEC2	PPC_OPCODE_ALTIVEC2
 #define PPCVSX	PPC_OPCODE_VSX
 #define POWER	PPC_OPCODE_POWER
 #define POWER2	PPC_OPCODE_POWER | PPC_OPCODE_POWER2
@@ -2007,6 +2053,7 @@ extract_dm (unsigned long insn,
 #define PPCEFS	PPC_OPCODE_EFS
 #define PPCBRLK PPC_OPCODE_BRLOCK
 #define PPCPMR	PPC_OPCODE_PMR
+#define PPCTMR  PPC_OPCODE_TMR
 #define PPCCHLK PPC_OPCODE_CACHELCK
 #define PPCRFMCI	PPC_OPCODE_RFMCI
 #define E500MC  PPC_OPCODE_E500MC
@@ -2014,18 +2061,20 @@ extract_dm (unsigned long insn,
 #define TITAN   PPC_OPCODE_TITAN  
 #define MULHW   PPC_OPCODE_405 | PPC_OPCODE_440 | TITAN
 #define E500	PPC_OPCODE_E500
+#define E6500	PPC_OPCODE_E6500
 
 /* The opcode table.
 
    The format of the opcode table is:
 
-   NAME		OPCODE		MASK	     FLAGS	{OPERANDS}
+   NAME		OPCODE		MASK	     FLAGS	ANTI		{OPERANDS}
 
    NAME is the name of the instruction.
    OPCODE is the instruction opcode.
    MASK is the opcode mask; this is used to tell the disassembler
      which bits in the actual opcode must match OPCODE.
-   FLAGS are flags indicated what processors support the instruction.
+   FLAGS are flags indicating which processors support the instruction.
+   ANTI indicates which processors don't support the instruction.
    OPERANDS is the list of operands.
 
    The disassembler reads the table in order and prints the first
@@ -2179,12 +2228,14 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"machhwsu",	XO (4,	76,0,0),XO_MASK,     MULHW, 	PPCNONE,	{RT, RA, RB}},
 {"machhwsu.",	XO (4,	76,0,1),XO_MASK,     MULHW, 	PPCNONE,	{RT, RA, RB}},
 {"ps_cmpo1",	X  (4,	96), X_MASK|(3<<21), PPCPS,	PPCNONE,	{BF, FRA, FRB}},
+{"vabsdub",	VX (4, 192),	VX_MASK,     PPCVEC2,	PPCNONE,	{VD, VA, VB}},
 {"vcmpeqfp",	VXR(4, 198,0),	VXR_MASK,    PPCVEC,	PPCNONE,	{VD, VA, VB}},
 {"vpkuwus",	VX (4, 206),	VX_MASK,     PPCVEC,	PPCNONE,	{VD, VA, VB}},
 {"machhws",	XO (4, 108,0,0),XO_MASK,     MULHW, 	PPCNONE,	{RT, RA, RB}},
 {"machhws.",	XO (4, 108,0,1),XO_MASK,     MULHW,	PPCNONE,	{RT, RA, RB}},
 {"nmachhws",	XO (4, 110,0,0),XO_MASK,     MULHW,	PPCNONE,	{RT, RA, RB}},
 {"nmachhws.",	XO (4, 110,0,1),XO_MASK,     MULHW,	PPCNONE,	{RT, RA, RB}},
+{"vabsduh",	VX (4, 256),	VX_MASK,     PPCVEC2,	PPCNONE,	{VD, VA, VB}},
 {"vmaxsb",	VX (4, 258),	VX_MASK,     PPCVEC,	PPCNONE,	{VD, VA, VB}},
 {"vslb",	VX (4, 260),	VX_MASK,     PPCVEC,	PPCNONE,	{VD, VA, VB}},
 {"vmulosb",	VX (4, 264),	VX_MASK,     PPCVEC,	PPCNONE,	{VD, VA, VB}},
@@ -2197,6 +2248,7 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"mulchwu.",	XRC(4, 136,1),	X_MASK,      MULHW,	PPCNONE,	{RT, RA, RB}},
 {"macchwu",	XO (4, 140,0,0),XO_MASK,     MULHW,	PPCNONE,	{RT, RA, RB}},
 {"macchwu.",	XO (4, 140,0,1),XO_MASK,     MULHW,	PPCNONE,	{RT, RA, RB}},
+{"vabsduw",	VX (4, 320),	VX_MASK,     PPCVEC2,	PPCNONE,	{VD, VA, VB}},
 {"vmaxsh",	VX (4, 322),	VX_MASK,     PPCVEC,	PPCNONE,	{VD, VA, VB}},
 {"vslh",	VX (4, 324),	VX_MASK,     PPCVEC,	PPCNONE,	{VD, VA, VB}},
 {"vmulosh",	VX (4, 328),	VX_MASK,     PPCVEC,	PPCNONE,	{VD, VA, VB}},
@@ -2892,29 +2944,29 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"bunla+",   BBOCB(16,BOT,CBSO,1,1),	BBOATCB_MASK,  PPCCOM,	 PPCNONE,	{CR, BDPA}},
 {"bunla",    BBOCB(16,BOT,CBSO,1,1),	BBOATCB_MASK,  PPCCOM,	 PPCNONE,	{CR, BDA}},
 
-{"bdnzf-",   BBO(16,BODNZF,0,0),	BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDM}},
-{"bdnzf+",   BBO(16,BODNZF,0,0),	BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDP}},
+{"bdnzf-",   BBO(16,BODNZF,0,0),	BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDM}},
+{"bdnzf+",   BBO(16,BODNZF,0,0),	BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDP}},
 {"bdnzf",    BBO(16,BODNZF,0,0),	BBOY_MASK,     PPCCOM,	 PPCNONE,	{BI, BD}},
-{"bdnzfl-",  BBO(16,BODNZF,0,1),	BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDM}},
-{"bdnzfl+",  BBO(16,BODNZF,0,1),	BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDP}},
+{"bdnzfl-",  BBO(16,BODNZF,0,1),	BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDM}},
+{"bdnzfl+",  BBO(16,BODNZF,0,1),	BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDP}},
 {"bdnzfl",   BBO(16,BODNZF,0,1),	BBOY_MASK,     PPCCOM,	 PPCNONE,	{BI, BD}},
-{"bdnzfa-",  BBO(16,BODNZF,1,0),	BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDMA}},
-{"bdnzfa+",  BBO(16,BODNZF,1,0),	BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDPA}},
+{"bdnzfa-",  BBO(16,BODNZF,1,0),	BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDMA}},
+{"bdnzfa+",  BBO(16,BODNZF,1,0),	BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDPA}},
 {"bdnzfa",   BBO(16,BODNZF,1,0),	BBOY_MASK,     PPCCOM,	 PPCNONE,	{BI, BDA}},
-{"bdnzfla-", BBO(16,BODNZF,1,1),	BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDMA}},
-{"bdnzfla+", BBO(16,BODNZF,1,1),	BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDPA}},
+{"bdnzfla-", BBO(16,BODNZF,1,1),	BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDMA}},
+{"bdnzfla+", BBO(16,BODNZF,1,1),	BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDPA}},
 {"bdnzfla",  BBO(16,BODNZF,1,1),	BBOY_MASK,     PPCCOM,	 PPCNONE,	{BI, BDA}},
-{"bdzf-",    BBO(16,BODZF,0,0),		BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDM}},
-{"bdzf+",    BBO(16,BODZF,0,0),		BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDP}},
+{"bdzf-",    BBO(16,BODZF,0,0),		BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDM}},
+{"bdzf+",    BBO(16,BODZF,0,0),		BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDP}},
 {"bdzf",     BBO(16,BODZF,0,0),		BBOY_MASK,     PPCCOM,	 PPCNONE,	{BI, BD}},
-{"bdzfl-",   BBO(16,BODZF,0,1),		BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDM}},
-{"bdzfl+",   BBO(16,BODZF,0,1),		BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDP}},
+{"bdzfl-",   BBO(16,BODZF,0,1),		BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDM}},
+{"bdzfl+",   BBO(16,BODZF,0,1),		BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDP}},
 {"bdzfl",    BBO(16,BODZF,0,1),		BBOY_MASK,     PPCCOM,	 PPCNONE,	{BI, BD}},
-{"bdzfa-",   BBO(16,BODZF,1,0),		BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDMA}},
-{"bdzfa+",   BBO(16,BODZF,1,0),		BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDPA}},
+{"bdzfa-",   BBO(16,BODZF,1,0),		BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDMA}},
+{"bdzfa+",   BBO(16,BODZF,1,0),		BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDPA}},
 {"bdzfa",    BBO(16,BODZF,1,0),		BBOY_MASK,     PPCCOM,	 PPCNONE,	{BI, BDA}},
-{"bdzfla-",  BBO(16,BODZF,1,1),		BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDMA}},
-{"bdzfla+",  BBO(16,BODZF,1,1),		BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDPA}},
+{"bdzfla-",  BBO(16,BODZF,1,1),		BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDMA}},
+{"bdzfla+",  BBO(16,BODZF,1,1),		BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDPA}},
 {"bdzfla",   BBO(16,BODZF,1,1),		BBOY_MASK,     PPCCOM,	 PPCNONE,	{BI, BDA}},
 
 {"bf-",      BBO(16,BOF,0,0),		BBOAT_MASK,    PPCCOM,	 PPCNONE,	{BI, BDM}},
@@ -2934,29 +2986,29 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"bfla",     BBO(16,BOF,1,1),		BBOAT_MASK,    PPCCOM,	 PPCNONE,	{BI, BDA}},
 {"bbfla",    BBO(16,BOF,1,1),		BBOAT_MASK,    PWRCOM,	 PPCNONE,	{BI, BDA}},
 
-{"bdnzt-",   BBO(16,BODNZT,0,0),	BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDM}},
-{"bdnzt+",   BBO(16,BODNZT,0,0),	BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDP}},
+{"bdnzt-",   BBO(16,BODNZT,0,0),	BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDM}},
+{"bdnzt+",   BBO(16,BODNZT,0,0),	BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDP}},
 {"bdnzt",    BBO(16,BODNZT,0,0),	BBOY_MASK,     PPCCOM,	 PPCNONE,	{BI, BD}},
-{"bdnztl-",  BBO(16,BODNZT,0,1),	BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDM}},
-{"bdnztl+",  BBO(16,BODNZT,0,1),	BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDP}},
+{"bdnztl-",  BBO(16,BODNZT,0,1),	BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDM}},
+{"bdnztl+",  BBO(16,BODNZT,0,1),	BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDP}},
 {"bdnztl",   BBO(16,BODNZT,0,1),	BBOY_MASK,     PPCCOM,	 PPCNONE,	{BI, BD}},
-{"bdnzta-",  BBO(16,BODNZT,1,0),	BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDMA}},
-{"bdnzta+",  BBO(16,BODNZT,1,0),	BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDPA}},
+{"bdnzta-",  BBO(16,BODNZT,1,0),	BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDMA}},
+{"bdnzta+",  BBO(16,BODNZT,1,0),	BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDPA}},
 {"bdnzta",   BBO(16,BODNZT,1,0),	BBOY_MASK,     PPCCOM,	 PPCNONE,	{BI, BDA}},
-{"bdnztla-", BBO(16,BODNZT,1,1),	BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDMA}},
-{"bdnztla+", BBO(16,BODNZT,1,1),	BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDPA}},
+{"bdnztla-", BBO(16,BODNZT,1,1),	BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDMA}},
+{"bdnztla+", BBO(16,BODNZT,1,1),	BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDPA}},
 {"bdnztla",  BBO(16,BODNZT,1,1),	BBOY_MASK,     PPCCOM,	 PPCNONE,	{BI, BDA}},
-{"bdzt-",    BBO(16,BODZT,0,0),		BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDM}},
-{"bdzt+",    BBO(16,BODZT,0,0),		BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDP}},
+{"bdzt-",    BBO(16,BODZT,0,0),		BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDM}},
+{"bdzt+",    BBO(16,BODZT,0,0),		BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDP}},
 {"bdzt",     BBO(16,BODZT,0,0),		BBOY_MASK,     PPCCOM,	 PPCNONE,	{BI, BD}},
-{"bdztl-",   BBO(16,BODZT,0,1),		BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDM}},
-{"bdztl+",   BBO(16,BODZT,0,1),		BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDP}},
+{"bdztl-",   BBO(16,BODZT,0,1),		BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDM}},
+{"bdztl+",   BBO(16,BODZT,0,1),		BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDP}},
 {"bdztl",    BBO(16,BODZT,0,1),		BBOY_MASK,     PPCCOM,	 PPCNONE,	{BI, BD}},
-{"bdzta-",   BBO(16,BODZT,1,0),		BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDMA}},
-{"bdzta+",   BBO(16,BODZT,1,0),		BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDPA}},
+{"bdzta-",   BBO(16,BODZT,1,0),		BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDMA}},
+{"bdzta+",   BBO(16,BODZT,1,0),		BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDPA}},
 {"bdzta",    BBO(16,BODZT,1,0),		BBOY_MASK,     PPCCOM,	 PPCNONE,	{BI, BDA}},
-{"bdztla-",  BBO(16,BODZT,1,1),		BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDMA}},
-{"bdztla+",  BBO(16,BODZT,1,1),		BBOY_MASK,     PPCCOM,   POWER4,	{BI, BDPA}},
+{"bdztla-",  BBO(16,BODZT,1,1),		BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDMA}},
+{"bdztla+",  BBO(16,BODZT,1,1),		BBOY_MASK,     PPCCOM,   ISA_V2,	{BI, BDPA}},
 {"bdztla",   BBO(16,BODZT,1,1),		BBOY_MASK,     PPCCOM,	 PPCNONE,	{BI, BDA}},
 
 {"bt-",      BBO(16,BOT,0,0),		BBOAT_MASK,    PPCCOM,	 PPCNONE,	{BI, BDM}},
@@ -3003,219 +3055,219 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"mcrf",      XL(19,0), XLBB_MASK|(3<<21)|(3<<16), COM,	PPCNONE,	{BF, BFA}},
 
 {"bdnzlr",   XLO(19,BODNZ,16,0),	XLBOBIBB_MASK, PPCCOM,	 PPCNONE,	{0}},
-{"bdnzlr-",  XLO(19,BODNZ,16,0),	XLBOBIBB_MASK, PPCCOM,   POWER4,	{0}},
+{"bdnzlr-",  XLO(19,BODNZ,16,0),	XLBOBIBB_MASK, PPCCOM,   ISA_V2,	{0}},
 {"bdnzlrl",  XLO(19,BODNZ,16,1),	XLBOBIBB_MASK, PPCCOM,	 PPCNONE,	{0}},
-{"bdnzlrl-", XLO(19,BODNZ,16,1),	XLBOBIBB_MASK, PPCCOM,   POWER4,	{0}},
-{"bdnzlr+",  XLO(19,BODNZP,16,0),	XLBOBIBB_MASK, PPCCOM,   POWER4,	{0}},
-{"bdnzlrl+", XLO(19,BODNZP,16,1),	XLBOBIBB_MASK, PPCCOM,   POWER4,	{0}},
+{"bdnzlrl-", XLO(19,BODNZ,16,1),	XLBOBIBB_MASK, PPCCOM,   ISA_V2,	{0}},
+{"bdnzlr+",  XLO(19,BODNZP,16,0),	XLBOBIBB_MASK, PPCCOM,   ISA_V2,	{0}},
+{"bdnzlrl+", XLO(19,BODNZP,16,1),	XLBOBIBB_MASK, PPCCOM,   ISA_V2,	{0}},
 {"bdzlr",    XLO(19,BODZ,16,0),		XLBOBIBB_MASK, PPCCOM,	 PPCNONE,	{0}},
-{"bdzlr-",   XLO(19,BODZ,16,0),		XLBOBIBB_MASK, PPCCOM,   POWER4,	{0}},
+{"bdzlr-",   XLO(19,BODZ,16,0),		XLBOBIBB_MASK, PPCCOM,   ISA_V2,	{0}},
 {"bdzlrl",   XLO(19,BODZ,16,1),		XLBOBIBB_MASK, PPCCOM,	 PPCNONE,	{0}},
-{"bdzlrl-",  XLO(19,BODZ,16,1),		XLBOBIBB_MASK, PPCCOM,   POWER4,	{0}},
-{"bdzlr+",   XLO(19,BODZP,16,0),	XLBOBIBB_MASK, PPCCOM,   POWER4,	{0}},
-{"bdzlrl+",  XLO(19,BODZP,16,1),	XLBOBIBB_MASK, PPCCOM,   POWER4,	{0}},
+{"bdzlrl-",  XLO(19,BODZ,16,1),		XLBOBIBB_MASK, PPCCOM,   ISA_V2,	{0}},
+{"bdzlr+",   XLO(19,BODZP,16,0),	XLBOBIBB_MASK, PPCCOM,   ISA_V2,	{0}},
+{"bdzlrl+",  XLO(19,BODZP,16,1),	XLBOBIBB_MASK, PPCCOM,   ISA_V2,	{0}},
 {"blr",      XLO(19,BOU,16,0),		XLBOBIBB_MASK, PPCCOM,	 PPCNONE,	{0}},
 {"br",	     XLO(19,BOU,16,0),		XLBOBIBB_MASK, PWRCOM,	 PPCNONE,	{0}},
 {"blrl",     XLO(19,BOU,16,1),		XLBOBIBB_MASK, PPCCOM,	 PPCNONE,	{0}},
 {"brl",      XLO(19,BOU,16,1),		XLBOBIBB_MASK, PWRCOM,	 PPCNONE,	{0}},
-{"bdnzlr-",  XLO(19,BODNZM4,16,0),	XLBOBIBB_MASK, POWER4,	 PPCNONE,	{0}},
-{"bdnzlrl-", XLO(19,BODNZM4,16,1),	XLBOBIBB_MASK, POWER4,	 PPCNONE,	{0}},
-{"bdnzlr+",  XLO(19,BODNZP4,16,0),	XLBOBIBB_MASK, POWER4,	 PPCNONE,	{0}},
-{"bdnzlrl+", XLO(19,BODNZP4,16,1),	XLBOBIBB_MASK, POWER4,	 PPCNONE,	{0}},
-{"bdzlr-",   XLO(19,BODZM4,16,0),	XLBOBIBB_MASK, POWER4,	 PPCNONE,	{0}},
-{"bdzlrl-",  XLO(19,BODZM4,16,1),	XLBOBIBB_MASK, POWER4,	 PPCNONE,	{0}},
-{"bdzlr+",   XLO(19,BODZP4,16,0),	XLBOBIBB_MASK, POWER4,	 PPCNONE,	{0}},
-{"bdzlrl+",  XLO(19,BODZP4,16,1),	XLBOBIBB_MASK, POWER4,	 PPCNONE,	{0}},
+{"bdnzlr-",  XLO(19,BODNZM4,16,0),	XLBOBIBB_MASK, ISA_V2,	 PPCNONE,	{0}},
+{"bdnzlrl-", XLO(19,BODNZM4,16,1),	XLBOBIBB_MASK, ISA_V2,	 PPCNONE,	{0}},
+{"bdnzlr+",  XLO(19,BODNZP4,16,0),	XLBOBIBB_MASK, ISA_V2,	 PPCNONE,	{0}},
+{"bdnzlrl+", XLO(19,BODNZP4,16,1),	XLBOBIBB_MASK, ISA_V2,	 PPCNONE,	{0}},
+{"bdzlr-",   XLO(19,BODZM4,16,0),	XLBOBIBB_MASK, ISA_V2,	 PPCNONE,	{0}},
+{"bdzlrl-",  XLO(19,BODZM4,16,1),	XLBOBIBB_MASK, ISA_V2,	 PPCNONE,	{0}},
+{"bdzlr+",   XLO(19,BODZP4,16,0),	XLBOBIBB_MASK, ISA_V2,	 PPCNONE,	{0}},
+{"bdzlrl+",  XLO(19,BODZP4,16,1),	XLBOBIBB_MASK, ISA_V2,	 PPCNONE,	{0}},
 
 {"bgelr",    XLOCB(19,BOF,CBLT,16,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bgelr-",   XLOCB(19,BOF,CBLT,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bgelr-",   XLOCB(19,BOF,CBLT,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bger",     XLOCB(19,BOF,CBLT,16,0),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"bnllr",    XLOCB(19,BOF,CBLT,16,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnllr-",   XLOCB(19,BOF,CBLT,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bnllr-",   XLOCB(19,BOF,CBLT,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bnlr",     XLOCB(19,BOF,CBLT,16,0),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"bgelrl",   XLOCB(19,BOF,CBLT,16,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bgelrl-",  XLOCB(19,BOF,CBLT,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bgelrl-",  XLOCB(19,BOF,CBLT,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bgerl",    XLOCB(19,BOF,CBLT,16,1),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"bnllrl",   XLOCB(19,BOF,CBLT,16,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnllrl-",  XLOCB(19,BOF,CBLT,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bnllrl-",  XLOCB(19,BOF,CBLT,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bnlrl",    XLOCB(19,BOF,CBLT,16,1),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"blelr",    XLOCB(19,BOF,CBGT,16,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"blelr-",   XLOCB(19,BOF,CBGT,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"blelr-",   XLOCB(19,BOF,CBGT,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bler",     XLOCB(19,BOF,CBGT,16,0),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"bnglr",    XLOCB(19,BOF,CBGT,16,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnglr-",   XLOCB(19,BOF,CBGT,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bnglr-",   XLOCB(19,BOF,CBGT,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bngr",     XLOCB(19,BOF,CBGT,16,0),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"blelrl",   XLOCB(19,BOF,CBGT,16,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"blelrl-",  XLOCB(19,BOF,CBGT,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"blelrl-",  XLOCB(19,BOF,CBGT,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"blerl",    XLOCB(19,BOF,CBGT,16,1),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"bnglrl",   XLOCB(19,BOF,CBGT,16,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnglrl-",  XLOCB(19,BOF,CBGT,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bnglrl-",  XLOCB(19,BOF,CBGT,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bngrl",    XLOCB(19,BOF,CBGT,16,1),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"bnelr",    XLOCB(19,BOF,CBEQ,16,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnelr-",   XLOCB(19,BOF,CBEQ,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bnelr-",   XLOCB(19,BOF,CBEQ,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bner",     XLOCB(19,BOF,CBEQ,16,0),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"bnelrl",   XLOCB(19,BOF,CBEQ,16,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnelrl-",  XLOCB(19,BOF,CBEQ,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bnelrl-",  XLOCB(19,BOF,CBEQ,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bnerl",    XLOCB(19,BOF,CBEQ,16,1),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"bnslr",    XLOCB(19,BOF,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnslr-",   XLOCB(19,BOF,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bnslr-",   XLOCB(19,BOF,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bnsr",     XLOCB(19,BOF,CBSO,16,0),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"bnulr",    XLOCB(19,BOF,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnulr-",   XLOCB(19,BOF,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bnulr-",   XLOCB(19,BOF,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bnslrl",   XLOCB(19,BOF,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnslrl-",  XLOCB(19,BOF,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bnslrl-",  XLOCB(19,BOF,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bnsrl",    XLOCB(19,BOF,CBSO,16,1),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"bnulrl",   XLOCB(19,BOF,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnulrl-",  XLOCB(19,BOF,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bgelr+",   XLOCB(19,BOFP,CBLT,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnllr+",   XLOCB(19,BOFP,CBLT,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bgelrl+",  XLOCB(19,BOFP,CBLT,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnllrl+",  XLOCB(19,BOFP,CBLT,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"blelr+",   XLOCB(19,BOFP,CBGT,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnglr+",   XLOCB(19,BOFP,CBGT,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"blelrl+",  XLOCB(19,BOFP,CBGT,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnglrl+",  XLOCB(19,BOFP,CBGT,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnelr+",   XLOCB(19,BOFP,CBEQ,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnelrl+",  XLOCB(19,BOFP,CBEQ,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnslr+",   XLOCB(19,BOFP,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnulr+",   XLOCB(19,BOFP,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnslrl+",  XLOCB(19,BOFP,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnulrl+",  XLOCB(19,BOFP,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bgelr-",   XLOCB(19,BOFM4,CBLT,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnllr-",   XLOCB(19,BOFM4,CBLT,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bgelrl-",  XLOCB(19,BOFM4,CBLT,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnllrl-",  XLOCB(19,BOFM4,CBLT,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"blelr-",   XLOCB(19,BOFM4,CBGT,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnglr-",   XLOCB(19,BOFM4,CBGT,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"blelrl-",  XLOCB(19,BOFM4,CBGT,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnglrl-",  XLOCB(19,BOFM4,CBGT,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnelr-",   XLOCB(19,BOFM4,CBEQ,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnelrl-",  XLOCB(19,BOFM4,CBEQ,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnslr-",   XLOCB(19,BOFM4,CBSO,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnulr-",   XLOCB(19,BOFM4,CBSO,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnslrl-",  XLOCB(19,BOFM4,CBSO,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnulrl-",  XLOCB(19,BOFM4,CBSO,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bgelr+",   XLOCB(19,BOFP4,CBLT,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnllr+",   XLOCB(19,BOFP4,CBLT,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bgelrl+",  XLOCB(19,BOFP4,CBLT,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnllrl+",  XLOCB(19,BOFP4,CBLT,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"blelr+",   XLOCB(19,BOFP4,CBGT,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnglr+",   XLOCB(19,BOFP4,CBGT,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"blelrl+",  XLOCB(19,BOFP4,CBGT,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnglrl+",  XLOCB(19,BOFP4,CBGT,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnelr+",   XLOCB(19,BOFP4,CBEQ,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnelrl+",  XLOCB(19,BOFP4,CBEQ,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnslr+",   XLOCB(19,BOFP4,CBSO,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnulr+",   XLOCB(19,BOFP4,CBSO,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnslrl+",  XLOCB(19,BOFP4,CBSO,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnulrl+",  XLOCB(19,BOFP4,CBSO,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
+{"bnulrl-",  XLOCB(19,BOF,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bgelr+",   XLOCB(19,BOFP,CBLT,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnllr+",   XLOCB(19,BOFP,CBLT,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bgelrl+",  XLOCB(19,BOFP,CBLT,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnllrl+",  XLOCB(19,BOFP,CBLT,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"blelr+",   XLOCB(19,BOFP,CBGT,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnglr+",   XLOCB(19,BOFP,CBGT,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"blelrl+",  XLOCB(19,BOFP,CBGT,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnglrl+",  XLOCB(19,BOFP,CBGT,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnelr+",   XLOCB(19,BOFP,CBEQ,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnelrl+",  XLOCB(19,BOFP,CBEQ,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnslr+",   XLOCB(19,BOFP,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnulr+",   XLOCB(19,BOFP,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnslrl+",  XLOCB(19,BOFP,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnulrl+",  XLOCB(19,BOFP,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bgelr-",   XLOCB(19,BOFM4,CBLT,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnllr-",   XLOCB(19,BOFM4,CBLT,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bgelrl-",  XLOCB(19,BOFM4,CBLT,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnllrl-",  XLOCB(19,BOFM4,CBLT,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"blelr-",   XLOCB(19,BOFM4,CBGT,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnglr-",   XLOCB(19,BOFM4,CBGT,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"blelrl-",  XLOCB(19,BOFM4,CBGT,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnglrl-",  XLOCB(19,BOFM4,CBGT,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnelr-",   XLOCB(19,BOFM4,CBEQ,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnelrl-",  XLOCB(19,BOFM4,CBEQ,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnslr-",   XLOCB(19,BOFM4,CBSO,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnulr-",   XLOCB(19,BOFM4,CBSO,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnslrl-",  XLOCB(19,BOFM4,CBSO,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnulrl-",  XLOCB(19,BOFM4,CBSO,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bgelr+",   XLOCB(19,BOFP4,CBLT,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnllr+",   XLOCB(19,BOFP4,CBLT,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bgelrl+",  XLOCB(19,BOFP4,CBLT,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnllrl+",  XLOCB(19,BOFP4,CBLT,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"blelr+",   XLOCB(19,BOFP4,CBGT,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnglr+",   XLOCB(19,BOFP4,CBGT,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"blelrl+",  XLOCB(19,BOFP4,CBGT,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnglrl+",  XLOCB(19,BOFP4,CBGT,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnelr+",   XLOCB(19,BOFP4,CBEQ,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnelrl+",  XLOCB(19,BOFP4,CBEQ,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnslr+",   XLOCB(19,BOFP4,CBSO,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnulr+",   XLOCB(19,BOFP4,CBSO,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnslrl+",  XLOCB(19,BOFP4,CBSO,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnulrl+",  XLOCB(19,BOFP4,CBSO,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
 {"bltlr",    XLOCB(19,BOT,CBLT,16,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bltlr-",   XLOCB(19,BOT,CBLT,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bltlr-",   XLOCB(19,BOT,CBLT,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bltr",     XLOCB(19,BOT,CBLT,16,0),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"bltlrl",   XLOCB(19,BOT,CBLT,16,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bltlrl-",  XLOCB(19,BOT,CBLT,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bltlrl-",  XLOCB(19,BOT,CBLT,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bltrl",    XLOCB(19,BOT,CBLT,16,1),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"bgtlr",    XLOCB(19,BOT,CBGT,16,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bgtlr-",   XLOCB(19,BOT,CBGT,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bgtlr-",   XLOCB(19,BOT,CBGT,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bgtr",     XLOCB(19,BOT,CBGT,16,0),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"bgtlrl",   XLOCB(19,BOT,CBGT,16,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bgtlrl-",  XLOCB(19,BOT,CBGT,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bgtlrl-",  XLOCB(19,BOT,CBGT,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bgtrl",    XLOCB(19,BOT,CBGT,16,1),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"beqlr",    XLOCB(19,BOT,CBEQ,16,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"beqlr-",   XLOCB(19,BOT,CBEQ,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"beqlr-",   XLOCB(19,BOT,CBEQ,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"beqr",     XLOCB(19,BOT,CBEQ,16,0),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"beqlrl",   XLOCB(19,BOT,CBEQ,16,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"beqlrl-",  XLOCB(19,BOT,CBEQ,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"beqlrl-",  XLOCB(19,BOT,CBEQ,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"beqrl",    XLOCB(19,BOT,CBEQ,16,1),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"bsolr",    XLOCB(19,BOT,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bsolr-",   XLOCB(19,BOT,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bsolr-",   XLOCB(19,BOT,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bsor",     XLOCB(19,BOT,CBSO,16,0),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"bunlr",    XLOCB(19,BOT,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bunlr-",   XLOCB(19,BOT,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bunlr-",   XLOCB(19,BOT,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bsolrl",   XLOCB(19,BOT,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bsolrl-",  XLOCB(19,BOT,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bsolrl-",  XLOCB(19,BOT,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bsorl",    XLOCB(19,BOT,CBSO,16,1),	XLBOCBBB_MASK, PWRCOM,	 PPCNONE,	{CR}},
 {"bunlrl",   XLOCB(19,BOT,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bunlrl-",  XLOCB(19,BOT,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bltlr+",   XLOCB(19,BOTP,CBLT,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bltlrl+",  XLOCB(19,BOTP,CBLT,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bgtlr+",   XLOCB(19,BOTP,CBGT,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bgtlrl+",  XLOCB(19,BOTP,CBGT,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"beqlr+",   XLOCB(19,BOTP,CBEQ,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"beqlrl+",  XLOCB(19,BOTP,CBEQ,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bsolr+",   XLOCB(19,BOTP,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bunlr+",   XLOCB(19,BOTP,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bsolrl+",  XLOCB(19,BOTP,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bunlrl+",  XLOCB(19,BOTP,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bltlr-",   XLOCB(19,BOTM4,CBLT,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bltlrl-",  XLOCB(19,BOTM4,CBLT,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bgtlr-",   XLOCB(19,BOTM4,CBGT,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bgtlrl-",  XLOCB(19,BOTM4,CBGT,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"beqlr-",   XLOCB(19,BOTM4,CBEQ,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"beqlrl-",  XLOCB(19,BOTM4,CBEQ,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bsolr-",   XLOCB(19,BOTM4,CBSO,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bunlr-",   XLOCB(19,BOTM4,CBSO,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bsolrl-",  XLOCB(19,BOTM4,CBSO,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bunlrl-",  XLOCB(19,BOTM4,CBSO,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bltlr+",   XLOCB(19,BOTP4,CBLT,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bltlrl+",  XLOCB(19,BOTP4,CBLT,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bgtlr+",   XLOCB(19,BOTP4,CBGT,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bgtlrl+",  XLOCB(19,BOTP4,CBGT,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"beqlr+",   XLOCB(19,BOTP4,CBEQ,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"beqlrl+",  XLOCB(19,BOTP4,CBEQ,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bsolr+",   XLOCB(19,BOTP4,CBSO,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bunlr+",   XLOCB(19,BOTP4,CBSO,16,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bsolrl+",  XLOCB(19,BOTP4,CBSO,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bunlrl+",  XLOCB(19,BOTP4,CBSO,16,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
+{"bunlrl-",  XLOCB(19,BOT,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bltlr+",   XLOCB(19,BOTP,CBLT,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bltlrl+",  XLOCB(19,BOTP,CBLT,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bgtlr+",   XLOCB(19,BOTP,CBGT,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bgtlrl+",  XLOCB(19,BOTP,CBGT,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"beqlr+",   XLOCB(19,BOTP,CBEQ,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"beqlrl+",  XLOCB(19,BOTP,CBEQ,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bsolr+",   XLOCB(19,BOTP,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bunlr+",   XLOCB(19,BOTP,CBSO,16,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bsolrl+",  XLOCB(19,BOTP,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bunlrl+",  XLOCB(19,BOTP,CBSO,16,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bltlr-",   XLOCB(19,BOTM4,CBLT,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bltlrl-",  XLOCB(19,BOTM4,CBLT,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bgtlr-",   XLOCB(19,BOTM4,CBGT,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bgtlrl-",  XLOCB(19,BOTM4,CBGT,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"beqlr-",   XLOCB(19,BOTM4,CBEQ,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"beqlrl-",  XLOCB(19,BOTM4,CBEQ,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bsolr-",   XLOCB(19,BOTM4,CBSO,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bunlr-",   XLOCB(19,BOTM4,CBSO,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bsolrl-",  XLOCB(19,BOTM4,CBSO,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bunlrl-",  XLOCB(19,BOTM4,CBSO,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bltlr+",   XLOCB(19,BOTP4,CBLT,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bltlrl+",  XLOCB(19,BOTP4,CBLT,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bgtlr+",   XLOCB(19,BOTP4,CBGT,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bgtlrl+",  XLOCB(19,BOTP4,CBGT,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"beqlr+",   XLOCB(19,BOTP4,CBEQ,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"beqlrl+",  XLOCB(19,BOTP4,CBEQ,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bsolr+",   XLOCB(19,BOTP4,CBSO,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bunlr+",   XLOCB(19,BOTP4,CBSO,16,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bsolrl+",  XLOCB(19,BOTP4,CBSO,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bunlrl+",  XLOCB(19,BOTP4,CBSO,16,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
 
 {"bdnzflr",  XLO(19,BODNZF,16,0),	XLBOBB_MASK,   PPCCOM,	 PPCNONE,	{BI}},
-{"bdnzflr-", XLO(19,BODNZF,16,0),	XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
+{"bdnzflr-", XLO(19,BODNZF,16,0),	XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
 {"bdnzflrl", XLO(19,BODNZF,16,1),	XLBOBB_MASK,   PPCCOM,	 PPCNONE,	{BI}},
-{"bdnzflrl-",XLO(19,BODNZF,16,1),	XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"bdnzflr+", XLO(19,BODNZFP,16,0),	XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"bdnzflrl+",XLO(19,BODNZFP,16,1),	XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
+{"bdnzflrl-",XLO(19,BODNZF,16,1),	XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"bdnzflr+", XLO(19,BODNZFP,16,0),	XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"bdnzflrl+",XLO(19,BODNZFP,16,1),	XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
 {"bdzflr",   XLO(19,BODZF,16,0),	XLBOBB_MASK,   PPCCOM,	 PPCNONE,	{BI}},
-{"bdzflr-",  XLO(19,BODZF,16,0),	XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
+{"bdzflr-",  XLO(19,BODZF,16,0),	XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
 {"bdzflrl",  XLO(19,BODZF,16,1),	XLBOBB_MASK,   PPCCOM,	 PPCNONE,	{BI}},
-{"bdzflrl-", XLO(19,BODZF,16,1),	XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"bdzflr+",  XLO(19,BODZFP,16,0),	XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"bdzflrl+", XLO(19,BODZFP,16,1),	XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
+{"bdzflrl-", XLO(19,BODZF,16,1),	XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"bdzflr+",  XLO(19,BODZFP,16,0),	XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"bdzflrl+", XLO(19,BODZFP,16,1),	XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
 {"bflr",     XLO(19,BOF,16,0),		XLBOBB_MASK,   PPCCOM,	 PPCNONE,	{BI}},
-{"bflr-",    XLO(19,BOF,16,0),		XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
+{"bflr-",    XLO(19,BOF,16,0),		XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
 {"bbfr",     XLO(19,BOF,16,0),		XLBOBB_MASK,   PWRCOM,	 PPCNONE,	{BI}},
 {"bflrl",    XLO(19,BOF,16,1),		XLBOBB_MASK,   PPCCOM,	 PPCNONE,	{BI}},
-{"bflrl-",   XLO(19,BOF,16,1),		XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
+{"bflrl-",   XLO(19,BOF,16,1),		XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
 {"bbfrl",    XLO(19,BOF,16,1),		XLBOBB_MASK,   PWRCOM,	 PPCNONE,	{BI}},
-{"bflr+",    XLO(19,BOFP,16,0),		XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"bflrl+",   XLO(19,BOFP,16,1),		XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"bflr-",    XLO(19,BOFM4,16,0),	XLBOBB_MASK,   POWER4,	 PPCNONE,	{BI}},
-{"bflrl-",   XLO(19,BOFM4,16,1),	XLBOBB_MASK,   POWER4,	 PPCNONE,	{BI}},
-{"bflr+",    XLO(19,BOFP4,16,0),	XLBOBB_MASK,   POWER4,	 PPCNONE,	{BI}},
-{"bflrl+",   XLO(19,BOFP4,16,1),	XLBOBB_MASK,   POWER4,	 PPCNONE,	{BI}},
+{"bflr+",    XLO(19,BOFP,16,0),		XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"bflrl+",   XLO(19,BOFP,16,1),		XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"bflr-",    XLO(19,BOFM4,16,0),	XLBOBB_MASK,   ISA_V2,	 PPCNONE,	{BI}},
+{"bflrl-",   XLO(19,BOFM4,16,1),	XLBOBB_MASK,   ISA_V2,	 PPCNONE,	{BI}},
+{"bflr+",    XLO(19,BOFP4,16,0),	XLBOBB_MASK,   ISA_V2,	 PPCNONE,	{BI}},
+{"bflrl+",   XLO(19,BOFP4,16,1),	XLBOBB_MASK,   ISA_V2,	 PPCNONE,	{BI}},
 {"bdnztlr",  XLO(19,BODNZT,16,0),	XLBOBB_MASK,   PPCCOM,	 PPCNONE,	{BI}},
-{"bdnztlr-", XLO(19,BODNZT,16,0),	XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
+{"bdnztlr-", XLO(19,BODNZT,16,0),	XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
 {"bdnztlrl", XLO(19,BODNZT,16,1),	XLBOBB_MASK,   PPCCOM,	 PPCNONE,	{BI}},
-{"bdnztlrl-",XLO(19,BODNZT,16,1),	XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"bdnztlr+", XLO(19,BODNZTP,16,0),	XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"bdnztlrl+",XLO(19,BODNZTP,16,1),	XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
+{"bdnztlrl-",XLO(19,BODNZT,16,1),	XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"bdnztlr+", XLO(19,BODNZTP,16,0),	XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"bdnztlrl+",XLO(19,BODNZTP,16,1),	XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
 {"bdztlr",   XLO(19,BODZT,16,0),	XLBOBB_MASK,   PPCCOM,	 PPCNONE,	{BI}},
-{"bdztlr-",  XLO(19,BODZT,16,0),	XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
+{"bdztlr-",  XLO(19,BODZT,16,0),	XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
 {"bdztlrl",  XLO(19,BODZT,16,1),	XLBOBB_MASK,   PPCCOM,	 PPCNONE,	{BI}},
-{"bdztlrl-", XLO(19,BODZT,16,1),	XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"bdztlr+",  XLO(19,BODZTP,16,0),	XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"bdztlrl+", XLO(19,BODZTP,16,1),	XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
+{"bdztlrl-", XLO(19,BODZT,16,1),	XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"bdztlr+",  XLO(19,BODZTP,16,0),	XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"bdztlrl+", XLO(19,BODZTP,16,1),	XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
 {"btlr",     XLO(19,BOT,16,0),		XLBOBB_MASK,   PPCCOM,	 PPCNONE,	{BI}},
-{"btlr-",    XLO(19,BOT,16,0),		XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
+{"btlr-",    XLO(19,BOT,16,0),		XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
 {"bbtr",     XLO(19,BOT,16,0),		XLBOBB_MASK,   PWRCOM,	 PPCNONE,	{BI}},
 {"btlrl",    XLO(19,BOT,16,1),		XLBOBB_MASK,   PPCCOM,	 PPCNONE,	{BI}},
-{"btlrl-",   XLO(19,BOT,16,1),		XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
+{"btlrl-",   XLO(19,BOT,16,1),		XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
 {"bbtrl",    XLO(19,BOT,16,1),		XLBOBB_MASK,   PWRCOM,	 PPCNONE,	{BI}},
-{"btlr+",    XLO(19,BOTP,16,0),		XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"btlrl+",   XLO(19,BOTP,16,1),		XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"btlr-",    XLO(19,BOTM4,16,0),	XLBOBB_MASK,   POWER4,	 PPCNONE,	{BI}},
-{"btlrl-",   XLO(19,BOTM4,16,1),	XLBOBB_MASK,   POWER4,	 PPCNONE,	{BI}},
-{"btlr+",    XLO(19,BOTP4,16,0),	XLBOBB_MASK,   POWER4,	 PPCNONE,	{BI}},
-{"btlrl+",   XLO(19,BOTP4,16,1),	XLBOBB_MASK,   POWER4,	 PPCNONE,	{BI}},
+{"btlr+",    XLO(19,BOTP,16,0),		XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"btlrl+",   XLO(19,BOTP,16,1),		XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"btlr-",    XLO(19,BOTM4,16,0),	XLBOBB_MASK,   ISA_V2,	 PPCNONE,	{BI}},
+{"btlrl-",   XLO(19,BOTM4,16,1),	XLBOBB_MASK,   ISA_V2,	 PPCNONE,	{BI}},
+{"btlr+",    XLO(19,BOTP4,16,0),	XLBOBB_MASK,   ISA_V2,	 PPCNONE,	{BI}},
+{"btlrl+",   XLO(19,BOTP4,16,1),	XLBOBB_MASK,   ISA_V2,	 PPCNONE,	{BI}},
 
 {"bclr-",    XLYLK(19,16,0,0),		XLYBB_MASK,    PPCCOM,	 PPCNONE,	{BOE, BI}},
 {"bclrl-",   XLYLK(19,16,0,1),		XLYBB_MASK,    PPCCOM,	 PPCNONE,	{BOE, BI}},
@@ -3275,146 +3327,146 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"bctrl",   XLO(19,BOU,528,1),		XLBOBIBB_MASK, COM,	 PPCNONE,	{0}},
 
 {"bgectr",  XLOCB(19,BOF,CBLT,528,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bgectr-", XLOCB(19,BOF,CBLT,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bgectr-", XLOCB(19,BOF,CBLT,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bnlctr",  XLOCB(19,BOF,CBLT,528,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnlctr-", XLOCB(19,BOF,CBLT,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bnlctr-", XLOCB(19,BOF,CBLT,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bgectrl", XLOCB(19,BOF,CBLT,528,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bgectrl-",XLOCB(19,BOF,CBLT,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bgectrl-",XLOCB(19,BOF,CBLT,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bnlctrl", XLOCB(19,BOF,CBLT,528,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnlctrl-",XLOCB(19,BOF,CBLT,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bnlctrl-",XLOCB(19,BOF,CBLT,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"blectr",  XLOCB(19,BOF,CBGT,528,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"blectr-", XLOCB(19,BOF,CBGT,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"blectr-", XLOCB(19,BOF,CBGT,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bngctr",  XLOCB(19,BOF,CBGT,528,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bngctr-", XLOCB(19,BOF,CBGT,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bngctr-", XLOCB(19,BOF,CBGT,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"blectrl", XLOCB(19,BOF,CBGT,528,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"blectrl-",XLOCB(19,BOF,CBGT,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"blectrl-",XLOCB(19,BOF,CBGT,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bngctrl", XLOCB(19,BOF,CBGT,528,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bngctrl-",XLOCB(19,BOF,CBGT,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bngctrl-",XLOCB(19,BOF,CBGT,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bnectr",  XLOCB(19,BOF,CBEQ,528,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnectr-", XLOCB(19,BOF,CBEQ,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bnectr-", XLOCB(19,BOF,CBEQ,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bnectrl", XLOCB(19,BOF,CBEQ,528,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnectrl-",XLOCB(19,BOF,CBEQ,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bnectrl-",XLOCB(19,BOF,CBEQ,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bnsctr",  XLOCB(19,BOF,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnsctr-", XLOCB(19,BOF,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bnsctr-", XLOCB(19,BOF,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bnuctr",  XLOCB(19,BOF,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnuctr-", XLOCB(19,BOF,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bnuctr-", XLOCB(19,BOF,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bnsctrl", XLOCB(19,BOF,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnsctrl-",XLOCB(19,BOF,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bnsctrl-",XLOCB(19,BOF,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bnuctrl", XLOCB(19,BOF,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bnuctrl-",XLOCB(19,BOF,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bgectr+", XLOCB(19,BOFP,CBLT,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnlctr+", XLOCB(19,BOFP,CBLT,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bgectrl+",XLOCB(19,BOFP,CBLT,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnlctrl+",XLOCB(19,BOFP,CBLT,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"blectr+", XLOCB(19,BOFP,CBGT,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bngctr+", XLOCB(19,BOFP,CBGT,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"blectrl+",XLOCB(19,BOFP,CBGT,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bngctrl+",XLOCB(19,BOFP,CBGT,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnectr+", XLOCB(19,BOFP,CBEQ,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnectrl+",XLOCB(19,BOFP,CBEQ,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnsctr+", XLOCB(19,BOFP,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnuctr+", XLOCB(19,BOFP,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnsctrl+",XLOCB(19,BOFP,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bnuctrl+",XLOCB(19,BOFP,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bgectr-", XLOCB(19,BOFM4,CBLT,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnlctr-", XLOCB(19,BOFM4,CBLT,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bgectrl-",XLOCB(19,BOFM4,CBLT,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnlctrl-",XLOCB(19,BOFM4,CBLT,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"blectr-", XLOCB(19,BOFM4,CBGT,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bngctr-", XLOCB(19,BOFM4,CBGT,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"blectrl-",XLOCB(19,BOFM4,CBGT,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bngctrl-",XLOCB(19,BOFM4,CBGT,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnectr-", XLOCB(19,BOFM4,CBEQ,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnectrl-",XLOCB(19,BOFM4,CBEQ,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnsctr-", XLOCB(19,BOFM4,CBSO,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnuctr-", XLOCB(19,BOFM4,CBSO,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnsctrl-",XLOCB(19,BOFM4,CBSO,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnuctrl-",XLOCB(19,BOFM4,CBSO,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bgectr+", XLOCB(19,BOFP4,CBLT,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnlctr+", XLOCB(19,BOFP4,CBLT,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bgectrl+",XLOCB(19,BOFP4,CBLT,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnlctrl+",XLOCB(19,BOFP4,CBLT,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"blectr+", XLOCB(19,BOFP4,CBGT,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bngctr+", XLOCB(19,BOFP4,CBGT,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"blectrl+",XLOCB(19,BOFP4,CBGT,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bngctrl+",XLOCB(19,BOFP4,CBGT,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnectr+", XLOCB(19,BOFP4,CBEQ,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnectrl+",XLOCB(19,BOFP4,CBEQ,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnsctr+", XLOCB(19,BOFP4,CBSO,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnuctr+", XLOCB(19,BOFP4,CBSO,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnsctrl+",XLOCB(19,BOFP4,CBSO,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bnuctrl+",XLOCB(19,BOFP4,CBSO,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
+{"bnuctrl-",XLOCB(19,BOF,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bgectr+", XLOCB(19,BOFP,CBLT,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnlctr+", XLOCB(19,BOFP,CBLT,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bgectrl+",XLOCB(19,BOFP,CBLT,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnlctrl+",XLOCB(19,BOFP,CBLT,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"blectr+", XLOCB(19,BOFP,CBGT,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bngctr+", XLOCB(19,BOFP,CBGT,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"blectrl+",XLOCB(19,BOFP,CBGT,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bngctrl+",XLOCB(19,BOFP,CBGT,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnectr+", XLOCB(19,BOFP,CBEQ,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnectrl+",XLOCB(19,BOFP,CBEQ,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnsctr+", XLOCB(19,BOFP,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnuctr+", XLOCB(19,BOFP,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnsctrl+",XLOCB(19,BOFP,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bnuctrl+",XLOCB(19,BOFP,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bgectr-", XLOCB(19,BOFM4,CBLT,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnlctr-", XLOCB(19,BOFM4,CBLT,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bgectrl-",XLOCB(19,BOFM4,CBLT,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnlctrl-",XLOCB(19,BOFM4,CBLT,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"blectr-", XLOCB(19,BOFM4,CBGT,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bngctr-", XLOCB(19,BOFM4,CBGT,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"blectrl-",XLOCB(19,BOFM4,CBGT,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bngctrl-",XLOCB(19,BOFM4,CBGT,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnectr-", XLOCB(19,BOFM4,CBEQ,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnectrl-",XLOCB(19,BOFM4,CBEQ,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnsctr-", XLOCB(19,BOFM4,CBSO,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnuctr-", XLOCB(19,BOFM4,CBSO,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnsctrl-",XLOCB(19,BOFM4,CBSO,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnuctrl-",XLOCB(19,BOFM4,CBSO,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bgectr+", XLOCB(19,BOFP4,CBLT,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnlctr+", XLOCB(19,BOFP4,CBLT,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bgectrl+",XLOCB(19,BOFP4,CBLT,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnlctrl+",XLOCB(19,BOFP4,CBLT,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"blectr+", XLOCB(19,BOFP4,CBGT,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bngctr+", XLOCB(19,BOFP4,CBGT,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"blectrl+",XLOCB(19,BOFP4,CBGT,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bngctrl+",XLOCB(19,BOFP4,CBGT,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnectr+", XLOCB(19,BOFP4,CBEQ,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnectrl+",XLOCB(19,BOFP4,CBEQ,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnsctr+", XLOCB(19,BOFP4,CBSO,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnuctr+", XLOCB(19,BOFP4,CBSO,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnsctrl+",XLOCB(19,BOFP4,CBSO,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bnuctrl+",XLOCB(19,BOFP4,CBSO,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
 {"bltctr",  XLOCB(19,BOT,CBLT,528,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bltctr-", XLOCB(19,BOT,CBLT,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bltctr-", XLOCB(19,BOT,CBLT,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bltctrl", XLOCB(19,BOT,CBLT,528,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bltctrl-",XLOCB(19,BOT,CBLT,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bltctrl-",XLOCB(19,BOT,CBLT,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bgtctr",  XLOCB(19,BOT,CBGT,528,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bgtctr-", XLOCB(19,BOT,CBGT,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bgtctr-", XLOCB(19,BOT,CBGT,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bgtctrl", XLOCB(19,BOT,CBGT,528,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bgtctrl-",XLOCB(19,BOT,CBGT,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bgtctrl-",XLOCB(19,BOT,CBGT,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"beqctr",  XLOCB(19,BOT,CBEQ,528,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"beqctr-", XLOCB(19,BOT,CBEQ,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"beqctr-", XLOCB(19,BOT,CBEQ,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"beqctrl", XLOCB(19,BOT,CBEQ,528,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"beqctrl-",XLOCB(19,BOT,CBEQ,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"beqctrl-",XLOCB(19,BOT,CBEQ,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bsoctr",  XLOCB(19,BOT,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bsoctr-", XLOCB(19,BOT,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bsoctr-", XLOCB(19,BOT,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bunctr",  XLOCB(19,BOT,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bunctr-", XLOCB(19,BOT,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bunctr-", XLOCB(19,BOT,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bsoctrl", XLOCB(19,BOT,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bsoctrl-",XLOCB(19,BOT,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
+{"bsoctrl-",XLOCB(19,BOT,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
 {"bunctrl", XLOCB(19,BOT,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,	 PPCNONE,	{CR}},
-{"bunctrl-",XLOCB(19,BOT,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bltctr+", XLOCB(19,BOTP,CBLT,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bltctrl+",XLOCB(19,BOTP,CBLT,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bgtctr+", XLOCB(19,BOTP,CBGT,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bgtctrl+",XLOCB(19,BOTP,CBGT,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"beqctr+", XLOCB(19,BOTP,CBEQ,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"beqctrl+",XLOCB(19,BOTP,CBEQ,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bsoctr+", XLOCB(19,BOTP,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bunctr+", XLOCB(19,BOTP,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bsoctrl+",XLOCB(19,BOTP,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bunctrl+",XLOCB(19,BOTP,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,   POWER4,	{CR}},
-{"bltctr-", XLOCB(19,BOTM4,CBLT,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bltctrl-",XLOCB(19,BOTM4,CBLT,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bgtctr-", XLOCB(19,BOTM4,CBGT,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bgtctrl-",XLOCB(19,BOTM4,CBGT,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"beqctr-", XLOCB(19,BOTM4,CBEQ,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"beqctrl-",XLOCB(19,BOTM4,CBEQ,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bsoctr-", XLOCB(19,BOTM4,CBSO,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bunctr-", XLOCB(19,BOTM4,CBSO,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bsoctrl-",XLOCB(19,BOTM4,CBSO,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bunctrl-",XLOCB(19,BOTM4,CBSO,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bltctr+", XLOCB(19,BOTP4,CBLT,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bltctrl+",XLOCB(19,BOTP4,CBLT,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bgtctr+", XLOCB(19,BOTP4,CBGT,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bgtctrl+",XLOCB(19,BOTP4,CBGT,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"beqctr+", XLOCB(19,BOTP4,CBEQ,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"beqctrl+",XLOCB(19,BOTP4,CBEQ,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bsoctr+", XLOCB(19,BOTP4,CBSO,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bunctr+", XLOCB(19,BOTP4,CBSO,528,0),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bsoctrl+",XLOCB(19,BOTP4,CBSO,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
-{"bunctrl+",XLOCB(19,BOTP4,CBSO,528,1),	XLBOCBBB_MASK, POWER4,	 PPCNONE,	{CR}},
+{"bunctrl-",XLOCB(19,BOT,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bltctr+", XLOCB(19,BOTP,CBLT,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bltctrl+",XLOCB(19,BOTP,CBLT,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bgtctr+", XLOCB(19,BOTP,CBGT,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bgtctrl+",XLOCB(19,BOTP,CBGT,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"beqctr+", XLOCB(19,BOTP,CBEQ,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"beqctrl+",XLOCB(19,BOTP,CBEQ,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bsoctr+", XLOCB(19,BOTP,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bunctr+", XLOCB(19,BOTP,CBSO,528,0),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bsoctrl+",XLOCB(19,BOTP,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bunctrl+",XLOCB(19,BOTP,CBSO,528,1),	XLBOCBBB_MASK, PPCCOM,   ISA_V2,	{CR}},
+{"bltctr-", XLOCB(19,BOTM4,CBLT,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bltctrl-",XLOCB(19,BOTM4,CBLT,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bgtctr-", XLOCB(19,BOTM4,CBGT,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bgtctrl-",XLOCB(19,BOTM4,CBGT,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"beqctr-", XLOCB(19,BOTM4,CBEQ,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"beqctrl-",XLOCB(19,BOTM4,CBEQ,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bsoctr-", XLOCB(19,BOTM4,CBSO,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bunctr-", XLOCB(19,BOTM4,CBSO,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bsoctrl-",XLOCB(19,BOTM4,CBSO,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bunctrl-",XLOCB(19,BOTM4,CBSO,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bltctr+", XLOCB(19,BOTP4,CBLT,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bltctrl+",XLOCB(19,BOTP4,CBLT,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bgtctr+", XLOCB(19,BOTP4,CBGT,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bgtctrl+",XLOCB(19,BOTP4,CBGT,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"beqctr+", XLOCB(19,BOTP4,CBEQ,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"beqctrl+",XLOCB(19,BOTP4,CBEQ,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bsoctr+", XLOCB(19,BOTP4,CBSO,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bunctr+", XLOCB(19,BOTP4,CBSO,528,0),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bsoctrl+",XLOCB(19,BOTP4,CBSO,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
+{"bunctrl+",XLOCB(19,BOTP4,CBSO,528,1),	XLBOCBBB_MASK, ISA_V2,	 PPCNONE,	{CR}},
 
 {"bfctr",   XLO(19,BOF,528,0),		XLBOBB_MASK,   PPCCOM,	 PPCNONE,	{BI}},
-{"bfctr-",  XLO(19,BOF,528,0),		XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
+{"bfctr-",  XLO(19,BOF,528,0),		XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
 {"bfctrl",  XLO(19,BOF,528,1),		XLBOBB_MASK,   PPCCOM,	 PPCNONE,	{BI}},
-{"bfctrl-", XLO(19,BOF,528,1),		XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"bfctr+",  XLO(19,BOFP,528,0),		XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"bfctrl+", XLO(19,BOFP,528,1),		XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"bfctr-",  XLO(19,BOFM4,528,0),	XLBOBB_MASK,   POWER4,	 PPCNONE,	{BI}},
-{"bfctrl-", XLO(19,BOFM4,528,1),	XLBOBB_MASK,   POWER4,	 PPCNONE,	{BI}},
-{"bfctr+",  XLO(19,BOFP4,528,0),	XLBOBB_MASK,   POWER4,	 PPCNONE,	{BI}},
-{"bfctrl+", XLO(19,BOFP4,528,1),	XLBOBB_MASK,   POWER4,	 PPCNONE,	{BI}},
+{"bfctrl-", XLO(19,BOF,528,1),		XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"bfctr+",  XLO(19,BOFP,528,0),		XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"bfctrl+", XLO(19,BOFP,528,1),		XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"bfctr-",  XLO(19,BOFM4,528,0),	XLBOBB_MASK,   ISA_V2,	 PPCNONE,	{BI}},
+{"bfctrl-", XLO(19,BOFM4,528,1),	XLBOBB_MASK,   ISA_V2,	 PPCNONE,	{BI}},
+{"bfctr+",  XLO(19,BOFP4,528,0),	XLBOBB_MASK,   ISA_V2,	 PPCNONE,	{BI}},
+{"bfctrl+", XLO(19,BOFP4,528,1),	XLBOBB_MASK,   ISA_V2,	 PPCNONE,	{BI}},
 {"btctr",   XLO(19,BOT,528,0),		XLBOBB_MASK,   PPCCOM,	 PPCNONE,	{BI}},
-{"btctr-",  XLO(19,BOT,528,0),		XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
+{"btctr-",  XLO(19,BOT,528,0),		XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
 {"btctrl",  XLO(19,BOT,528,1),		XLBOBB_MASK,   PPCCOM,	 PPCNONE,	{BI}},
-{"btctrl-", XLO(19,BOT,528,1),		XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"btctr+",  XLO(19,BOTP,528,0),		XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"btctrl+", XLO(19,BOTP,528,1),		XLBOBB_MASK,   PPCCOM,   POWER4,	{BI}},
-{"btctr-",  XLO(19,BOTM4,528,0),	XLBOBB_MASK,   POWER4,	 PPCNONE,	{BI}},
-{"btctrl-", XLO(19,BOTM4,528,1),	XLBOBB_MASK,   POWER4,	 PPCNONE,	{BI}},
-{"btctr+",  XLO(19,BOTP4,528,0),	XLBOBB_MASK,   POWER4,	 PPCNONE,	{BI}},
-{"btctrl+", XLO(19,BOTP4,528,1),	XLBOBB_MASK,   POWER4,	 PPCNONE,	{BI}},
+{"btctrl-", XLO(19,BOT,528,1),		XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"btctr+",  XLO(19,BOTP,528,0),		XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"btctrl+", XLO(19,BOTP,528,1),		XLBOBB_MASK,   PPCCOM,   ISA_V2,	{BI}},
+{"btctr-",  XLO(19,BOTM4,528,0),	XLBOBB_MASK,   ISA_V2,	 PPCNONE,	{BI}},
+{"btctrl-", XLO(19,BOTM4,528,1),	XLBOBB_MASK,   ISA_V2,	 PPCNONE,	{BI}},
+{"btctr+",  XLO(19,BOTP4,528,0),	XLBOBB_MASK,   ISA_V2,	 PPCNONE,	{BI}},
+{"btctrl+", XLO(19,BOTP4,528,1),	XLBOBB_MASK,   ISA_V2,	 PPCNONE,	{BI}},
 
 {"bcctr-",  XLYLK(19,528,0,0),		XLYBB_MASK,    PPCCOM,	 PPCNONE,	{BOE, BI}},
 {"bcctrl-", XLYLK(19,528,0,1),		XLYBB_MASK,    PPCCOM,	 PPCNONE,	{BOE, BI}},
@@ -3680,6 +3732,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 
 {"lbepx",	X(31,95),	X_MASK,   E500MC|PPCA2,	PPCNONE,	{RT, RA, RB}},
 
+{"dni",		XRC(31,97,1),	XRB_MASK,    E6500,	PPCNONE,	{DUI, DCTL}},
+
 {"lvx",		X(31,103),	X_MASK,      PPCVEC,	PPCNONE,	{VD, RA, RB}},
 {"lqfcmx",	APU(31,103,0), 	APU_MASK,    PPC405,	PPCNONE,	{FCRT, RA, RB}},
 
@@ -3688,6 +3742,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 
 {"mul",		XO(31,107,0,0),	XO_MASK,     M601,	PPCNONE,	{RT, RA, RB}},
 {"mul.",	XO(31,107,0,1),	XO_MASK,     M601,	PPCNONE,	{RT, RA, RB}},
+
+{"mvidsplt",	X(31,110),	X_MASK,      PPCVEC2,	PPCNONE,	{VD, RA, RB}},
 
 {"mtsrdin",	X(31,114),	XRA_MASK,    PPC64,	PPCNONE,	{RS, RB}},
 
@@ -3723,7 +3779,9 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"adde.",	XO(31,138,0,1),	XO_MASK,     PPCCOM,	PPCNONE,	{RT, RA, RB}},
 {"ae.",		XO(31,138,0,1),	XO_MASK,     PWRCOM,	PPCNONE,	{RT, RA, RB}},
 
-{"dcbtstlse",	X(31,142),	X_MASK,      PPCCHLK,	PPCNONE,	{CT, RA, RB}},
+{"mviwsplt",	X(31,142),	X_MASK,      PPCVEC2,	PPCNONE,	{VD, RA, RB}},
+
+{"dcbtstlse",	X(31,142),	X_MASK,      PPCCHLK,	E500MC,		{CT, RA, RB}},
 
 {"mtcr",	XFXM(31,144,0xff,0), XRARB_MASK, COM,	PPCNONE,	{RS}},
 {"mtcrf",	XFXM(31,144,0,0), XFXFXM_MASK, COM,	PPCNONE,	{FXM, RS}},
@@ -3760,7 +3818,7 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"stvehx",	X(31,167),	X_MASK,      PPCVEC,	PPCNONE,	{VS, RA, RB}},
 {"sthfcmx",	APU(31,167,0), 	APU_MASK,    PPC405,	PPCNONE,	{FCRT, RA, RB}},
 
-{"dcbtlse",	X(31,174),	X_MASK,      PPCCHLK,	PPCNONE,	{CT, RA, RB}},
+{"dcbtlse",	X(31,174),	X_MASK,      PPCCHLK,	E500MC,		{CT, RA, RB}},
 
 {"mtmsrd",	X(31,178),	XRLARB_MASK, PPC64,	PPCNONE,	{RS, A_L}},
 
@@ -3777,6 +3835,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"sliq.",	XRC(31,184,1),	X_MASK,      M601,	PPCNONE,	{RA, RS, SH}},
 
 {"prtyd",	X(31,186),	XRB_MASK, POWER6|PPCA2,	PPCNONE,	{RA, RS}},
+
+{"icblq.",	XRC(31,198,1),	X_MASK,      E6500,	PPCNONE,	{CT, RA0, RB}},
 
 {"stvewx",	X(31,199),	X_MASK,      PPCVEC,	PPCNONE,	{VS, RA, RB}},
 {"stwfcmx",	APU(31,199,0), 	APU_MASK,    PPC405,	PPCNONE,	{FCRT, RA, RB}},
@@ -3855,7 +3915,11 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"mfdcrx",	X(31,259),	X_MASK, BOOKE|PPCA2|PPC476, TITAN,	{RS, RA}},
 {"mfdcrx.",	XRC(31,259,1),	X_MASK,      PPCA2,	PPCNONE,	{RS, RA}},
 
+{"lvexbx",	X(31,261),	X_MASK,      PPCVEC2,	PPCNONE,	{VD, RA0, RB}},
+
 {"icbt",	X(31,262),	XRT_MASK,    PPC403,	PPCNONE,	{RA, RB}},
+
+{"lvepxl",	X(31,263),	X_MASK,      PPCVEC2,   PPCNONE,	{VD, RA0, RB}},
 
 {"ldfcmx",	APU(31,263,0), 	APU_MASK,    PPC405,	PPCNONE,	{FCRT, RA, RB}},
 {"doz",		XO(31,264,0,0),	XO_MASK,     M601,	PPCNONE,	{RT, RA, RB}},
@@ -3889,6 +3953,9 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"lhepx",	X(31,287),	X_MASK,   E500MC|PPCA2,	PPCNONE,	{RT, RA, RB}},
 
 {"mfdcrux",	X(31,291),	X_MASK,      PPC464,	PPCNONE,	{RS, RA}},
+
+{"lvexhx",	X(31,293),	X_MASK,      PPCVEC2,	PPCNONE,	{VD, RA0, RB}},
+{"lvepx",	X(31,295),	X_MASK,      PPCVEC2,   PPCNONE,	{VD, RA0, RB}},
 
 {"tlbie",	X(31,306),	XRTLRA_MASK, PPC,	TITAN,  	{RB, L}},
 {"tlbi",	X(31,306),	XRT_MASK,    POWER,	PPCNONE,	{RA0, RB}},
@@ -3941,6 +4008,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"mfdcr",	X(31,323), X_MASK, PPC403|BOOKE|PPCA2|PPC476, TITAN,	{RT, SPR}},
 {"mfdcr.",	XRC(31,323,1),	X_MASK,      PPCA2,	PPCNONE,	{RT, SPR}},
 
+{"lvexwx",	X(31,325),	X_MASK,      PPCVEC2,	PPCNONE,	{VD, RA0, RB}},
+
 {"dcread",	X(31,326),	X_MASK,  PPC476|TITAN,	PPCNONE,	{RT, RA, RB}},
 
 {"div",		XO(31,331,0,0),	XO_MASK,     M601,	PPCNONE,	{RT, RA, RB}},
@@ -3949,6 +4018,7 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"lxvdsx",	X(31,332),	XX1_MASK,    PPCVSX,	PPCNONE,	{XT6, RA, RB}},
 
 {"mfpmr",	X(31,334),	X_MASK, PPCPMR|PPCE300,	PPCNONE,	{RT, PMR}},
+{"mftmr",	X(31,366),	X_MASK,	PPCTMR|E6500,	PPCNONE,	{RT, TMR}},
 
 {"mfmq",	XSPR(31,339,  0), XSPR_MASK, M601,	PPCNONE,	{RT}},
 {"mfxer",	XSPR(31,339,  1), XSPR_MASK, COM,	PPCNONE,	{RT}},
@@ -4179,6 +4249,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"mtdcrx",	X(31,387),	X_MASK, BOOKE|PPCA2|PPC476, TITAN,	{RA, RS}},
 {"mtdcrx.",	XRC(31,387,1),	X_MASK,      PPCA2,	PPCNONE,	{RA, RS}},
 
+{"stvexbx",	X(31,389),	X_MASK,      PPCVEC2,	PPCNONE,	{VS, RA0, RB}},
+
 {"dcblc",	X(31,390),	X_MASK, PPCCHLK|PPC476|TITAN, PPCNONE,	{CT, RA, RB}},
 {"stdfcmx",	APU(31,391,0), 	APU_MASK,    PPC405,	PPCNONE,	{FCRT, RA, RB}},
 
@@ -4187,7 +4259,7 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"divweu",	XO(31,395,0,0),	XO_MASK,  POWER7|PPCA2,	PPCNONE,	{RT, RA, RB}},
 {"divweu.",	XO(31,395,0,1),	XO_MASK,  POWER7|PPCA2,	PPCNONE,	{RT, RA, RB}},
 
-{"dcblce",	X(31,398),	X_MASK,      PPCCHLK,	PPCNONE,	{CT, RA, RB}},
+{"dcblce",	X(31,398),	X_MASK,      PPCCHLK,	E500MC,		{CT, RA, RB}},
 
 {"slbmte",	X(31,402),	XRA_MASK,    PPC64,	PPCNONE,	{RS, RB}},
 
@@ -4203,6 +4275,10 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 
 {"mtdcrux",	X(31,419),	X_MASK,      PPC464,	PPCNONE,	{RA, RS}},
 
+{"stvexhx",	X(31,421),	X_MASK,      PPCVEC2,	PPCNONE,	{VS, RA0, RB}},
+
+{"dcblq.",	XRC(31,422,1),	X_MASK,      E6500,	PPCNONE,	{CT, RA0, RB}},
+
 {"divde",	XO(31,425,0,0),	XO_MASK,  POWER7|PPCA2,	PPCNONE,	{RT, RA, RB}},
 {"divde.",	XO(31,425,0,1),	XO_MASK,  POWER7|PPCA2,	PPCNONE,	{RT, RA, RB}},
 {"divwe",	XO(31,427,0,0),	XO_MASK,  POWER7|PPCA2,	PPCNONE,	{RT, RA, RB}},
@@ -4215,6 +4291,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"sthux",	X(31,439),	X_MASK,      COM,	PPCNONE,	{RS, RAS, RB}},
 
 {"mdors",	0x7f9ce378,	0xffffffff,  E500MC,	PPCNONE,	{0}},
+
+{"miso",	0x7f5ad378,	0xffffffff,  E6500,	PPCNONE,	{0}},
 
 {"mr",		XRC(31,444,0),	X_MASK,      COM,	PPCNONE,	{RA, RS, RBS}},
 {"or",		XRC(31,444,0),	X_MASK,      COM,	PPCNONE,	{RA, RS, RB}},
@@ -4258,6 +4336,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"mtdcr",	X(31,451), X_MASK, PPC403|BOOKE|PPCA2|PPC476, TITAN,	{SPR, RS}},
 {"mtdcr.",	XRC(31,451,1), X_MASK,       PPCA2,	PPCNONE,	{SPR, RS}},
 
+{"stvexwx",	X(31,453),	X_MASK,      PPCVEC2,	PPCNONE,	{VS, RA0, RB}},
+
 {"dccci",	X(31,454), XRT_MASK, PPC403|PPC440|TITAN|PPCA2, PPCNONE, {RAOPT, RBOPT}},
 {"dci",		X(31,454),	XRARB_MASK, PPCA2|PPC476, PPCNONE,	{CT}},
 
@@ -4268,6 +4348,7 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"divwu.",	XO(31,459,0,1),	XO_MASK,     PPC,	PPCNONE,	{RT, RA, RB}},
 
 {"mtpmr",	X(31,462),	X_MASK, PPCPMR|PPCE300,	PPCNONE,	{PMR, RS}},
+{"mttmr",	X(31,494),	X_MASK,	PPCTMR|E6500,	PPCNONE,	{TMR, RS}},
 
 {"mtmq",	XSPR(31,467,  0), XSPR_MASK, M601,	PPCNONE,	{RS}},
 {"mtxer",	XSPR(31,467,  1), XSPR_MASK, COM,	PPCNONE,	{RS}},
@@ -4453,7 +4534,7 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"divw",	XO(31,491,0,0),	XO_MASK,     PPC,	PPCNONE,	{RT, RA, RB}},
 {"divw.",	XO(31,491,0,1),	XO_MASK,     PPC,	PPCNONE,	{RT, RA, RB}},
 
-{"icbtlse",	X(31,494),	X_MASK,      PPCCHLK,	PPCNONE,	{CT, RA, RB}},
+{"icbtlse",	X(31,494),	X_MASK,      PPCCHLK,	E500MC,		{CT, RA, RB}},
 
 {"slbia",	X(31,498),	0xffffffff,  PPC64,	PPCNONE,	{0}},
 
@@ -4512,6 +4593,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 
 {"lhdx",	X(31,547),	X_MASK,      E500MC,	PPCNONE,	{RT, RA, RB}},
 
+{"lvtrx",	X(31,549),	X_MASK,      PPCVEC2,	PPCNONE,	{VD, RA0, RB}},
+
 {"bbelr",	X(31,550),	X_MASK,      PPCBRLK,	PPCNONE,	{0}},
 
 {"lvrx",	X(31,551),	X_MASK,      CELL,	PPCNONE,	{VD, RA0, RB}},
@@ -4528,6 +4611,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 
 {"lwdx",	X(31,579),	X_MASK,      E500MC,	PPCNONE,	{RT, RA, RB}},
 
+{"lvtlx",	X(31,581),	X_MASK,      PPCVEC2,	PPCNONE,	{VD, RA0, RB}},
+
 {"lwfcmux",	APU(31,583,0), 	APU_MASK,    PPC405,	PPCNONE,	{FCRT, RA, RB}},
 
 {"lxsdx",	X(31,588),	XX1_MASK,    PPCVSX,	PPCNONE,	{XT6, RA, RB}},
@@ -4539,9 +4624,10 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 
 {"lwsync",	XSYNC(31,598,1), 0xffffffff, PPC,	E500,		{0}},
 {"ptesync",	XSYNC(31,598,2), 0xffffffff, PPC64,	PPCNONE,	{0}},
+{"sync",	X(31,598),	XSYNCLE_MASK,E6500,	PPCNONE,	{LS, ESYNC}},
 {"sync",	X(31,598),	XSYNC_MASK,  PPCCOM,	BOOKE|PPC476,	{LS}},
 {"msync",	X(31,598),	0xffffffff, BOOKE|PPCA2|PPC476, PPCNONE, {0}},
-{"sync",	X(31,598),	0xffffffff, BOOKE|PPC476, PPCNONE, {0}},
+{"sync",	X(31,598),	0xffffffff, BOOKE|PPC476, E6500,	{0}},
 {"lwsync",	X(31,598),	0xffffffff, E500,	PPCNONE,	{0}},
 {"dcs",		X(31,598),	0xffffffff,  PWRCOM,	PPCNONE,	{0}},
 
@@ -4551,6 +4637,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"lfdepx",	X(31,607),	X_MASK,   E500MC|PPCA2,	PPCNONE,	{FRT, RA, RB}},
 
 {"lddx",	X(31,611),	X_MASK,      E500MC,	PPCNONE,	{RT, RA, RB}},
+
+{"lvswx",	X(31,613),	X_MASK,      PPCVEC2,	PPCNONE,	{VD, RA0, RB}},
 
 {"lqfcmux",	APU(31,615,0), 	APU_MASK,    PPC405,	PPCNONE,	{FCRT, RA, RB}},
 
@@ -4601,6 +4689,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 
 {"sthdx",	X(31,675),	X_MASK,      E500MC,	PPCNONE,	{RS, RA, RB}},
 
+{"stvfrx",	X(31,677),	X_MASK,      PPCVEC2,	PPCNONE,	{VS, RA0, RB}},
+
 {"stvrx",	X(31,679),	X_MASK,      CELL,	PPCNONE,	{VS, RA0, RB}},
 {"sthfcmux",	APU(31,679,0), 	APU_MASK,    PPC405,	PPCNONE,	{FCRT, RA, RB}},
 
@@ -4612,6 +4702,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"sriq.",	XRC(31,696,1),	X_MASK,      M601,	PPCNONE,	{RA, RS, SH}},
 
 {"stwdx",	X(31,707),	X_MASK,      E500MC,	PPCNONE,	{RS, RA, RB}},
+
+{"stvflx",	X(31,709),	X_MASK,      PPCVEC2,	PPCNONE,	{VS, RA0, RB}},
 
 {"stwfcmux",	APU(31,711,0), 	APU_MASK,    PPC405,	PPCNONE,	{FCRT, RA, RB}},
 
@@ -4645,6 +4737,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 
 {"stddx",	X(31,739),	X_MASK,      E500MC,	PPCNONE,	{RS, RA, RB}},
 
+{"stvswx",	X(31,741),	X_MASK,      PPCVEC2,	PPCNONE,	{VS, RA0, RB}},
+
 {"stqfcmux",	APU(31,743,0), 	APU_MASK,    PPC405,	PPCNONE,	{FCRT, RA, RB}},
 
 {"subfmeo",	XO(31,232,1,0),	XORB_MASK,   PPCCOM,	PPCNONE,	{RT, RA}},
@@ -4673,6 +4767,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"srliq",	XRC(31,760,0),	X_MASK,      M601,	PPCNONE,	{RA, RS, SH}},
 {"srliq.",	XRC(31,760,1),	X_MASK,      M601,	PPCNONE,	{RA, RS, SH}},
 
+{"lvsm",	X(31,773),	X_MASK,      PPCVEC2,	PPCNONE,	{VD, RA0, RB}},
+{"stvepxl",	X(31,775),	X_MASK,      PPCVEC2,	PPCNONE,	{VS, RA0, RB}},
 {"lvlxl",	X(31,775),	X_MASK,      CELL,	PPCNONE,	{VD, RA0, RB}},
 {"ldfcmux",	APU(31,775,0), 	APU_MASK,    PPC405,	PPCNONE,	{FCRT, RA, RB}},
 
@@ -4705,6 +4801,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 
 {"lfddx",	X(31,803),	X_MASK,      E500MC,	PPCNONE,	{FRT, RA, RB}},
 
+{"lvtrxl",	X(31,805),	X_MASK,      PPCVEC2,	PPCNONE,	{VD, RA0, RB}},
+{"stvepx",	X(31,807),	X_MASK,      PPCVEC2,	PPCNONE,	{VS, RA0, RB}},
 {"lvrxl",	X(31,807),	X_MASK,      CELL,	PPCNONE,	{VD, RA0, RB}},
 
 {"rac",		X(31,818),	X_MASK,      M601,	PPCNONE,	{RT, RA, RB}},
@@ -4725,6 +4823,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"sradi",	XS(31,413,0),	XS_MASK,     PPC64,	PPCNONE,	{RA, RS, SH6}},
 {"sradi.",	XS(31,413,1),	XS_MASK,     PPC64,	PPCNONE,	{RA, RS, SH6}},
 
+{"lvtlxl",	X(31,837),	X_MASK,      PPCVEC2,	PPCNONE,	{VD, RA0, RB}},
+
 {"divo",	XO(31,331,1,0),	XO_MASK,     M601,	PPCNONE,	{RT, RA, RB}},
 {"divo.",	XO(31,331,1,1),	XO_MASK,     M601,	PPCNONE,	{RT, RA, RB}},
 
@@ -4742,6 +4842,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"eieio",	X(31,854),	0xffffffff, PPCA2|PPC476, PPCNONE,	{0}},
 
 {"lfiwax",	X(31,855),	X_MASK, POWER6|PPCA2|PPC476, PPCNONE,	{FRT, RA0, RB}},
+
+{"lvswxl",	X(31,869),	X_MASK,      PPCVEC2,	PPCNONE,	{VD, RA0, RB}},
 
 {"abso",	XO(31,360,1,0),	XORB_MASK,   M601,	PPCNONE,	{RT, RA}},
 {"abso.",	XO(31,360,1,1),	XORB_MASK,   M601,	PPCNONE,	{RT, RA}},
@@ -4788,6 +4890,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 
 {"stfddx",	X(31,931),	X_MASK,      E500MC,	PPCNONE,	{FRS, RA, RB}},
 
+{"stvfrxl",	X(31,933),	X_MASK,      PPCVEC2,	PPCNONE,	{VS, RA0, RB}},
+
 {"wclrone",	XOPL2(31,934,2),XRT_MASK,    PPCA2,	PPCNONE,	{RA0, RB}},
 {"wclrall",	X(31,934),	XRARB_MASK,  PPCA2,	PPCNONE,	{L}},
 {"wclr",	X(31,934),	X_MASK,	     PPCA2,	PPCNONE,	{L, RA0, RB}},
@@ -4816,6 +4920,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"extsb",	XRC(31,954,0),	XRB_MASK,    PPC,	PPCNONE,	{RA, RS}},
 {"extsb.",	XRC(31,954,1),	XRB_MASK,    PPC,	PPCNONE,	{RA, RS}},
 
+{"stvflxl",	X(31,965),	X_MASK,      PPCVEC2,	PPCNONE,	{VS, RA0, RB}},
+
 {"iccci",	X(31,966), XRT_MASK, PPC403|PPC440|TITAN|PPCA2, PPCNONE, {RAOPT, RBOPT}},
 {"ici",		X(31,966),	XRARB_MASK,  PPCA2|PPC476, PPCNONE,	{CT}},
 
@@ -4842,6 +4948,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
 {"extsw.",	XRC(31,986,1),	XRB_MASK,    PPC64,	PPCNONE,	{RA, RS}},
 
 {"icbiep",	XRT(31,991,0),	XRT_MASK, E500MC|PPCA2,	PPCNONE,	{RA, RB}},
+
+{"stvswxl",	X(31,997),	X_MASK,      PPCVEC2,	PPCNONE,	{VS, RA0, RB}},
 
 {"icread",	X(31,998), XRT_MASK, PPC403|PPC440|PPC476|TITAN, PPCNONE, {RA, RB}},
 

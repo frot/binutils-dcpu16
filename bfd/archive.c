@@ -1,7 +1,7 @@
 /* BFD back-end for archive files (libraries).
    Copyright 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
-   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
-   Free Software Foundation, Inc.
+   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011,
+   2012  Free Software Foundation, Inc.
    Written by Cygnus Support.  Mostly Gumby Henkel-Wallace's fault.
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -177,6 +177,29 @@ _bfd_ar_spacepad (char *p, size_t n, const char *fmt, long val)
     }
   else
     memcpy (p, buf, n);
+}
+
+bfd_boolean
+_bfd_ar_sizepad (char *p, size_t n, bfd_size_type size)
+{
+  static char buf[21];
+  size_t len;
+
+  snprintf (buf, sizeof (buf), "%-10" BFD_VMA_FMT "u", size);
+  len = strlen (buf);
+  if (len > n)
+    {
+      bfd_set_error (bfd_error_file_too_big);
+      return FALSE;
+    }
+  if (len < n)
+    {
+      memcpy (p, buf, len);
+      memset (p + len, ' ', n - len);
+    }
+  else
+    memcpy (p, buf, n);
+  return TRUE;
 }
 
 bfd_boolean
@@ -424,7 +447,7 @@ _bfd_generic_read_ar_hdr_mag (bfd *abfd, const char *mag)
 {
   struct ar_hdr hdr;
   char *hdrp = (char *) &hdr;
-  size_t parsed_size;
+  bfd_size_type parsed_size;
   struct areltdata *ared;
   char *filename = NULL;
   bfd_size_type namelen = 0;
@@ -448,8 +471,7 @@ _bfd_generic_read_ar_hdr_mag (bfd *abfd, const char *mag)
     }
 
   errno = 0;
-  parsed_size = strtol (hdr.ar_size, NULL, 10);
-  if (errno != 0)
+  if (sscanf (hdr.ar_size, "%" BFD_VMA_FMT "u", &parsed_size) != 1)
     {
       bfd_set_error (bfd_error_malformed_archive);
       return NULL;
@@ -580,12 +602,6 @@ _bfd_get_elt_at_filepos (bfd *archive, file_ptr filepos)
   struct areltdata *new_areldata;
   bfd *n_nfd;
   char *filename;
-
-  if (archive->my_archive)
-    {
-      filepos += archive->origin;
-      archive = archive->my_archive;
-    }
 
   n_nfd = _bfd_look_for_bfd_in_cache (archive, filepos);
   if (n_nfd)
@@ -727,13 +743,11 @@ bfd_generic_openr_next_archived_file (bfd *archive, bfd *last_file)
     filestart = bfd_ardata (archive)->first_file_filepos;
   else
     {
-      unsigned int size = arelt_size (last_file);
+      bfd_size_type size = arelt_size (last_file);
 
       filestart = last_file->proxy_origin;
       if (! bfd_is_thin_archive (archive))
         filestart += size;
-      if (archive->my_archive)
-	filestart -= archive->origin;
       /* Pad to an even boundary...
 	 Note that last_file->origin can be odd in the case of
 	 BSD-4.4-style element with a long odd size.  */
@@ -925,7 +939,7 @@ do_slurp_coff_armap (bfd *abfd)
   struct artdata *ardata = bfd_ardata (abfd);
   char *stringbase;
   bfd_size_type stringsize;
-  unsigned int parsed_size;
+  bfd_size_type parsed_size;
   carsym *carsyms;
   bfd_size_type nsymz;		/* Number of symbols in armap.  */
   bfd_vma (*swap) (const void *);
@@ -1089,7 +1103,7 @@ bfd_slurp_armap (bfd *abfd)
       /* Read the extended name.  We know its length.  */
       if (bfd_bread (extname, 20, abfd) != 20)
         return FALSE;
-      if (bfd_seek (abfd, (file_ptr) -(sizeof (hdr) + 20), SEEK_CUR) != 0)
+      if (bfd_seek (abfd, -(file_ptr) (sizeof (hdr) + 20), SEEK_CUR) != 0)
         return FALSE;
       if (CONST_STRNEQ (extname, "__.SYMDEF SORTED")
           || CONST_STRNEQ (extname, "__.SYMDEF"))
@@ -1770,14 +1784,16 @@ _bfd_bsd44_write_ar_hdr (bfd *archive, bfd *abfd)
 
       BFD_ASSERT (padded_len == arch_eltdata (abfd)->extra_size);
 
-      _bfd_ar_spacepad (hdr->ar_size, sizeof (hdr->ar_size), "%-10ld",
-                        arch_eltdata (abfd)->parsed_size + padded_len);
+      if (!_bfd_ar_sizepad (hdr->ar_size, sizeof (hdr->ar_size),
+                            arch_eltdata (abfd)->parsed_size + padded_len))
+        return FALSE;
 
       if (bfd_bwrite (hdr, sizeof (*hdr), archive) != sizeof (*hdr))
         return FALSE;
 
       if (bfd_bwrite (fullname, len, archive) != len)
         return FALSE;
+
       if (len & 3)
         {
           static const char pad[3] = { 0, 0, 0 };
@@ -1891,8 +1907,11 @@ bfd_ar_hdr_from_filesystem (bfd *abfd, const char *filename, bfd *member)
                       status.st_gid);
   _bfd_ar_spacepad (hdr->ar_mode, sizeof (hdr->ar_mode), "%-8lo",
                     status.st_mode);
-  _bfd_ar_spacepad (hdr->ar_size, sizeof (hdr->ar_size), "%-10ld",
-                    status.st_size);
+  if (!_bfd_ar_sizepad (hdr->ar_size, sizeof (hdr->ar_size), status.st_size))
+    {
+      free (ared);
+      return NULL;
+    }
   memcpy (hdr->ar_fmag, ARFMAG, 2);
   ared->parsed_size = status.st_size;
   ared->arch_header = (char *) hdr;
@@ -2132,8 +2151,9 @@ _bfd_write_archive_contents (bfd *arch)
       memset (&hdr, ' ', sizeof (struct ar_hdr));
       memcpy (hdr.ar_name, ename, strlen (ename));
       /* Round size up to even number in archive header.  */
-      _bfd_ar_spacepad (hdr.ar_size, sizeof (hdr.ar_size), "%-10ld",
-                        (elength + 1) & ~(bfd_size_type) 1);
+      if (!_bfd_ar_sizepad (hdr.ar_size, sizeof (hdr.ar_size),
+                            (elength + 1) & ~(bfd_size_type) 1))
+        return FALSE;
       memcpy (hdr.ar_fmag, ARFMAG, 2);
       if ((bfd_bwrite (&hdr, sizeof (struct ar_hdr), arch)
 	   != sizeof (struct ar_hdr))
@@ -2151,7 +2171,7 @@ _bfd_write_archive_contents (bfd *arch)
        current = current->archive_next)
     {
       char buffer[DEFAULT_BUFFERSIZE];
-      unsigned int remaining = arelt_size (current);
+      bfd_size_type remaining = arelt_size (current);
 
       /* Write ar header.  */
       if (!_bfd_write_ar_hdr (arch, current))
@@ -2409,7 +2429,8 @@ bsd_write_armap (bfd *arch,
                     bfd_ardata (arch)->armap_timestamp);
   _bfd_ar_spacepad (hdr.ar_uid, sizeof (hdr.ar_uid), "%ld", uid);
   _bfd_ar_spacepad (hdr.ar_gid, sizeof (hdr.ar_gid), "%ld", gid);
-  _bfd_ar_spacepad (hdr.ar_size, sizeof (hdr.ar_size), "%-10ld", mapsize);
+  if (!_bfd_ar_sizepad (hdr.ar_size, sizeof (hdr.ar_size), mapsize))
+    return FALSE;
   memcpy (hdr.ar_fmag, ARFMAG, 2);
   if (bfd_bwrite (&hdr, sizeof (struct ar_hdr), arch)
       != sizeof (struct ar_hdr))
@@ -2564,8 +2585,8 @@ coff_write_armap (bfd *arch,
 
   memset (&hdr, ' ', sizeof (struct ar_hdr));
   hdr.ar_name[0] = '/';
-  _bfd_ar_spacepad (hdr.ar_size, sizeof (hdr.ar_size), "%-10ld",
-                    mapsize);
+  if (!_bfd_ar_sizepad (hdr.ar_size, sizeof (hdr.ar_size), mapsize))
+    return FALSE;
   _bfd_ar_spacepad (hdr.ar_date, sizeof (hdr.ar_date), "%ld",
                     ((arch->flags & BFD_DETERMINISTIC_OUTPUT) == 0
                      ? time (NULL) : 0));

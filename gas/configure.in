@@ -305,7 +305,7 @@ changequote([,])dnl
         fi
         ;;
 
-      fr30 | ip2k | iq2000 | lm32 | m32r | openrisc)
+      epiphany | fr30 | ip2k | iq2000 | lm32 | m32r | openrisc)
 	using_cgen=yes
 	;;
 
@@ -353,6 +353,13 @@ changequote([,])dnl
 	fi
 	;;
 
+      rl78)
+        echo ${extra_objects} | grep -s "rl78-parse.o"
+        if test $? -ne 0 ; then
+          extra_objects="$extra_objects rl78-parse.o"
+        fi
+	;;
+
       rx)
         echo ${extra_objects} | grep -s "rx-parse.o"
         if test $? -ne 0 ; then
@@ -396,7 +403,7 @@ changequote([,])dnl
    case ${te_file} in
       vms) extra_objects="$extra_objects te-vms.o" ;;
    esac
- 
+
 # From target name and format, produce a list of supported emulations.
 
     case ${generic_target}-${fmt} in
@@ -618,7 +625,7 @@ AC_DEFINE_UNQUOTED(TARGET_OS,		"${target_os}",    [Target OS.])
 AC_PROG_YACC
 AM_PROG_LEX
 
-ALL_LINGUAS="fr tr es rw id ru fi"
+ALL_LINGUAS="fr tr es rw id ru fi ja"
 ZW_GNU_GETTEXT_SISTER_DIR
 AM_PO_SUBDIRS
 
@@ -626,7 +633,7 @@ AM_MAINTAINER_MODE
 AM_CONDITIONAL(GENINSRC_NEVER, false)
 AC_EXEEXT
 
-AC_CHECK_HEADERS(string.h stdlib.h memory.h strings.h unistd.h errno.h sys/types.h limits.h time.h sys/stat.h)
+AC_CHECK_HEADERS(string.h stdlib.h memory.h strings.h unistd.h errno.h sys/types.h limits.h locale.h time.h sys/stat.h)
 
 # Put this here so that autoconf's "cross-compiling" message doesn't confuse
 # people who are not cross-compiling but are compiling cross-assemblers.
@@ -649,6 +656,9 @@ AC_CHECK_FUNCS(unlink remove, break)
 
 # Some systems don't have sbrk().
 AC_CHECK_FUNCS(sbrk)
+
+AC_CHECK_FUNCS(setlocale)
+AM_LC_MESSAGES
 
 # do we need the math library?
 case "${need_libm}" in

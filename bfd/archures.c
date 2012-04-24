@@ -1,7 +1,7 @@
 /* BFD library support routines for architectures.
    Copyright 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
-   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
-   Free Software Foundation, Inc.
+   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011,
+   2012 Free Software Foundation, Inc.
    Hacked by John Gilmore and Steve Chamberlain of Cygnus Support.
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -176,6 +176,8 @@ DESCRIPTION
 .#define bfd_mach_mips_loongson_3a      3003
 .#define bfd_mach_mips_sb1              12310201 {* octal 'SB', 01 *}
 .#define bfd_mach_mips_octeon		6501
+.#define bfd_mach_mips_octeonp		6601
+.#define bfd_mach_mips_octeon2		6502
 .#define bfd_mach_mips_xlr              887682   {* decimal 'XLR'  *}
 .#define bfd_mach_mipsisa32             32
 .#define bfd_mach_mipsisa32r2           33
@@ -239,6 +241,8 @@ DESCRIPTION
 .#define bfd_mach_ppc_e500      500
 .#define bfd_mach_ppc_e500mc    5001
 .#define bfd_mach_ppc_e500mc64  5005
+.#define bfd_mach_ppc_e5500     5006
+.#define bfd_mach_ppc_e6500     5007
 .#define bfd_mach_ppc_titan     83
 .  bfd_arch_rs6000,    {* IBM RS/6000 *}
 .#define bfd_mach_rs6k		6000
@@ -365,6 +369,9 @@ DESCRIPTION
 . bfd_arch_iq2000,     {* Vitesse IQ2000.  *}
 .#define bfd_mach_iq2000        1
 .#define bfd_mach_iq10          2
+.  bfd_arch_epiphany,	{* Adapteva EPIPHANY *}
+.#define bfd_mach_epiphany16	1
+.#define bfd_mach_epiphany32	2
 .  bfd_arch_mt,
 .#define bfd_mach_ms1           1
 .#define bfd_mach_mrisc2        2
@@ -400,6 +407,8 @@ DESCRIPTION
 .#define bfd_mach_cris_v0_v10	255
 .#define bfd_mach_cris_v32	32
 .#define bfd_mach_cris_v10_v32	1032
+.  bfd_arch_rl78,
+.#define bfd_mach_rl78	0x75
 .  bfd_arch_rx,        {* Renesas RX.  *}
 .#define bfd_mach_rx            0x75
 .  bfd_arch_s390,      {* IBM s390 *}
@@ -446,6 +455,7 @@ DESCRIPTION
 .  bfd_arch_tilegx, {* Tilera TILE-Gx *}
 .#define bfd_mach_tilepro   1
 .#define bfd_mach_tilegx    1
+.#define bfd_mach_tilegx32  2
 .  bfd_arch_last
 .  };
 */
@@ -478,6 +488,12 @@ DESCRIPTION
 .
 .  bfd_boolean (*scan) (const struct bfd_arch_info *, const char *);
 .
+.  {* Allocate via bfd_malloc and return a fill buffer of size COUNT.  If
+.     IS_BIGENDIAN is TRUE, the order of bytes is big endian.  If CODE is
+.     TRUE, the buffer contains code.  *}
+.  void *(*fill) (bfd_size_type count, bfd_boolean is_bigendian,
+.		  bfd_boolean code);
+.
 .  const struct bfd_arch_info *next;
 .}
 .bfd_arch_info_type;
@@ -496,6 +512,7 @@ extern const bfd_arch_info_type bfd_crx_arch;
 extern const bfd_arch_info_type bfd_d10v_arch;
 extern const bfd_arch_info_type bfd_d30v_arch;
 extern const bfd_arch_info_type bfd_dlx_arch;
+extern const bfd_arch_info_type bfd_epiphany_arch;
 extern const bfd_arch_info_type bfd_fr30_arch;
 extern const bfd_arch_info_type bfd_frv_arch;
 extern const bfd_arch_info_type bfd_h8300_arch;
@@ -536,6 +553,7 @@ extern const bfd_arch_info_type bfd_plugin_arch;
 extern const bfd_arch_info_type bfd_powerpc_archs[];
 #define bfd_powerpc_arch bfd_powerpc_archs[0]
 extern const bfd_arch_info_type bfd_rs6000_arch;
+extern const bfd_arch_info_type bfd_rl78_arch;
 extern const bfd_arch_info_type bfd_rx_arch;
 extern const bfd_arch_info_type bfd_s390_arch;
 extern const bfd_arch_info_type bfd_score_arch;
@@ -576,6 +594,7 @@ static const bfd_arch_info_type * const bfd_archures_list[] =
     &bfd_d10v_arch,
     &bfd_d30v_arch,
     &bfd_dlx_arch,
+    &bfd_epiphany_arch,
     &bfd_fr30_arch,
     &bfd_frv_arch,
     &bfd_h8300_arch,
@@ -613,6 +632,7 @@ static const bfd_arch_info_type * const bfd_archures_list[] =
     &bfd_pdp11_arch,
     &bfd_powerpc_arch,
     &bfd_rs6000_arch,
+    &bfd_rl78_arch,
     &bfd_rx_arch,
     &bfd_s390_arch,
     &bfd_score_arch,
@@ -803,6 +823,7 @@ const bfd_arch_info_type bfd_default_arch_struct = {
   32, 32, 8, bfd_arch_unknown, 0, "unknown", "unknown", 2, TRUE,
   bfd_default_compatible,
   bfd_default_scan,
+  bfd_arch_default_fill,
   0,
 };
 
@@ -1297,4 +1318,30 @@ bfd_arch_mach_octets_per_byte (enum bfd_architecture arch,
   if (ap)
     return ap->bits_per_byte / 8;
   return 1;
+}
+
+/*
+INTERNAL_FUNCTION
+	bfd_arch_default_fill
+
+SYNOPSIS
+	void *bfd_arch_default_fill (bfd_size_type count,
+				     bfd_boolean is_bigendian,
+				     bfd_boolean code);
+
+DESCRIPTION
+	Allocate via bfd_malloc and return a fill buffer of size COUNT.
+	If IS_BIGENDIAN is TRUE, the order of bytes is big endian.  If
+	CODE is TRUE, the buffer contains code.
+*/
+
+void *
+bfd_arch_default_fill (bfd_size_type count,
+		       bfd_boolean is_bigendian ATTRIBUTE_UNUSED,
+		       bfd_boolean code ATTRIBUTE_UNUSED)
+{
+  void *fill = bfd_malloc (count);
+  if (fill != NULL)
+    memset (fill, 0, count);
+  return fill;
 }

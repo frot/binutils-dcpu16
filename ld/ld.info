@@ -5,7 +5,7 @@ START-INFO-DIR-ENTRY
 * Ld: (ld).                       The GNU linker.
 END-INFO-DIR-ENTRY
 
-   This file documents the GNU linker LD (GNU Binutils) version 2.21.90.
+   This file documents the GNU linker LD (GNU Binutils) version 2.22.52.
 
    Copyright (C) 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009 Free
@@ -24,7 +24,7 @@ File: ld.info,  Node: Top,  Next: Overview,  Up: (dir)
 LD
 **
 
-This file documents the GNU linker ld (GNU Binutils) version 2.21.90.
+This file documents the GNU linker ld (GNU Binutils) version 2.22.52.
 
    This document is distributed under the terms of the GNU Free
 Documentation License version 1.3.  A copy of the license is included
@@ -5516,15 +5516,51 @@ File: ld.info,  Node: PowerPC64 ELF64,  Next: SPU ELF,  Prev: PowerPC ELF32,  Up
      disable the optimization.
 
 `--no-multi-toc'
-     By default, PowerPC64 GCC generates code for a TOC model where TOC
-     entries are accessed with a 16-bit offset from r2.  This limits the
-     total TOC size to 64K.  PowerPC64 `ld' extends this limit by
-     grouping code sections such that each group uses less than 64K for
-     its TOC entries, then inserts r2 adjusting stubs between
-     inter-group calls.  `ld' does not split apart input sections, so
-     cannot help if a single input file has a `.toc' section that
-     exceeds 64K, most likely from linking multiple files with `ld -r'.
-     Use this option to turn off this feature.
+     If given any toc option besides `-mcmodel=medium' or
+     `-mcmodel=large', PowerPC64 GCC generates code for a TOC model
+     where TOC entries are accessed with a 16-bit offset from r2.  This
+     limits the total TOC size to 64K.  PowerPC64 `ld' extends this
+     limit by grouping code sections such that each group uses less
+     than 64K for its TOC entries, then inserts r2 adjusting stubs
+     between inter-group calls.  `ld' does not split apart input
+     sections, so cannot help if a single input file has a `.toc'
+     section that exceeds 64K, most likely from linking multiple files
+     with `ld -r'.  Use this option to turn off this feature.
+
+`--no-toc-sort'
+     By default, `ld' sorts TOC sections so that those whose file
+     happens to have a section called `.init' or `.fini' are placed
+     first, followed by TOC sections referenced by code generated with
+     PowerPC64 gcc's `-mcmodel=small', and lastly TOC sections
+     referenced only by code generated with PowerPC64 gcc's
+     `-mcmodel=medium' or `-mcmodel=large' options.  Doing this results
+     in better TOC grouping for multi-TOC.  Use this option to turn off
+     this feature.
+
+`--plt-align'
+`--no-plt-align'
+     Use these options to control whether individual PLT call stubs are
+     aligned to a 32-byte boundary, or to the specified power of two
+     boundary when using `--plt-align='.  By default PLT call stubs are
+     packed tightly.
+
+`--plt-static-chain'
+`--no-plt-static-chain'
+     Use these options to control whether PLT call stubs load the static
+     chain pointer (r11).  `ld' defaults to not loading the static
+     chain since there is never any need to do so on a PLT call.
+
+`--plt-thread-safe'
+`--no-thread-safe'
+     With power7's weakly ordered memory model, it is possible when
+     using lazy binding for ld.so to update a plt entry in one thread
+     and have another thread see the individual plt entry words update
+     in the wrong order, despite ld.so carefully writing in the correct
+     order and using memory write barriers.  To avoid this we need some
+     sort of read barrier in the call stub, or use LD_BIND_NOW=1.  By
+     default, `ld' looks for calls to commonly used functions that
+     create threads, and if seen, adds the necessary barriers.  Use
+     these options to change the default behaviour.
 
 
 File: ld.info,  Node: SPU ELF,  Next: TI COFF,  Prev: PowerPC64 ELF64,  Up: Machine Dependent
@@ -7138,8 +7174,8 @@ LD Index
 * --emit-relocs:                         Options.            (line  476)
 * --emit-stack-syms:                     SPU ELF.            (line   46)
 * --emit-stub-syms <1>:                  SPU ELF.            (line   15)
-* --emit-stub-syms <2>:                  PowerPC ELF32.      (line   47)
-* --emit-stub-syms:                      PowerPC64 ELF64.    (line   29)
+* --emit-stub-syms <2>:                  PowerPC64 ELF64.    (line   29)
+* --emit-stub-syms:                      PowerPC ELF32.      (line   47)
 * --enable-auto-image-base:              Options.            (line 1759)
 * --enable-auto-import:                  Options.            (line 1782)
 * --enable-extra-pe-debug:               Options.            (line 1920)
@@ -7214,17 +7250,21 @@ LD Index
 * --no-isolation:                        Options.            (line 1963)
 * --no-keep-memory:                      Options.            (line  974)
 * --no-leading-underscore:               Options.            (line 1638)
-* --no-merge-exidx-entries <1>:          Options.            (line 1999)
-* --no-merge-exidx-entries:              i960.               (line   48)
+* --no-merge-exidx-entries <1>:          i960.               (line   48)
+* --no-merge-exidx-entries:              Options.            (line 1999)
 * --no-multi-toc:                        PowerPC64 ELF64.    (line   74)
 * --no-omagic:                           Options.            (line  454)
 * --no-opd-optimize:                     PowerPC64 ELF64.    (line   48)
 * --no-overlays:                         SPU ELF.            (line    9)
+* --no-plt-align:                        PowerPC64 ELF64.    (line   96)
+* --no-plt-static-chain:                 PowerPC64 ELF64.    (line  103)
+* --no-plt-thread-safe:                  PowerPC64 ELF64.    (line  109)
 * --no-print-gc-sections:                Options.            (line  947)
 * --no-seh:                              Options.            (line 1966)
-* --no-tls-optimize <1>:                 PowerPC ELF32.      (line   51)
-* --no-tls-optimize:                     PowerPC64 ELF64.    (line   43)
+* --no-tls-optimize <1>:                 PowerPC64 ELF64.    (line   43)
+* --no-tls-optimize:                     PowerPC ELF32.      (line   51)
 * --no-toc-optimize:                     PowerPC64 ELF64.    (line   60)
+* --no-toc-sort:                         PowerPC64 ELF64.    (line   86)
 * --no-trampoline:                       Options.            (line 2009)
 * --no-undefined:                        Options.            (line  981)
 * --no-undefined-version:                Options.            (line 1023)
@@ -7242,6 +7282,9 @@ LD Index
 * --output=OUTPUT:                       Options.            (line  460)
 * --pic-executable:                      Options.            (line 1078)
 * --pic-veneer:                          ARM.                (line  133)
+* --plt-align:                           PowerPC64 ELF64.    (line   96)
+* --plt-static-chain:                    PowerPC64 ELF64.    (line  103)
+* --plt-thread-safe:                     PowerPC64 ELF64.    (line  109)
 * --plugin:                              SPU ELF.            (line    6)
 * --print-gc-sections:                   Options.            (line  947)
 * --print-map:                           Options.            (line  402)
@@ -7339,8 +7382,8 @@ LD Index
 * -M:                                    Options.            (line  402)
 * -m EMULATION:                          Options.            (line  392)
 * -Map=MAPFILE:                          Options.            (line  970)
-* -n:                                    Options.            (line  439)
 * -N:                                    Options.            (line  445)
+* -n:                                    Options.            (line  439)
 * -no-relax:                             Options.            (line 1094)
 * -non_shared:                           Options.            (line  765)
 * -nostdlib:                             Options.            (line 1059)
@@ -7355,8 +7398,8 @@ LD Index
 * -R FILE:                               Options.            (line  508)
 * -rpath-link=DIR:                       Options.            (line 1156)
 * -rpath=DIR:                            Options.            (line 1134)
-* -s:                                    Options.            (line  519)
 * -S:                                    Options.            (line  523)
+* -s:                                    Options.            (line  519)
 * -shared:                               Options.            (line 1211)
 * -soname=NAME:                          Options.            (line  317)
 * -static:                               Options.            (line  765)
@@ -7368,10 +7411,10 @@ LD Index
 * -Ttext=ORG:                            Options.            (line 1285)
 * -u SYMBOL:                             Options.            (line  554)
 * -Ur:                                   Options.            (line  562)
-* -v:                                    Options.            (line  581)
 * -V:                                    Options.            (line  581)
-* -x:                                    Options.            (line  587)
+* -v:                                    Options.            (line  581)
 * -X:                                    Options.            (line  591)
+* -x:                                    Options.            (line  587)
 * -Y PATH:                               Options.            (line  606)
 * -y SYMBOL:                             Options.            (line  597)
 * -z defs:                               Options.            (line  981)
@@ -7444,7 +7487,7 @@ LD Index
 * combining symbols, warnings on:        Options.            (line 1343)
 * command files:                         Scripts.            (line    6)
 * command line:                          Options.            (line    6)
-* common allocation:                     Options.            (line  861)
+* common allocation:                     Options.            (line  168)
 * common allocation in linker script:    Miscellaneous Commands.
                                                              (line   20)
 * common symbol placement:               Input Section Common.
@@ -7487,7 +7530,7 @@ LD Index
 * discarding sections:                   Output Section Discarding.
                                                              (line    6)
 * discontinuous memory:                  MEMORY.             (line    6)
-* DLLs, creating:                        Options.            (line 1742)
+* DLLs, creating:                        Options.            (line 1644)
 * DLLs, linking to:                      Options.            (line 1773)
 * dot:                                   Location Counter.   (line    6)
 * dot inside sections:                   Location Counter.   (line   36)
@@ -7708,10 +7751,14 @@ LD Index
 * PowerPC64 multi-TOC:                   PowerPC64 ELF64.    (line   74)
 * PowerPC64 OPD optimization:            PowerPC64 ELF64.    (line   48)
 * PowerPC64 OPD spacing:                 PowerPC64 ELF64.    (line   54)
+* PowerPC64 PLT call stub static chain:  PowerPC64 ELF64.    (line  103)
+* PowerPC64 PLT call stub thread safety: PowerPC64 ELF64.    (line  109)
+* PowerPC64 PLT stub alignment:          PowerPC64 ELF64.    (line   96)
 * PowerPC64 stub grouping:               PowerPC64 ELF64.    (line    6)
 * PowerPC64 stub symbols:                PowerPC64 ELF64.    (line   29)
 * PowerPC64 TLS optimization:            PowerPC64 ELF64.    (line   43)
 * PowerPC64 TOC optimization:            PowerPC64 ELF64.    (line   60)
+* PowerPC64 TOC sorting:                 PowerPC64 ELF64.    (line   86)
 * precedence in expressions:             Operators.          (line    6)
 * prevent unnecessary loading:           Output Section Type.
                                                              (line   22)
@@ -7946,19 +7993,19 @@ Node: MMIX225038
 Node: MSP430226203
 Node: PowerPC ELF32227252
 Node: PowerPC64 ELF64230088
-Node: SPU ELF234504
-Node: TI COFF237136
-Node: WIN32237662
-Node: Xtensa257787
-Node: BFD260752
-Node: BFD outline262207
-Node: BFD information loss263493
-Node: Canonical format266010
-Node: Reporting Bugs270367
-Node: Bug Criteria271061
-Node: Bug Reporting271760
-Node: MRI278799
-Node: GNU Free Documentation License283442
-Node: LD Index308598
+Node: SPU ELF236244
+Node: TI COFF238876
+Node: WIN32239402
+Node: Xtensa259527
+Node: BFD262492
+Node: BFD outline263947
+Node: BFD information loss265233
+Node: Canonical format267750
+Node: Reporting Bugs272107
+Node: Bug Criteria272801
+Node: Bug Reporting273500
+Node: MRI280539
+Node: GNU Free Documentation License285182
+Node: LD Index310338
 
 End Tag Table
