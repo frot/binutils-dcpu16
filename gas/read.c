@@ -900,6 +900,29 @@ read_a_source_file (char *name)
 	    c = *input_line_pointer++;
 	  while (c == '\t' || c == ' ' || c == '\f');
 
+#ifdef TC_START_LABEL_DELIMITER
+	  /* C is the 1st significant character.
+	     Input_line_pointer points after that character.  */
+	  if (TC_START_LABEL_DELIMITER (c) && is_name_beginner (*input_line_pointer))
+	    {
+	      /* Want user-defined label or pseudo/opcode.  */
+	      HANDLE_CONDITIONAL_ASSEMBLY ();
+
+	      s = input_line_pointer;
+	      c = get_symbol_end ();	/* name's delimiter.  */
+
+	      line_label = colon (s);	/* User-defined label.  */
+
+	      *input_line_pointer++ = c;
+
+#ifdef tc_check_label
+	      tc_check_label (line_label);
+#endif
+	      SKIP_WHITESPACE ();
+	      continue;
+	    }
+#endif
+
 	  /* C is the 1st significant character.
 	     Input_line_pointer points after that character.  */
 	  if (is_name_beginner (c))

@@ -109,7 +109,6 @@ static void
 parse_operand (struct dcpu16_operand *operand)
 {
   static expressionS *exp = 0;
-  segT seg;
   int indirect = 0;
   int regnum = -1;
   char *p;
@@ -161,7 +160,7 @@ parse_operand (struct dcpu16_operand *operand)
   if (!exp)
     exp = xmalloc(sizeof(expressionS));
 
-  seg = expression (exp);
+  expression (exp);
 
   if (indirect)
     {

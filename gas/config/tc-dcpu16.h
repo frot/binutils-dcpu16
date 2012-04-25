@@ -33,6 +33,9 @@
 #define md_estimate_size_before_relax(f,s) \
   (as_fatal (_("estimate_size_before_relax called")), 1)
 
+#define LABELS_START_WITH_COLON 1
+#define TC_START_LABEL_DELIMITER(c) (c == ':')
+
 /* Permit temporary numeric labels.  */
 #define LOCAL_LABELS_FB 1
 

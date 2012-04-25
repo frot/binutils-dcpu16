@@ -943,7 +943,7 @@ do_scrub_chars (int (*get) (char *, int), char *tostart, int tolen)
 	      state = 10;	/* Sp after symbol char */
 	      goto recycle;
 	    case 11:
-	      if (LABELS_WITHOUT_COLONS || flag_m68k_mri)
+	      if (LABELS_WITHOUT_COLONS || LABELS_START_WITH_COLON || flag_m68k_mri)
 		state = 1;
 	      else
 		{
@@ -1107,10 +1107,14 @@ do_scrub_chars (int (*get) (char *, int), char *tostart, int tolen)
 #ifdef KEEP_WHITE_AROUND_COLON
 	  state = 9;
 #else
+#ifdef LABELS_START_WITH_COLON
+	  state = 11;
+#else
 	  if (state == 9 || state == 10)
 	    state = 3;
 	  else if (state != 3)
 	    state = 1;
+#endif
 #endif
 	  PUT (ch);
 	  break;
