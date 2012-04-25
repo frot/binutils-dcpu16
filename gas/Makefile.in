@@ -384,6 +384,7 @@ TARGET_CPU_CFILES = \
 	config/tc-crx.c \
 	config/tc-d10v.c \
 	config/tc-d30v.c \
+	config/tc-dcpu16.c \
 	config/tc-dlx.c \
 	config/tc-epiphany.c \
 	config/tc-fr30.c \
@@ -452,6 +453,7 @@ TARGET_CPU_HFILES = \
 	config/tc-crx.h \
 	config/tc-d10v.h \
 	config/tc-d30v.h \
+	config/tc-dcpu16.h \
 	config/tc-dlx.h \
 	config/tc-epiphany.h \
 	config/tc-fr30.h \
@@ -800,6 +802,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tc-crx.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tc-d10v.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tc-d30v.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tc-dcpu16.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tc-dlx.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tc-epiphany.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tc-fr30.Po@am__quote@
@@ -1019,6 +1022,20 @@ tc-d30v.obj: config/tc-d30v.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='config/tc-d30v.c' object='tc-d30v.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o tc-d30v.obj `if test -f 'config/tc-d30v.c'; then $(CYGPATH_W) 'config/tc-d30v.c'; else $(CYGPATH_W) '$(srcdir)/config/tc-d30v.c'; fi`
+
+tc-dcpu16.o: config/tc-dcpu16.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT tc-dcpu16.o -MD -MP -MF $(DEPDIR)/tc-dcpu16.Tpo -c -o tc-dcpu16.o `test -f 'config/tc-dcpu16.c' || echo '$(srcdir)/'`config/tc-dcpu16.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/tc-dcpu16.Tpo $(DEPDIR)/tc-dcpu16.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='config/tc-dcpu16.c' object='tc-dcpu16.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o tc-dcpu16.o `test -f 'config/tc-dcpu16.c' || echo '$(srcdir)/'`config/tc-dcpu16.c
+
+tc-dcpu16.obj: config/tc-dcpu16.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT tc-dcpu16.obj -MD -MP -MF $(DEPDIR)/tc-dcpu16.Tpo -c -o tc-dcpu16.obj `if test -f 'config/tc-dcpu16.c'; then $(CYGPATH_W) 'config/tc-dcpu16.c'; else $(CYGPATH_W) '$(srcdir)/config/tc-dcpu16.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/tc-dcpu16.Tpo $(DEPDIR)/tc-dcpu16.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='config/tc-dcpu16.c' object='tc-dcpu16.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o tc-dcpu16.obj `if test -f 'config/tc-dcpu16.c'; then $(CYGPATH_W) 'config/tc-dcpu16.c'; else $(CYGPATH_W) '$(srcdir)/config/tc-dcpu16.c'; fi`
 
 tc-dlx.o: config/tc-dlx.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT tc-dlx.o -MD -MP -MF $(DEPDIR)/tc-dlx.Tpo -c -o tc-dlx.o `test -f 'config/tc-dlx.c' || echo '$(srcdir)/'`config/tc-dlx.c

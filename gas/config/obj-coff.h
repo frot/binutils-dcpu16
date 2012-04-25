@@ -42,6 +42,12 @@
 #endif
 #endif
 
+#ifdef TC_DCPU16
+#include "coff/dcpu16.h"
+#undef TARGET_FORMAT
+#define TARGET_FORMAT "coff-dcpu16"
+#endif
+
 #ifdef TC_PPC
 #ifdef TE_PE
 #include "coff/powerpc.h"

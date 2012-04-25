@@ -768,6 +768,7 @@ extern const bfd_target bfd_powerpc_pei_vec;
 extern const bfd_target bfd_powerpcle_pe_vec;
 extern const bfd_target bfd_powerpcle_pei_vec;
 extern const bfd_target cris_aout_vec;
+extern const bfd_target dcpu16_coff_vec;
 extern const bfd_target demo_64_vec;
 extern const bfd_target ecoff_big_vec;
 extern const bfd_target ecoff_biglittle_vec;
@@ -1143,6 +1144,7 @@ static const bfd_target * const _bfd_target_vector[] =
 	&bfd_powerpcle_pe_vec,
 	&bfd_powerpcle_pei_vec,
 	&cris_aout_vec,
+	&dcpu16_coff_vec,
 #ifdef BFD64
 	&demo_64_vec,	/* Only compiled if host has long-long support.  */
 #endif

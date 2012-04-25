@@ -405,6 +405,8 @@
 
 #define EM_ADAPTEVA_EPIPHANY   0x1223  /* Adapteva's Epiphany architecture.  */
 
+#define EM_DCPU16		0x330C	/* Mojang DCPU-16 */
+
 /* See the above comment before you add a new EM_* value here.  */
 
 /* Values for e_version.  */

@@ -868,6 +868,7 @@ do
     bfd_powerpcle_pe_vec)       tb="$tb pe-ppc.lo peigen.lo cofflink.lo" ;;
     bfd_powerpcle_pei_vec)      tb="$tb pei-ppc.lo peigen.lo cofflink.lo" ;;
     cris_aout_vec)		tb="$tb aout-cris.lo" ;;
+    dcpu16_coff_vec)		tb="$tb coff-dcpu16.lo" ;;
     demo_64_vec)		tb="$tb demo64.lo aout64.lo"; target_size=64 ;;
     ecoff_big_vec)		tb="$tb coff-mips.lo ecoff.lo ecofflink.lo" ;;
     ecoff_biglittle_vec)	tb="$tb coff-mips.lo ecoff.lo ecofflink.lo" ;;

@@ -181,6 +181,7 @@ ALL_EMULATION_SOURCES = \
 	ed30v_e.c \
 	ed30v_o.c \
 	ed30velf.c \
+	edcpu16coff.c \
 	edelta68.c \
 	eelf32_dlx.c \
 	eelf32_i860.c \
@@ -869,6 +870,9 @@ ed30v_o.c: $(srcdir)/emulparams/d30v_o.sh \
 ed30velf.c: $(srcdir)/emulparams/d30velf.sh \
   $(ELF_GEN_DEPS) $(srcdir)/scripttempl/elfd30v.sc ${GEN_DEPENDS}
 	${GENSCRIPTS} d30velf "$(tdir_d30v)"
+edcpu16coff.c: $(srcdir)/emulparams/dcpu16coff.sh \
+  $(srcdir)/emultempl/dcpu16coff.em $(srcdir)/scripttempl/dcpu16coff.sc ${GEN_DEPENDS}
+	${GENSCRIPTS} dcpu16coff "$(tdir_dcpu16coff)"
 edelta68.c: $(srcdir)/emulparams/delta68.sh \
   $(srcdir)/emultempl/generic.em $(srcdir)/scripttempl/delta68.sc ${GEN_DEPENDS}
 	${GENSCRIPTS} delta68 "$(tdir_delta68)"

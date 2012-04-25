@@ -365,6 +365,8 @@ TARGET_LIBOPCODES_CFILES = \
 	d10v-opc.c \
 	d30v-dis.c \
 	d30v-opc.c \
+	dcpu16-dis.c \
+	dcpu16-opc.c \
 	dlx-dis.c \
 	epiphany-asm.c \
 	epiphany-desc.c \
@@ -748,6 +750,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/d10v-opc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/d30v-dis.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/d30v-opc.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dcpu16-dis.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dcpu16-opc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dis-buf.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dis-init.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/disassemble.Plo@am__quote@

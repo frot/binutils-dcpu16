@@ -1960,6 +1960,7 @@ enum bfd_architecture
 #define bfd_mach_d10v_ts2      2
 #define bfd_mach_d10v_ts3      3
   bfd_arch_d30v,      /* Mitsubishi D30V */
+  bfd_arch_dcpu16,      /* Mojang DCPU-16 */
   bfd_arch_dlx,       /* DLX */
   bfd_arch_m68hc11,   /* Motorola 68HC11 */
   bfd_arch_m68hc12,   /* Motorola 68HC12 */

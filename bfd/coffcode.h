@@ -2452,6 +2452,12 @@ coff_set_arch_mach_hook (bfd *abfd, void * filehdr)
       break;
 #endif
 
+#ifdef DCPU16_MAGIC
+    case DCPU16_MAGIC:
+      arch = bfd_arch_dcpu16;
+      break;
+#endif
+
     default:			/* Unreadable input file type.  */
       arch = bfd_arch_obscure;
       break;
@@ -3052,6 +3058,12 @@ coff_set_flags (bfd * abfd,
 #ifdef W65MAGIC
     case bfd_arch_w65:
       *magicp = W65MAGIC;
+      return TRUE;
+#endif
+
+#ifdef DCPU16_MAGIC
+    case bfd_arch_dcpu16:
+      *magicp = DCPU16_MAGIC;
       return TRUE;
 #endif
 
@@ -4146,6 +4158,11 @@ coff_write_object_contents (bfd * abfd)
 #ifdef OR32
 #define __A_MAGIC_SET__
     internal_a.magic = NMAGIC; /* Assume separate i/d.  */
+#endif
+
+#ifdef DCPU16_MAGIC
+#define __A_MAGIC_SET__
+    internal_a.magic = DCPU16_MAGIC;
 #endif
 
 #ifndef __A_MAGIC_SET__

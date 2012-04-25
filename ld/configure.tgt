@@ -147,6 +147,8 @@ d30v-*-*ext*)		targ_emul=d30v_e; targ_extra_emuls="d30velf d30v_o" ;;
 d30v-*-*onchip*)	targ_emul=d30v_o; targ_extra_emuls="d30velf d30v_e" ;;
 d30v-*-*)		targ_emul=d30velf; targ_extra_emuls="d30v_e d30v_o"
 			;;
+dcpu16-*-*)		targ_emul=dcpu16coff
+			;;
 dlx-*-elf*)		targ_emul=elf32_dlx
 			;;
 epiphany-*-elf)		targ_emul=elf32epiphany
