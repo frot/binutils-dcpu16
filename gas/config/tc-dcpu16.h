@@ -26,7 +26,7 @@
 /* The target BFD architecture.  */
 #define TARGET_ARCH              bfd_arch_dcpu16
 
-#define TARGET_BYTES_LITTLE_ENDIAN  1
+#define TARGET_BYTES_BIG_ENDIAN  0
 #define OCTETS_PER_BYTE_POWER 1
 
 #define md_operand(x)
@@ -48,7 +48,7 @@
 /* We don't need to handle .word strangely.  */
 #define WORKING_DOT_WORD
 
-#define md_number_to_chars           number_to_chars_bigendian
+#define md_number_to_chars           number_to_chars_littleendian
 
 /* No shared lib support, so we don't need to ensure externally
    visible symbols can be overridden.  */
