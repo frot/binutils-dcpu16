@@ -1,3 +1,25 @@
+		   README for DCPU-16 binutils
+
+Assembler, linker and other tools for the DCPU-16 virtual processor.
+Supports version 1.3 of the dcpu-16 specs.
+
+Note: Does currently not support operands with "PICK n" syntax.
+      Use "[n+SP]" instead.
+
+
+Build instructions
+
+In the binutils-dcpu16 base directory:
+
+mkdir build
+cd build
+
+../configure --target=dcpu16-unknown-coff
+make
+make install
+
+
+
 		   README for GNU development tools
 
 This directory contains various GNU compilers, assemblers, linkers, 
