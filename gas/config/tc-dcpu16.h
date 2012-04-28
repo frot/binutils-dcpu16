@@ -1,4 +1,5 @@
 /* tc-dcpu16.h -- Header file for tc-dcpu16.c.
+   Copyright 2012 Fredrik Rothamel
 
    This file is part of GAS, the GNU Assembler.
 
@@ -25,13 +26,15 @@
 /* The target BFD architecture.  */
 #define TARGET_ARCH              bfd_arch_dcpu16
 
-#define TARGET_BYTES_BIG_ENDIAN  1
+#define TARGET_BYTES_LITTLE_ENDIAN  1
 #define OCTETS_PER_BYTE_POWER 1
 
 #define md_operand(x)
 #define md_convert_frag(b,s,f)   as_fatal ("convert_frag called\n")
 #define md_estimate_size_before_relax(f,s) \
   (as_fatal (_("estimate_size_before_relax called")), 1)
+
+# define md_register_arithmetic 0
 
 #define LABELS_START_WITH_COLON 1
 #define TC_START_LABEL_DELIMITER(c) (c == ':')

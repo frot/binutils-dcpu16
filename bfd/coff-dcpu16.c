@@ -1,4 +1,5 @@
 /* BFD back-end for Mojang DCPU-16 COFF binaries.
+   Copyright 2012 Fredrik Rothamel
 
    This file is part of BFD, the Binary File Descriptor library.
 
@@ -139,6 +140,6 @@ reloc_processing (arelent *relent,
   rtype2howto (relent, reloc);
 }
 
-CREATE_BIG_COFF_TARGET_VEC (dcpu16_coff_vec, "coff-dcpu16", 0,
+CREATE_LITTLE_COFF_TARGET_VEC (dcpu16_coff_vec, "coff-dcpu16", 0,
 			    SEC_CODE | SEC_DATA, '\0', NULL, 
 			    COFF_SWAP_TABLE)

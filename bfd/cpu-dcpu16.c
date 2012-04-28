@@ -1,4 +1,5 @@
 /* BFD support for the Mojang DCPU-16 processor.
+   Copyright 2012 Fredrik Rothamel
 
    This file is part of BFD, the Binary File Descriptor library.
 

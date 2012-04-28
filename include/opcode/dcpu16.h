@@ -1,4 +1,5 @@
 /* dcpu16.h -- Header file for DCPU-16 opcode table
+   Copyright 2012 Fredrik Rothamel
 
    This file is part of GDB, GAS, and the GNU binutils.
 
@@ -34,7 +35,6 @@ struct dcpu16_opcode
 };
 
 extern const struct dcpu16_opcode dcpu16_opcode_table[];
-//extern const int dcpu16_num_opcodes;
 
 /* The operands table is an array of struct dcpu16_operand.  */
 struct dcpu16_operand
@@ -45,12 +45,28 @@ struct dcpu16_operand
   /* value of instruction operand field (6 bits) */
   int value;
 
+  /* only valid as source or destination operand */
+  int op_pos;
+
   /* value is longer than 6 bits */
   int is_long;
 
-  /*extended  operand value (16 bits) */
+  /* extended  operand value (16 bits) */
   int long_value;
 };
+
 extern const struct dcpu16_operand dcpu16_operand_table[];
+
+/* The registers table is an array of struct dcpu16_register.  */
+struct dcpu16_register
+{
+  /* The register name */
+  const char* name;
+
+  /* Register index or -1 for reserved names */
+  int index;
+};
+
+extern const struct dcpu16_register dcpu16_register_table[];
 
 #endif /* DCPU16_H */

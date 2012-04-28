@@ -1,4 +1,5 @@
 /* tc-dcpu16.c -- Assembler code for the Mojang DCPU16
+   Copyright 2012 Fredrik Rothamel
 
    This file is part of GAS, the GNU Assembler.
 
@@ -89,26 +90,48 @@ void
 md_begin (void)
 {
   struct dcpu16_opcode *opcode;
-  dcpu16_opcode_hash = hash_new ();
-
   struct dcpu16_operand *operand;
-  dcpu16_operand_hash = hash_new ();
+  struct dcpu16_register *reg;
 
   /* Insert opcode names into a hash table.  */
-  for (opcode = (struct dcpu16_opcode *) dcpu16_opcode_table; opcode->name; opcode++)
-      hash_insert (dcpu16_opcode_hash, opcode->name, (char *) opcode);
+  dcpu16_opcode_hash = hash_new ();
 
-  /* Insert known operand names into a hash table.  */
+  for (opcode = (struct dcpu16_opcode *) dcpu16_opcode_table; opcode->name; opcode++)
+    {
+      hash_insert (dcpu16_opcode_hash, opcode->name, (char *) opcode);
+    }
+
+  /* Insert known operand strings into a hash table.  */
+  dcpu16_operand_hash = hash_new ();
+
   for (operand = (struct dcpu16_operand *) dcpu16_operand_table; operand->name; operand++)
+    {
       hash_insert (dcpu16_operand_hash, operand->name, (char *) operand);
+    }
+
+  /* insert register names and reserved words in the symbol table */
+  for (reg = (struct dcpu16_register *) dcpu16_register_table; reg->name; reg++)
+    {
+      symbol_table_insert (symbol_create (reg->name,
+					  reg_section,
+					  reg->index,
+					  &zero_address_frag));
+    }
+
+  symbol_print_statistics (stderr);
 }
 
 #define NAME_BUF_LEN 10
 
 static void
-parse_operand (struct dcpu16_operand *operand)
+parse_operand (int pos, struct dcpu16_operand *operand)
 {
-  static expressionS *exp = 0;
+  expressionS expS;
+  expressionS *expP = &expS;
+
+  expressionS *tmp_exp1 = 0;
+  expressionS *tmp_exp2 = 0;
+
   int indirect = 0;
   int regnum = -1;
   char *p;
@@ -136,6 +159,11 @@ parse_operand (struct dcpu16_operand *operand)
 
       if (op)
 	{
+	  if(op->op_pos && op->op_pos != pos)
+	    {
+	      as_bad (_("illegal operand"));
+	      return;
+	    }
 	  input_line_pointer = p;
 	  operand->value = op->value;
 	  return;
@@ -147,36 +175,45 @@ parse_operand (struct dcpu16_operand *operand)
     {
       indirect=1;
       input_line_pointer++;
+    }
 
-      /* check for [addr + reg] expressions */
-      for (p = input_line_pointer; *p && *p != ']' && *p != ','; p++);
+  expression (expP);
 
-      if (*p == ']' && ISALPHA(*(p-1)) && *(p-2) == '+')
+  if (expP->X_op == O_illegal)
+    {
+      as_bad (_("illegal operand"));
+      return;
+    }
+  else if (expP->X_op == O_absent)
+    {
+      as_bad (_("missing operand"));
+      return;
+    }
+  else if (expP->X_op == O_add)
+    {
+      tmp_exp1 = symbol_get_value_expression (expP->X_add_symbol);
+      tmp_exp2 = symbol_get_value_expression (expP->X_op_symbol);
+
+      if (tmp_exp1->X_op == O_register 
+	  && (tmp_exp2->X_op == O_constant || tmp_exp2->X_op == O_symbol))
 	{
-	  *(p-2) = ',';
+	  regnum = tmp_exp1->X_add_number;
+	  expP = tmp_exp2;
+	}
+      else if (tmp_exp2->X_op == O_register 
+	  && (tmp_exp1->X_op == O_constant || tmp_exp1->X_op == O_symbol))
+	{
+	  regnum = tmp_exp2->X_add_number;
+	  expP = tmp_exp1;
+	}
+      else 
+	{
+	  as_bad (_("illegal operand"));
 	}
     }
 
-  if (!exp)
-    exp = xmalloc(sizeof(expressionS));
-
-  expression (exp);
-
   if (indirect)
     {
-      if (*input_line_pointer == ',')
-	{
-	  input_line_pointer++;
-	  opname[0] = TOLOWER (*input_line_pointer);
-	  op = (struct dcpu16_operand *) hash_find_n (dcpu16_operand_hash, opname, 1);
-
-	  if (op)
-	    {
-	      input_line_pointer++;
-	      regnum = op->value;
-	    }
-	}
-
       if (*input_line_pointer==']')
 	{
 	  input_line_pointer++;
@@ -189,11 +226,19 @@ parse_operand (struct dcpu16_operand *operand)
 
   if (indirect)
     {
-      if (regnum >= 0)
+      if (regnum == 0x18)
+	{
+	  operand->value = 0x18;
+	  operand->is_long = 1;
+	  operand->long_value = expP->X_add_number;
+	  frag = frag_more (2);
+	  md_number_to_chars (frag, operand->long_value, 2);
+	}
+      else if (regnum >= 0)
 	{
 	  operand->value = 0x10 | regnum;
 	  operand->is_long = 1;
-	  operand->long_value = exp->X_add_number;
+	  operand->long_value = expP->X_add_number;
 	  frag = frag_more (2);
 	  md_number_to_chars (frag, operand->long_value, 2);
 	}
@@ -201,31 +246,30 @@ parse_operand (struct dcpu16_operand *operand)
 	{
 	  operand->value = 0x1e;
 	  operand->is_long = 1;
-	  operand->long_value = exp->X_add_number;
+	  operand->long_value = expP->X_add_number;
 	  frag = frag_more (2);
 	  md_number_to_chars (frag, operand->long_value, 2);
 	}
     }
   else
     {
-      if (exp->X_op == O_constant && exp->X_add_number < 0x20)
+      if (pos == 2 && expP->X_op == O_constant && expP->X_add_number < 0x1f)
 	{
-	  operand->value = 0x20 | exp->X_add_number;
+	  operand->value = 0x21 + expP->X_add_number;
 	}
       else
 	{
 	  operand->value = 0x1f;
 	  operand->is_long = 1;
-	  operand->long_value = exp->X_add_number;
+	  operand->long_value = expP->X_add_number;
 	  frag = frag_more (2);
 	  md_number_to_chars (frag, operand->long_value, 2);
 	}
     }
-
-  if (frag && exp->X_op != O_constant)
+  
+  if (frag && expP->X_op != O_constant)
     {
-      fix_new_exp (frag_now, (frag - frag_now->fr_literal), 2, exp, 0, BFD_RELOC_16);
-      exp=0;
+      fix_new_exp (frag_now, (frag - frag_now->fr_literal), 2, expP, 0, BFD_RELOC_16);
     }
 }
 
@@ -238,7 +282,7 @@ void
 md_assemble (char *str)
 {
   struct dcpu16_opcode *opcode;
-  struct dcpu16_operand operand[2] = { { 0, 0, 0, 0 }, { 0, 0, 0, 0 } };
+  struct dcpu16_operand operand[2] = { { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 } };
 
   char *p;
   int  nlen = 0;
@@ -272,7 +316,7 @@ md_assemble (char *str)
 	}
 
       input_line_pointer = p+1;
-      parse_operand (&operand[0]);
+      parse_operand (1, &operand[0]);
 
       if (*input_line_pointer == ',')
 	{
@@ -283,7 +327,7 @@ md_assemble (char *str)
 	    }
 
 	  input_line_pointer++;
-	  parse_operand (&operand[1]);
+	  parse_operand (2, &operand[1]);
 	}
     }
 
@@ -302,7 +346,7 @@ md_assemble (char *str)
     }
   else if (opcode->args == 2)
     {
-      op |= (operand[0].value << 4);
+      op |= (operand[0].value << 5);
       op |= (operand[1].value << 10);
     }
   
