@@ -48,9 +48,6 @@ size_t md_longopts_size = sizeof (md_longopts);
 /* Opcode hash table.  */
 static struct hash_control *dcpu16_opcode_hash;
 
-/* Simple operands hash table.  */
-static struct hash_control *dcpu16_operand_hash;
-
 void
 md_show_usage (FILE *stream ATTRIBUTE_UNUSED)
 {
@@ -89,39 +86,25 @@ md_pcrel_from (fixS *fixP ATTRIBUTE_UNUSED)
 void
 md_begin (void)
 {
-  struct dcpu16_opcode *opcode;
-  struct dcpu16_operand *operand;
-  struct dcpu16_register *reg;
+  int i;
 
   /* Insert opcode names into a hash table.  */
   dcpu16_opcode_hash = hash_new ();
 
-  for (opcode = (struct dcpu16_opcode *) dcpu16_opcode_table; opcode->name; opcode++)
+  for (i=0; dcpu16_opcode_table[i].name; i++)
     {
-      hash_insert (dcpu16_opcode_hash, opcode->name, (char *) opcode);
+      hash_insert (dcpu16_opcode_hash, dcpu16_opcode_table[i].name, (char *)&dcpu16_opcode_table[i]);
     }
 
-  /* Insert known operand strings into a hash table.  */
-  dcpu16_operand_hash = hash_new ();
-
-  for (operand = (struct dcpu16_operand *) dcpu16_operand_table; operand->name; operand++)
+  /* Insert register names and reserved words in the symbol table */
+  for (i=0; dcpu16_register_table[i].name; i++)
     {
-      hash_insert (dcpu16_operand_hash, operand->name, (char *) operand);
-    }
-
-  /* insert register names and reserved words in the symbol table */
-  for (reg = (struct dcpu16_register *) dcpu16_register_table; reg->name; reg++)
-    {
-      symbol_table_insert (symbol_create (reg->name,
+      symbol_table_insert (symbol_create (dcpu16_register_table[i].name,
 					  reg_section,
-					  reg->index,
+					  i,
 					  &zero_address_frag));
     }
-
-  symbol_print_statistics (stderr);
 }
-
-#define NAME_BUF_LEN 10
 
 static void
 parse_operand (int pos, struct dcpu16_operand *operand)
@@ -132,62 +115,52 @@ parse_operand (int pos, struct dcpu16_operand *operand)
   expressionS *tmp_exp1 = 0;
   expressionS *tmp_exp2 = 0;
 
-  int indirect = 0;
-  int regnum = -1;
   char *p;
-  char opname[NAME_BUF_LEN];
-  int oplen = 0;
-  struct dcpu16_operand *op;
+  int indirect = 0;
+  int pre_decrement = 0;
+  int post_increment = 0;
   char *frag = 0;
+  const struct dcpu16_register *reg = 0;
 
-  /* First try to match against list of known simple operands */
-  for (p = input_line_pointer; *p && oplen < NAME_BUF_LEN && *p != ','; p++)
-    {
-      opname[oplen] = TOLOWER (*p);
-      oplen++;
-    }
-
-  if (oplen == 0)
-    {
-      as_bad (_("operand expected"));
-      return;
-    }
-    
-  if (oplen < NAME_BUF_LEN)
-    {
-      op = (struct dcpu16_operand *) hash_find_n (dcpu16_operand_hash, opname, oplen);
-
-      if (op)
-	{
-	  if(op->op_pos && op->op_pos != pos)
-	    {
-	      as_bad (_("illegal operand"));
-	      return;
-	    }
-	  input_line_pointer = p;
-	  operand->value = op->value;
-	  return;
-	}
-    }
-
-  /* No simple match, evaluate expression */
   if (*input_line_pointer == '[')
     {
       indirect=1;
       input_line_pointer++;
+
+      if (*input_line_pointer == '-'
+	  && *(input_line_pointer+1) == '-')
+	{
+	  pre_decrement = 1;
+	  input_line_pointer += 2;
+	}
+
+      for (p=input_line_pointer; *p && *p != ']'; p++);
+      if (*p == ']' && *(p-1) == '+' && *(p-2) == '+')
+	{
+	  if (pre_decrement)
+	    {
+	      as_bad (_("illegal expression"));
+	      return;
+	    }
+
+	  post_increment = 1;
+	  *(p-2) = ']';
+	  *(p-1)= ' ';
+	  *p = ' ';
+	}
     }
 
   expression (expP);
 
-  if (expP->X_op == O_illegal)
-    {
-      as_bad (_("illegal operand"));
-      return;
-    }
-  else if (expP->X_op == O_absent)
+  if (expP->X_op == O_absent)
     {
       as_bad (_("missing operand"));
       return;
+    }
+  else if (expP->X_op == O_register)
+    {
+      reg = &dcpu16_register_table[expP->X_add_number];
+      expP = 0;
     }
   else if (expP->X_op == O_add)
     {
@@ -197,80 +170,142 @@ parse_operand (int pos, struct dcpu16_operand *operand)
       if (tmp_exp1->X_op == O_register 
 	  && (tmp_exp2->X_op == O_constant || tmp_exp2->X_op == O_symbol))
 	{
-	  regnum = tmp_exp1->X_add_number;
+	  reg = &dcpu16_register_table[tmp_exp1->X_add_number];
 	  expP = tmp_exp2;
 	}
       else if (tmp_exp2->X_op == O_register 
 	  && (tmp_exp1->X_op == O_constant || tmp_exp1->X_op == O_symbol))
 	{
-	  regnum = tmp_exp2->X_add_number;
+	  reg = &dcpu16_register_table[tmp_exp2->X_add_number];
 	  expP = tmp_exp1;
 	}
       else 
 	{
 	  as_bad (_("illegal operand"));
+	  return;
 	}
+    }
+  else if (expP->X_op != O_constant && expP->X_op != O_symbol)
+    {
+      as_bad (_("illegal operand"));
+      return;
+    }
+
+  if (reg 
+      && ((reg->pos && reg->pos != pos)
+	  || (indirect && !reg->indirect)
+	  || (!indirect && expP)))
+    {
+      as_bad (_("illegal operand"));
+      return;
     }
 
   if (indirect)
     {
-      if (*input_line_pointer==']')
+      if (*input_line_pointer == ']')
 	{
 	  input_line_pointer++;
 	}
       else
 	{
 	  as_bad (_("] expected"));
+	  return;
 	}
     }
 
-  if (indirect)
+  if (reg)
     {
-      if (regnum == 0x18)
+      operand->value = reg->index;
+
+      if (indirect)
 	{
-	  operand->value = 0x18;
-	  operand->is_long = 1;
-	  operand->long_value = expP->X_add_number;
-	  frag = frag_more (2);
-	  md_number_to_chars (frag, operand->long_value, 2);
+	  if (reg->index < 0x08)
+	    {
+	      operand->value += 0x08;
+
+	      if (expP)
+		{
+		  operand->value += 0x08;
+		  operand->is_long = 1;
+		  operand->long_value = expP->X_add_number;
+		}
+	    }
+	  else if (reg->index == REG_INDEX_SP)
+	    {
+	      if (pre_decrement || post_increment)
+		{
+		  if (expP)
+		    {
+		      as_bad (_("illegal expression"));
+		      return;
+		    }
+		  operand->value = 0x18;
+		  pre_decrement = 0;
+		  post_increment = 0;
+		}
+	      else if (expP)
+		{
+		  operand->value = 0x1e;
+		  operand->is_long = 1;
+		  operand->long_value = expP->X_add_number;
+		}
+	      else
+		operand->value = 0x19;
+	    }
 	}
-      else if (regnum >= 0)
+      else if (reg->index == REG_INDEX_PICK)
 	{
-	  operand->value = 0x10 | regnum;
-	  operand->is_long = 1;
-	  operand->long_value = expP->X_add_number;
-	  frag = frag_more (2);
-	  md_number_to_chars (frag, operand->long_value, 2);
-	}
-      else
-	{
-	  operand->value = 0x1e;
-	  operand->is_long = 1;
-	  operand->long_value = expP->X_add_number;
-	  frag = frag_more (2);
-	  md_number_to_chars (frag, operand->long_value, 2);
+	  expP = &expS;
+	  expression (expP);
+
+	  if (expP->X_op == O_constant || expP->X_op == O_symbol)
+	    {
+		  operand->value = 0x1e;
+		  operand->is_long = 1;
+		  operand->long_value = expP->X_add_number;
+	    }
+	  else
+	    {
+	      as_bad (_("illegal expression"));
+	      return;
+	    }
 	}
     }
   else
     {
-      if (pos == 2 && expP->X_op == O_constant && expP->X_add_number < 0x1f)
+      if (!indirect && pos == 2 
+	  && expP->X_op == O_constant && expP->X_add_number < 0x1f)
 	{
 	  operand->value = 0x21 + expP->X_add_number;
 	}
       else
 	{
-	  operand->value = 0x1f;
+	  operand->value = indirect ? 0x1e : 0x1f;
 	  operand->is_long = 1;
 	  operand->long_value = expP->X_add_number;
-	  frag = frag_more (2);
-	  md_number_to_chars (frag, operand->long_value, 2);
 	}
     }
+
+  if (pre_decrement || post_increment)
+    {
+      as_bad (_("illegal expression"));
+      return;
+    }
+
+  if (operand->is_long)
+    {
+      frag = frag_more (2);
+      md_number_to_chars (frag, operand->long_value, 2);
+    }
   
-  if (frag && expP->X_op != O_constant)
+  if (frag && expP && expP->X_op == O_symbol)
     {
       fix_new_exp (frag_now, (frag - frag_now->fr_literal), 2, expP, 0, BFD_RELOC_16);
     }
+
+  /* skip trailing whitespace */
+  while (*input_line_pointer && *input_line_pointer == ' ')
+      input_line_pointer++;
 }
 
 /* This is the main entry point for the machine-dependent assembler.

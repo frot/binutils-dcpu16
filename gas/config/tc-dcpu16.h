@@ -54,6 +54,7 @@
    visible symbols can be overridden.  */
 #define EXTERN_FORCE_RELOC 0
 
-#define LISTING_WORD_SIZE 2
+#define LISTING_HEADER "Mojang DCPU-16 v1.7"
+#define LISTING_WORD_SIZE 6
 
 #endif

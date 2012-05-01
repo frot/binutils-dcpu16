@@ -28,12 +28,13 @@ struct dcpu16_opcode
   const char *name;
 
   /* the opcode */
-  int op;
+  unsigned short op;
 
   /* number of arguments */
   int args;
 };
 
+#define DCPU16_INSN_COUNT 32
 extern const struct dcpu16_opcode dcpu16_opcode_table[];
 
 /* The operands table is an array of struct dcpu16_operand.  */
@@ -55,7 +56,10 @@ struct dcpu16_operand
   int long_value;
 };
 
-extern const struct dcpu16_operand dcpu16_operand_table[];
+#define REG_INDEX_PICK	0x1a
+#define REG_INDEX_SP	0x1b
+#define REG_INDEX_PC	0x1c
+#define REG_INDEX_EX	0x1d
 
 /* The registers table is an array of struct dcpu16_register.  */
 struct dcpu16_register
@@ -63,8 +67,14 @@ struct dcpu16_register
   /* The register name */
   const char* name;
 
-  /* Register index or -1 for reserved names */
+  /* Register index */
   int index;
+
+  /* Indirect adress allowed */
+  int indirect;
+
+  /* Operand position */
+  int pos;
 };
 
 extern const struct dcpu16_register dcpu16_register_table[];

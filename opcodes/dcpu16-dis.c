@@ -22,87 +22,38 @@
 #include "sysdep.h"
 #include "dis-asm.h"
 #include "opintl.h"
+#include "opcode/dcpu16.h"
 
-const char* insn_names[] = {
-  "extended",	/* 0x00 */
-  "set",	/* 0x01 */
-  "add",	/* 0x02 */
-  "sub",	/* 0x03 */
-  "mul",	/* 0x04 */
-  "mli",	/* 0x05 */
-  "div",	/* 0x06 */
-  "dvi",	/* 0x07 */
-  "mod",	/* 0x08 */
-  "and",	/* 0x09 */
-  "bor",	/* 0x0a */
-  "xor",	/* 0x0b */
-  "shr",	/* 0x0c */
-  "asr",	/* 0x0d */
-  "shl",	/* 0x0e */
-  "**0x0f**",	/* 0x0f */
-  "ifb",	/* 0x10 */
-  "ifc",	/* 0x11 */
-  "ife",	/* 0x12 */
-  "ifn",	/* 0x13 */
-  "ifg",	/* 0x14 */
-  "ifa",	/* 0x15 */
-  "ifl",	/* 0x16 */
-  "ifu"		/* 0x17 */
-  "**0x18**",	/* 0x18 */
-  "**0x19**",	/* 0x19 */
-  "**0x1a**",	/* 0x1a */
-  "**0x1b**",	/* 0x1b */
-  "**0x1c**",	/* 0x1c */
-  "**0x1d**",	/* 0x1d */
-  "**0x1e**",	/* 0x1e */
-  "**0x1f**"	/* 0x1f */
-};
+static const struct dcpu16_opcode *
+lookup_instruction(unsigned short opcode)
+{
+  int start = 0;
+  int end = DCPU16_INSN_COUNT;
+  int mid;
 
-const char* ext_insn_names[] = { 
-  "**0x00**",	/* 0x00 */
-  "jsr",	/* 0x01 */
-  "**0x02**",	/* 0x02 */
-  "**0x03**",	/* 0x03 */
-  "**0x04**",	/* 0x04 */
-  "**0x05**",	/* 0x05 */
-  "**0x06**",	/* 0x06 */
-  "**0x07**",	/* 0x07 */
-  "int",	/* 0x08 */
-  "ing",	/* 0x09 */
-  "ins",	/* 0x0a */
-  "**0x0b**",	/* 0x0b */
-  "**0x0c**",	/* 0x0c */
-  "**0x0d**",	/* 0x0d */
-  "**0x0e**",	/* 0x0e */
-  "**0x0f**",	/* 0x0f */
-  "hwn",	/* 0x10 */
-  "hwq",	/* 0x11 */
-  "hwi",	/* 0x12 */
-  "**0x13**",	/* 0x13 */
-  "**0x14**",	/* 0x14 */
-  "**0x15**",	/* 0x15 */
-  "**0x16**",	/* 0x16 */
-  "**0x17**",	/* 0x17 */
-  "**0x18**",	/* 0x18 */
-  "**0x19**",	/* 0x19 */
-  "**0x1a**",	/* 0x1a */
-  "**0x1b**",	/* 0x1b */
-  "**0x1c**",	/* 0x1c */
-  "**0x1d**",	/* 0x1d */
-  "**0x1e**",	/* 0x1e */
-  "**0x1f**",	/* 0x1f */
-};
+  /* Optimize the common case */
+  if (opcode == 0x0001)
+    return &dcpu16_opcode_table[0];
 
-const char* reg_names[] = {
-    "A",
-    "B",
-    "C",
-    "X",
-    "Y",
-    "Z",
-    "I",
-    "J"
-};
+  /* Search the opcode table */
+  while (start < end)
+    {
+      mid = (start+end) / 2;
+
+      if (opcode < dcpu16_opcode_table[mid].op)
+	{
+	  end = mid;
+	}
+      else if (opcode > dcpu16_opcode_table[mid].op)
+	{
+	  start = mid + 1;
+	}
+      else
+	return &dcpu16_opcode_table[mid];
+    }
+
+  return 0;
+}
 
 static int
 print_operand (bfd_vma memaddr, struct disassemble_info *info, int arg, int is_dest)
@@ -124,17 +75,17 @@ print_operand (bfd_vma memaddr, struct disassemble_info *info, int arg, int is_d
 
   if (arg < 0x08)
     {
-      (*info->fprintf_func) (info->stream, "%s", reg_names[arg]);
+      (*info->fprintf_func) (info->stream, "%s", dcpu16_register_table[arg].name);
       return 0;
     }
   if (arg < 0x10)
     {
-      (*info->fprintf_func) (info->stream, "[%s]", reg_names[arg&0x7]);
+      (*info->fprintf_func) (info->stream, "[%s]", dcpu16_register_table[arg&0x7].name);
       return 0;
     }
   if (arg < 0x18)
     {
-	(*info->fprintf_func) (info->stream, "[%s+0x%04x]", reg_names[arg&0x7], w);
+	(*info->fprintf_func) (info->stream, "[%s+0x%04x]", dcpu16_register_table[arg&0x7].name, w);
       return 1;
     }
 
@@ -178,7 +129,8 @@ print_insn_dcpu16 (bfd_vma memaddr, struct disassemble_info *info)
 {
   int status, result;
   bfd_byte buffer[8];
-  unsigned short op;
+  unsigned short opcode;
+  const struct dcpu16_opcode *op;
 
   info->bytes_per_line = 6;
   info->bytes_per_chunk = 2;
@@ -190,21 +142,29 @@ print_insn_dcpu16 (bfd_vma memaddr, struct disassemble_info *info)
       (*info->memory_error_func) (status, memaddr, info);
       return -1;
     }
-  op = bfd_getl16 (buffer);
+  opcode = bfd_getl16 (buffer);
 
   result = 1;
 
-  if (op & 0x1f)
+  if (opcode & 0x1f)
     {
-      (*info->fprintf_func) (info->stream, "%s\t", insn_names[op&0x1f]);
-      result += print_operand(memaddr+result, info, (op>>5)&0x1f, 1);
+      op = lookup_instruction (opcode&0x1f);
+      if (op)
+	(*info->fprintf_func) (info->stream, "%s\t", op->name);
+      else
+	(*info->fprintf_func) (info->stream, "**%02x**\t", opcode&0x1f);
+      result += print_operand(memaddr+result, info, (opcode>>5)&0x1f, 1);
       (*info->fprintf_func) (info->stream, ", ");
-      result += print_operand(memaddr+result, info, op>>10, 0);
+      result += print_operand(memaddr+result, info, opcode>>10, 0);
     }
   else
     {
-      (*info->fprintf_func) (info->stream, "%s\t", ext_insn_names[(op>>5)&0x1f]);
-      result += print_operand(memaddr+result, info, op>>10, 0);
+      op = lookup_instruction (opcode&0x3ff);
+      if (op)
+	(*info->fprintf_func) (info->stream, "%s\t", op->name);
+      else
+	(*info->fprintf_func) (info->stream, "**%02x**\t", opcode&0x1f);
+      result += print_operand(memaddr+result, info, opcode>>10, 0);
     }
 
   return 2*result;
