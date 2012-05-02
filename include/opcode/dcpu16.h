@@ -34,7 +34,7 @@ struct dcpu16_opcode
   int args;
 };
 
-#define DCPU16_INSN_COUNT 32
+#define DCPU16_INSN_COUNT 33
 extern const struct dcpu16_opcode dcpu16_opcode_table[];
 
 /* The operands table is an array of struct dcpu16_operand.  */

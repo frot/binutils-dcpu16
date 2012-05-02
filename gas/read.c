@@ -1137,6 +1137,57 @@ read_a_source_file (char *name)
 	  if (is_end_of_line[(unsigned char) c])
 	    continue;
 
+#ifdef TC_START_LABEL_DELIMITER
+	  if (TC_START_LABEL_DELIMITER (c) 
+	      && (LOCAL_LABELS_DOLLAR || LOCAL_LABELS_FB) 
+	      && ISDIGIT (*input_line_pointer))
+	    {
+	      /* local label  (":4")  */
+	      char *backup = input_line_pointer;
+
+	      HANDLE_CONDITIONAL_ASSEMBLY ();
+
+	      temp = 0;
+
+	      /* Read the whole number.  */
+	      while (ISDIGIT (*input_line_pointer))
+		{
+		  temp = (temp * 10) + *input_line_pointer - '0';
+		  ++input_line_pointer;
+		}
+
+	      if (LOCAL_LABELS_DOLLAR
+		  && *input_line_pointer == '$'
+		  && ( *(input_line_pointer + 1) == ' '
+		       || *(input_line_pointer + 1) == '\t'
+		       || is_end_of_line[(unsigned char) *(input_line_pointer + 1)]))
+		{
+		  input_line_pointer += 2;
+
+		  if (dollar_label_defined (temp))
+		    {
+		      as_fatal (_("label \"%d$\" redefined"), temp);
+		    }
+
+		  define_dollar_label (temp);
+		  colon (dollar_label_name (temp, 0));
+		  continue;
+		}
+
+	      if (LOCAL_LABELS_FB
+		  && ( *input_line_pointer == ' '
+		       || *input_line_pointer == '\t'
+		       || is_end_of_line[(unsigned char) *input_line_pointer]))
+		{
+		  fb_label_instance_inc (temp);
+		  colon (fb_label_name (temp, 0));
+		  continue;
+		}
+
+	      input_line_pointer = backup;
+	    }			/* local label  (":4") */
+#endif
+
 	  if ((LOCAL_LABELS_DOLLAR || LOCAL_LABELS_FB) && ISDIGIT (c))
 	    {
 	      /* local label  ("4:")  */
