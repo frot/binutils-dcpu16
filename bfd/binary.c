@@ -250,7 +250,7 @@ binary_set_section_contents (bfd *abfd,
 
       for (s = abfd->sections; s != NULL; s = s->next)
 	{
-	  s->filepos = s->lma - low;
+	  s->filepos = (s->lma - low) * bfd_octets_per_byte (abfd);
 
 	  /* Skip following warning check for sections that will not
 	     occupy file space.  */
