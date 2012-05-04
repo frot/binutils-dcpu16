@@ -70,7 +70,7 @@ print_operand (bfd_vma memaddr, struct disassemble_info *info, int arg, int is_d
 	  (*info->memory_error_func) (status, memaddr, info);
 	  return -1;
 	}
-      w = bfd_getl16 (buffer);
+      w = bfd_getb16 (buffer);
     }
 
   if (arg < 0x08)
@@ -134,7 +134,7 @@ print_insn_dcpu16 (bfd_vma memaddr, struct disassemble_info *info)
 
   info->bytes_per_line = 6;
   info->bytes_per_chunk = 2;
-  info->display_endian = BFD_ENDIAN_LITTLE;
+  info->display_endian = BFD_ENDIAN_BIG;
 
   status = (*info->read_memory_func) (memaddr, buffer, 2, info);
   if (status != 0)
@@ -142,7 +142,7 @@ print_insn_dcpu16 (bfd_vma memaddr, struct disassemble_info *info)
       (*info->memory_error_func) (status, memaddr, info);
       return -1;
     }
-  opcode = bfd_getl16 (buffer);
+  opcode = bfd_getb16 (buffer);
 
   result = 1;
 

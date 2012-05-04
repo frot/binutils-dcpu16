@@ -106,6 +106,26 @@ md_begin (void)
     }
 }
 
+/* Words are stored big-endian, multi-word values stored little-endian */
+void
+dcpu16_number_to_chars (char *buf, valueT val, int n)
+{
+  if (n==1)
+    {
+      number_to_chars_bigendian (buf, val, 1);
+    }
+  else
+    {
+      while (n>0)
+	{
+	  number_to_chars_bigendian (buf, val & 0xffff, 2);
+	  buf += 2;
+	  val >>= 16;
+	  n -= 2;
+	}
+    }
+}
+
 static void
 parse_operand (int pos, struct dcpu16_operand *operand)
 {

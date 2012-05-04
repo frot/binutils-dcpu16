@@ -23,10 +23,12 @@
 
 #define TC_DCPU16
 
+extern void dcpu16_number_to_chars (char *, valueT, int);
+
 /* The target BFD architecture.  */
 #define TARGET_ARCH              bfd_arch_dcpu16
 
-#define TARGET_BYTES_BIG_ENDIAN  0
+#define TARGET_BYTES_BIG_ENDIAN  1
 #define OCTETS_PER_BYTE_POWER 1
 
 #define md_operand(x)
@@ -34,7 +36,9 @@
 #define md_estimate_size_before_relax(f,s) \
   (as_fatal (_("estimate_size_before_relax called")), 1)
 
-# define md_register_arithmetic 0
+#define md_number_to_chars dcpu16_number_to_chars
+
+#define md_register_arithmetic 0
 
 #define LABELS_START_WITH_COLON 1
 #define TC_START_LABEL_DELIMITER(c) (c == ':')
@@ -48,13 +52,11 @@
 /* We don't need to handle .word strangely.  */
 #define WORKING_DOT_WORD
 
-#define md_number_to_chars           number_to_chars_littleendian
-
 /* No shared lib support, so we don't need to ensure externally
    visible symbols can be overridden.  */
 #define EXTERN_FORCE_RELOC 0
 
 #define LISTING_HEADER "Mojang DCPU-16 v1.7"
-#define LISTING_WORD_SIZE 6
+#define LISTING_WORD_SIZE 2
 
 #endif
