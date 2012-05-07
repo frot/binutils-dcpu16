@@ -241,11 +241,11 @@ parse_operand (int pos, struct dcpu16_operand *operand)
 	{
 	  if (reg->index < 0x08)
 	    {
-	      operand->value += 0x08;
+	      operand->value = 0x08 + reg->index;
 
 	      if (expP)
 		{
-		  operand->value += 0x08;
+		  operand->value = 0x10 + reg->index;
 		  operand->is_long = 1;
 		  operand->long_value = expP->X_add_number;
 		}
@@ -265,7 +265,7 @@ parse_operand (int pos, struct dcpu16_operand *operand)
 		}
 	      else if (expP)
 		{
-		  operand->value = 0x1e;
+		  operand->value = 0x1a;
 		  operand->is_long = 1;
 		  operand->long_value = expP->X_add_number;
 		}
@@ -280,7 +280,7 @@ parse_operand (int pos, struct dcpu16_operand *operand)
 
 	  if (expP->X_op == O_constant || expP->X_op == O_symbol)
 	    {
-		  operand->value = 0x1e;
+		  operand->value = 0x1a;
 		  operand->is_long = 1;
 		  operand->long_value = expP->X_add_number;
 	    }
