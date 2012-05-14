@@ -1,0 +1,8 @@
+# run tests for target Z80.
+
+if [istarget z80-*-*] then {
+# test sample program
+    run_dump_test "sample1"
+# test .byte and .short pseudo ops
+    run_dump_test "byte"
+}
