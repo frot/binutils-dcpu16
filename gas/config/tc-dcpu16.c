@@ -142,11 +142,13 @@ parse_operand (int pos, struct dcpu16_operand *operand)
   char *frag = 0;
   const struct dcpu16_register *reg = 0;
 
+  /* check for indirect operand start */
   if (*input_line_pointer == '[')
     {
       indirect=1;
       input_line_pointer++;
 
+      /* check for -- op */
       if (*input_line_pointer == '-'
 	  && *(input_line_pointer+1) == '-')
 	{
@@ -154,6 +156,7 @@ parse_operand (int pos, struct dcpu16_operand *operand)
 	  input_line_pointer += 2;
 	}
 
+      /* check for ++ op */
       for (p=input_line_pointer; *p && *p != ']'; p++);
       if (*p == ']' && *(p-1) == '+' && *(p-2) == '+')
 	{
@@ -177,13 +180,38 @@ parse_operand (int pos, struct dcpu16_operand *operand)
       as_bad (_("missing operand"));
       return;
     }
-  else if (expP->X_op == O_register)
+
+  if (expP->X_op == O_illegal)
     {
+      as_bad (_("illegal expression"));
+      return;
+    }
+
+  if (!(indirect
+	&& expP->X_op == O_register 
+	&& expP->X_add_number == REG_INDEX_SP)
+      && (pre_decrement || post_increment))
+    {
+      as_bad (_("++ or -- operator only allowed with SP register."));
+      return;
+    }
+
+  if (expP->X_op == O_register)
+    {
+      /* single register operand */
       reg = &dcpu16_register_table[expP->X_add_number];
       expP = 0;
     }
   else if (expP->X_op == O_add)
     {
+      /* register + offset operand */
+
+      if (!indirect)
+	{
+	  as_bad (_("offset only allowed in indirect mode"));
+	  return;
+	}
+
       tmp_exp1 = symbol_get_value_expression (expP->X_add_symbol);
       tmp_exp2 = symbol_get_value_expression (expP->X_op_symbol);
 
@@ -204,6 +232,12 @@ parse_operand (int pos, struct dcpu16_operand *operand)
 	  as_bad (_("illegal operand"));
 	  return;
 	}
+
+      if (expP->X_op == O_constant && expP->X_add_number == 0)
+	{
+	  /* discard zero offset */
+	  expP = 0;
+	}
     }
   else if (expP->X_op != O_constant && expP->X_op != O_symbol)
     {
@@ -211,17 +245,9 @@ parse_operand (int pos, struct dcpu16_operand *operand)
       return;
     }
 
-  if (reg 
-      && ((reg->pos && reg->pos != pos)
-	  || (indirect && !reg->indirect)
-	  || (!indirect && expP)))
-    {
-      as_bad (_("illegal operand"));
-      return;
-    }
-
   if (indirect)
     {
+      /* check for indirect operand end */
       if (*input_line_pointer == ']')
 	{
 	  input_line_pointer++;
@@ -235,16 +261,19 @@ parse_operand (int pos, struct dcpu16_operand *operand)
 
   if (reg)
     {
+      /* we've got a register */
       operand->value = reg->index;
 
       if (indirect)
 	{
 	  if (reg->index < 0x08)
 	    {
+	      /* [reg] */
 	      operand->value = 0x08 + reg->index;
 
 	      if (expP)
 		{
+		  /* [reg+offset] */
 		  operand->value = 0x10 + reg->index;
 		  operand->is_long = 1;
 		  operand->long_value = expP->X_add_number;
@@ -252,29 +281,37 @@ parse_operand (int pos, struct dcpu16_operand *operand)
 	    }
 	  else if (reg->index == REG_INDEX_SP)
 	    {
+	      /* Something with SP in it */
 	      if (pre_decrement || post_increment)
 		{
 		  if (expP)
 		    {
+		      /* ++ -- not allowed with offset */
 		      as_bad (_("illegal expression"));
 		      return;
 		    }
+		  /* [--SP] or [SP++] -> same code */
 		  operand->value = 0x18;
 		  pre_decrement = 0;
 		  post_increment = 0;
 		}
 	      else if (expP)
 		{
+		  /* [SP+offset] */
 		  operand->value = 0x1a;
 		  operand->is_long = 1;
 		  operand->long_value = expP->X_add_number;
 		}
 	      else
-		operand->value = 0x19;
+		{
+		  /* [SP] */
+		  operand->value = 0x19;
+		}
 	    }
 	}
       else if (reg->index == REG_INDEX_PICK)
 	{
+	  /* PICK n */
 	  expP = &expS;
 	  expression (expP);
 
@@ -293,23 +330,21 @@ parse_operand (int pos, struct dcpu16_operand *operand)
     }
   else
     {
+      /* no register operand */
+
       if (!indirect && pos == 2 
 	  && expP->X_op == O_constant && expP->X_add_number < 0x1f)
 	{
+	  /* short literal */
 	  operand->value = 0x21 + expP->X_add_number;
 	}
       else
 	{
+	  /* long literal */
 	  operand->value = indirect ? 0x1e : 0x1f;
 	  operand->is_long = 1;
 	  operand->long_value = expP->X_add_number;
 	}
-    }
-
-  if (pre_decrement || post_increment)
-    {
-      as_bad (_("illegal expression"));
-      return;
     }
 
   if (operand->is_long)
