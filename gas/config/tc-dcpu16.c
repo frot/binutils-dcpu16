@@ -469,6 +469,7 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg ATTRIBUTE_UNUSED)
 /* The target specific pseudo-ops which we support.  */
 const pseudo_typeS md_pseudo_table[] =
 {
+  { "byte", cons, 2},
   { NULL, NULL, 0 }
 };
 
