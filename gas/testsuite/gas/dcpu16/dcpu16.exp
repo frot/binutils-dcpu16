@@ -1,6 +1,6 @@
-# run tests for target Z80.
+# run tests for target dcpu16.
 
-if [istarget z80-*-*] then {
+if [istarget dcpu16-*] then {
 # test sample program
     run_dump_test "sample1"
 # test .byte and .short pseudo ops

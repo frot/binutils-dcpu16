@@ -150,21 +150,21 @@ print_insn_dcpu16 (bfd_vma memaddr, struct disassemble_info *info)
     {
       op = lookup_instruction (opcode&0x1f);
       if (op)
-	(*info->fprintf_func) (info->stream, "%s\t", op->name);
-      else
-	(*info->fprintf_func) (info->stream, "**%02x**\t", opcode&0x1f);
-      result += print_operand(memaddr+result, info, (opcode>>5)&0x1f, 1);
-      (*info->fprintf_func) (info->stream, ", ");
-      result += print_operand(memaddr+result, info, opcode>>10, 0);
+	{
+	  (*info->fprintf_func) (info->stream, "%s\t", op->name);
+	  result += print_operand(memaddr+result, info, (opcode>>5)&0x1f, 1);
+	  (*info->fprintf_func) (info->stream, ", ");
+	  result += print_operand(memaddr+result, info, opcode>>10, 0);
+	}
     }
   else
     {
       op = lookup_instruction (opcode&0x3ff);
       if (op)
-	(*info->fprintf_func) (info->stream, "%s\t", op->name);
-      else
-	(*info->fprintf_func) (info->stream, "**%02x:00**\t", (opcode&0x3ff)>>5);
-      result += print_operand(memaddr+result, info, opcode>>10, 0);
+	{
+	  (*info->fprintf_func) (info->stream, "%s\t", op->name);
+	  result += print_operand(memaddr+result, info, opcode>>10, 0);
+	}
     }
 
   return 2*result;

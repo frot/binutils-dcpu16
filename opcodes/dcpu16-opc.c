@@ -65,8 +65,6 @@ const struct dcpu16_opcode dcpu16_opcode_table[] =
     { "hwq",  0x11<<5, 1 },
     { "hwi",  0x12<<5, 1 },
 
-    { "push", 0x0301, 1 },
-    /* { "pop",  0x6001, 1 },   this won't actually work -- need b operand, not a */
     { "jmp",  0x0381, 1 },
     { "bra",  0x0382, 1 },
     { "ret",  0x6381, 0 },
