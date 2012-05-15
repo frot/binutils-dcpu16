@@ -262,24 +262,24 @@ parse_operand (int pos, struct dcpu16_operand *operand)
   if (reg)
     {
       /* we've got a register */
-      operand->value = reg->index;
+      operand->value = reg->opcode;
 
       if (indirect)
 	{
-	  if (reg->index < 0x08)
+	  if (reg->opcode <= REG_OP_J)
 	    {
 	      /* [reg] */
-	      operand->value = 0x08 + reg->index;
+	      operand->value = 0x08 + reg->opcode;
 
 	      if (expP)
 		{
 		  /* [reg+offset] */
-		  operand->value = 0x10 + reg->index;
+		  operand->value = 0x10 + reg->opcode;
 		  operand->is_long = 1;
 		  operand->long_value = expP->X_add_number;
 		}
 	    }
-	  else if (reg->index == REG_INDEX_SP)
+	  else if (reg->opcode == REG_OP_SP)
 	    {
 	      /* Something with SP in it */
 	      if (pre_decrement || post_increment)
@@ -309,7 +309,7 @@ parse_operand (int pos, struct dcpu16_operand *operand)
 		}
 	    }
 	}
-      else if (reg->index == REG_INDEX_PICK)
+      else if (reg->opcode == REG_OP_PICK)
 	{
 	  /* PICK n */
 	  expP = &expS;

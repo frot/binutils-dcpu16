@@ -5,4 +5,6 @@ if [istarget dcpu16-*] then {
     run_dump_test "sample1"
 # test .byte and .short pseudo ops
     run_dump_test "byte"
+# test PICK
+    run_dump_test "pick"
 }

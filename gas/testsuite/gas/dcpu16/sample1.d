@@ -29,7 +29,7 @@ Disassembly of section .text:
 
 00000018 <testsub>:
   18:	946f           	shl	X, 0x04
-  19:	6f81           	set	PC, SP
+  19:	6381           	set	PC, \[SP\+\+\]
 
 0000001a <crash>:
   1a:	7f81 001a      	set	PC, 0x001a

@@ -56,19 +56,14 @@ struct dcpu16_operand
   int long_value;
 };
 
-#define REG_INDEX_PICK	11
-#define REG_INDEX_SP	12
-#define REG_INDEX_PC	13
-#define REG_INDEX_EX	14
-
 /* The registers table is an array of struct dcpu16_register.  */
 struct dcpu16_register
 {
   /* The register name */
   const char* name;
 
-  /* Register index */
-  int index;
+  /* Register opcode */
+  unsigned short opcode;
 
   /* Indirect adress allowed */
   int indirect;
@@ -76,6 +71,40 @@ struct dcpu16_register
   /* Operand position */
   int pos;
 };
+
+/* register opcode values */
+#define REG_OP_A	0x00
+#define REG_OP_B	0x01
+#define REG_OP_C	0x02
+#define REG_OP_X	0x03
+#define REG_OP_Y	0x04
+#define REG_OP_Z	0x05
+#define REG_OP_I	0x06
+#define REG_OP_J	0x07
+#define REG_OP_PUSH	0x18
+#define REG_OP_POP	0x18
+#define REG_OP_PEEK	0x19
+#define REG_OP_PICK	0x1a
+#define REG_OP_SP	0x1b
+#define REG_OP_PC	0x1c
+#define REG_OP_EX	0x1d
+
+/* indices into register table */
+#define REG_INDEX_A	 0
+#define REG_INDEX_B	 1
+#define REG_INDEX_C	 2
+#define REG_INDEX_X	 3
+#define REG_INDEX_Y	 4
+#define REG_INDEX_Z	 5
+#define REG_INDEX_I	 6
+#define REG_INDEX_J	 7
+#define REG_INDEX_PUSH	 8
+#define REG_INDEX_POP	 9
+#define REG_INDEX_PEEK	10
+#define REG_INDEX_PICK	11
+#define REG_INDEX_SP	12
+#define REG_INDEX_PC	13
+#define REG_INDEX_EX	14
 
 extern const struct dcpu16_register dcpu16_register_table[];
 
