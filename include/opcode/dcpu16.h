@@ -56,10 +56,10 @@ struct dcpu16_operand
   int long_value;
 };
 
-#define REG_INDEX_PICK	0x1a
-#define REG_INDEX_SP	0x1b
-#define REG_INDEX_PC	0x1c
-#define REG_INDEX_EX	0x1d
+#define REG_INDEX_PICK	11
+#define REG_INDEX_SP	12
+#define REG_INDEX_PC	13
+#define REG_INDEX_EX	14
 
 /* The registers table is an array of struct dcpu16_register.  */
 struct dcpu16_register
