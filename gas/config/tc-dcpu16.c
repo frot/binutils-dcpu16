@@ -333,9 +333,10 @@ parse_operand (int pos, struct dcpu16_operand *operand)
       /* no register operand */
 
       /* sign-extend 16-bit quantity */
-      if (expP->X_add_number & 0x8000) {
-        expP->X_add_number = (expP->X_add_number&65535) - 65536;
-      }
+      if (expP->X_add_number & 0x8000)
+        {
+          expP->X_add_number = (expP->X_add_number&65535) - 65536;
+        }
 
       if (!indirect && pos == 2 
 	  && expP->X_op == O_constant && expP->X_add_number < 0x1f
