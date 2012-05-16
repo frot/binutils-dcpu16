@@ -163,7 +163,7 @@ print_insn_dcpu16 (bfd_vma memaddr, struct disassemble_info *info)
       if (op)
 	(*info->fprintf_func) (info->stream, "%s\t", op->name);
       else
-	(*info->fprintf_func) (info->stream, "**%02x**\t", opcode&0x1f);
+	(*info->fprintf_func) (info->stream, "**%02x:00**\t", (opcode&0x3ff)>>5);
       result += print_operand(memaddr+result, info, opcode>>10, 0);
     }
 
