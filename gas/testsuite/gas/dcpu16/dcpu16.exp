@@ -1,10 +1,14 @@
 # run tests for target dcpu16.
 
 if [istarget dcpu16-*] then {
+# test instructions
+    run_dump_test "instructions"
 # test sample program
     run_dump_test "sample1"
 # test .byte and .short pseudo ops
     run_dump_test "byte"
+# test indirect adressing
+    run_dump_test "indirect"
 # test PICK
     run_dump_test "pick"
 }

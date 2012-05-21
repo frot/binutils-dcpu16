@@ -2,4 +2,4 @@
 	set A, PICK 0
 	set A, PICK 1
 	set A, PICK foo
-foo:	;set A, PICK -3
+foo:	set A, PICK -3

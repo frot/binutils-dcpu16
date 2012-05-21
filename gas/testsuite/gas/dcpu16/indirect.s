@@ -1,7 +1,10 @@
 	;; Test [reg+offset]
 	set	A, [0x12]
 	set	A, [A+0x34]
-	
+defined:
+	set	A, [defined]
+	set	A, [A+defined]
+
 	set	A, [label]
 	set	A, [A+label]
 	

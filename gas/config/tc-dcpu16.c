@@ -132,10 +132,10 @@ parse_operand (int pos, struct dcpu16_operand *operand)
   expressionS expS;
   expressionS *expP = &expS;
 
-  expressionS *tmp_exp1 = 0;
-  expressionS *tmp_exp2 = 0;
+  char c;
+  symbolS *symbolP;
+  char *name;
 
-  char *p;
   int indirect = 0;
   int pre_decrement = 0;
   int post_increment = 0;
@@ -147,102 +147,83 @@ parse_operand (int pos, struct dcpu16_operand *operand)
     {
       indirect=1;
       input_line_pointer++;
+    }
 
-      /* check for -- op */
-      if (*input_line_pointer == '-'
-	  && *(input_line_pointer+1) == '-')
-	{
-	  pre_decrement = 1;
-	  input_line_pointer += 2;
-	}
+  /* check for -- op */
+  if (*input_line_pointer == '-'
+      && *(input_line_pointer+1) == '-')
+    {
+      pre_decrement = 1;
+      input_line_pointer += 2;
+    }
 
-      /* check for ++ op */
-      for (p=input_line_pointer; *p && *p != ']'; p++);
-      if (*p == ']' && *(p-1) == '+' && *(p-2) == '+')
+  /* Since I can't seem to persuade expr to handle register expressions
+     the way I would like. Lets cheat for now.
+     Assume registers always are the first symbol and handle them here
+     before calling expr.
+  */
+
+  SKIP_WHITESPACE ();
+  if (is_name_beginner (*input_line_pointer))
+    {
+      name = input_line_pointer;
+      c = get_symbol_end ();
+      symbolP = symbol_find (name);
+      *input_line_pointer = c;
+
+      if (symbolP && S_GET_SEGMENT (symbolP) == reg_section)
 	{
-	  if (pre_decrement)
+	  reg = &dcpu16_register_table[S_GET_VALUE (symbolP)];
+
+	  /* check for ++ op */
+	  SKIP_WHITESPACE ();
+	  if (*input_line_pointer == '+'
+	      && *(input_line_pointer+1) == '+')
 	    {
-	      as_bad (_("illegal expression"));
-	      return;
+	      if (pre_decrement)
+		{
+		  as_bad (_("-- and ++ not allowed in the same expression"));
+		  return;
+		}
+
+	      post_increment = 1;
+	      input_line_pointer += 2;
 	    }
-
-	  post_increment = 1;
-	  *(p-2) = ']';
-	  *(p-1)= ' ';
-	  *p = ' ';
+	}
+      else
+	{
+	  input_line_pointer = name;
 	}
     }
 
-  expression (expP);
-
-  if (expP->X_op == O_absent)
+  if ((pre_decrement || post_increment)
+      && (!indirect || !reg || reg->opcode != REG_OP_SP))
     {
-      as_bad (_("missing operand"));
+      as_bad (_("++ or -- only allowed with [SP]"));
       return;
     }
 
-  if (expP->X_op == O_illegal)
+  SKIP_WHITESPACE ();
+  if(*input_line_pointer != ',' && *input_line_pointer != ']')
     {
-      as_bad (_("illegal expression"));
-      return;
-    }
+      expression (expP);
 
-  if (!(indirect
-	&& expP->X_op == O_register 
-	&& expP->X_add_number == REG_INDEX_SP)
-      && (pre_decrement || post_increment))
-    {
-      as_bad (_("++ or -- operator only allowed with SP register."));
-      return;
-    }
-
-  if (expP->X_op == O_register)
-    {
-      /* single register operand */
-      reg = &dcpu16_register_table[expP->X_add_number];
-      expP = 0;
-    }
-  else if (expP->X_op == O_add)
-    {
-      /* register + offset operand */
-
-      if (!indirect)
+      if (expP->X_op == O_illegal)
 	{
-	  as_bad (_("offset only allowed in indirect mode"));
+	  as_bad (_("illegal expression"));
 	  return;
 	}
 
-      tmp_exp1 = symbol_get_value_expression (expP->X_add_symbol);
-      tmp_exp2 = symbol_get_value_expression (expP->X_op_symbol);
-
-      if (tmp_exp1->X_op == O_register 
-	  && (tmp_exp2->X_op == O_constant || tmp_exp2->X_op == O_symbol))
-	{
-	  reg = &dcpu16_register_table[tmp_exp1->X_add_number];
-	  expP = tmp_exp2;
-	}
-      else if (tmp_exp2->X_op == O_register 
-	  && (tmp_exp1->X_op == O_constant || tmp_exp1->X_op == O_symbol))
-	{
-	  reg = &dcpu16_register_table[tmp_exp2->X_add_number];
-	  expP = tmp_exp1;
-	}
-      else 
-	{
-	  as_bad (_("illegal operand"));
-	  return;
-	}
-
-      if (expP->X_op == O_constant && expP->X_add_number == 0)
+      if (expP->X_op == O_absent 
+	  || (expP->X_op == O_constant && expP->X_add_number == 0))
 	{
 	  /* discard zero offset */
 	  expP = 0;
 	}
     }
-  else if (expP->X_op != O_constant && expP->X_op != O_symbol)
+  else
     {
-      as_bad (_("illegal operand"));
-      return;
+      expP = 0;
     }
 
   if (indirect)
@@ -312,23 +293,21 @@ parse_operand (int pos, struct dcpu16_operand *operand)
       else if (reg->opcode == REG_OP_PICK)
 	{
 	  /* PICK n */
-	  expP = &expS;
-	  expression (expP);
 
-	  if (expP->X_op == O_constant || expP->X_op == O_symbol)
+	  if (expP)
 	    {
-		  operand->value = 0x1a;
-		  operand->is_long = 1;
-		  operand->long_value = expP->X_add_number;
+	      operand->value = 0x1a;
+	      operand->is_long = 1;
+	      operand->long_value = expP->X_add_number;
 	    }
 	  else
 	    {
-	      as_bad (_("illegal expression"));
-	      return;
+	      /* zero offset */
+	      operand->value = 0x19;
 	    }
 	}
     }
-  else
+  else if (expP)
     {
       /* no register operand */
 
@@ -352,6 +331,10 @@ parse_operand (int pos, struct dcpu16_operand *operand)
 	  operand->is_long = 1;
 	  operand->long_value = expP->X_add_number;
 	}
+    }
+  else
+    {
+	operand->value = 0x21;
     }
 
   if (operand->is_long)
