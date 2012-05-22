@@ -50,7 +50,9 @@ const struct dcpu16_opcode dcpu16_opcode_table[] =
     { "ifl",  0x0016, 2 },
     { "ifu",  0x0017, 2 },
     { "adx",  0x001a, 2 },
-    { "sux",  0x001b, 2 },
+    { "sbx",  0x001b, 2 },
+    { "sti",  0x001e, 2 },
+    { "std",  0x001f, 2 },
 
     { "jsr",  0x0020, 1 },
     { "hcf",  0x00e0, 1 },
@@ -59,7 +61,7 @@ const struct dcpu16_opcode dcpu16_opcode_table[] =
     { "ias",  0x0140, 1 },
     { "hwn",  0x0200, 1 },
     { "hwq",  0x0220, 1 },
-    { "hwi",  0x0240, 1 },	/* 33 native instructions */
+    { "hwi",  0x0240, 1 },	/* 35 native instructions */
 
     { "push", 0x0301, 1 },
     { "pop",  0x6001, 1 },
