@@ -7,7 +7,11 @@ defined:
 
 	set	A, [label]
 	set	A, [A+label]
-	
+
 	set	A, [ext_label]
 	set	A, [A+ext_label]
+
+	set	A, [label-defined]
+	set	A, [label+10]
+	set	A, [A+label+10]
 label:

@@ -343,7 +343,7 @@ parse_operand (int pos, struct dcpu16_operand *operand)
       md_number_to_chars (frag, operand->long_value, 2);
     }
   
-  if (frag && expP && expP->X_op == O_symbol)
+  if (frag && expP && expP->X_op != O_constant)
     {
       fix_new_exp (frag_now, (frag - frag_now->fr_literal), 2, expP, 0, BFD_RELOC_16);
     }
