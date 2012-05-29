@@ -913,7 +913,7 @@ read_a_source_file (char *name)
 
 	      line_label = colon (s);	/* User-defined label.  */
 
-	      *input_line_pointer++ = c;
+	      *input_line_pointer = c;
 
 #ifdef tc_check_label
 	      tc_check_label (line_label);
