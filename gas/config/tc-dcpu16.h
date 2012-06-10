@@ -23,6 +23,19 @@
 
 #define TC_DCPU16
 
+/* Operand struct used by parser */
+struct dcpu16_operand
+{
+  /* value of instruction operand field (6 bits) */
+  int value;
+
+  /* value is longer than 6 bits */
+  int is_long;
+
+  /* expression */
+  expressionS exp;
+};
+
 extern void dcpu16_number_to_chars (char *, valueT, int);
 
 /* The target BFD architecture.  */
@@ -30,6 +43,7 @@ extern void dcpu16_number_to_chars (char *, valueT, int);
 
 #define TARGET_BYTES_BIG_ENDIAN  1
 #define OCTETS_PER_BYTE_POWER 1
+#define TC_IMPLICIT_LCOMM_ALIGNMENT(size, p2var) { }
 
 #define md_operand(x)
 #define md_convert_frag(b,s,f)   as_fatal ("convert_frag called\n")

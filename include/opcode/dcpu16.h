@@ -21,6 +21,8 @@
 #ifndef DCPU16_H
 #define DCPU16_H
 
+typedef unsigned short int u16;
+
 /* The opcode table is an array of struct dcpu16_opcode.  */
 struct dcpu16_opcode
 {
@@ -28,7 +30,7 @@ struct dcpu16_opcode
   const char *name;
 
   /* the opcode */
-  unsigned short op;
+  u16 op;
 
   /* number of arguments */
   int args;
@@ -37,25 +39,6 @@ struct dcpu16_opcode
 #define DCPU16_INSN_COUNT 37
 extern const struct dcpu16_opcode dcpu16_opcode_table[];
 
-/* The operands table is an array of struct dcpu16_operand.  */
-struct dcpu16_operand
-{
-  /* The operand name */
-  const char* name;
-
-  /* value of instruction operand field (6 bits) */
-  int value;
-
-  /* only valid as source or destination operand */
-  int op_pos;
-
-  /* value is longer than 6 bits */
-  int is_long;
-
-  /* extended  operand value (16 bits) */
-  int long_value;
-};
-
 /* The registers table is an array of struct dcpu16_register.  */
 struct dcpu16_register
 {
@@ -63,7 +46,7 @@ struct dcpu16_register
   const char* name;
 
   /* Register opcode */
-  unsigned short opcode;
+  u16 opcode;
 
   /* Indirect adress allowed */
   int indirect;

@@ -29,7 +29,9 @@ SECTIONS
 	${RELOCATING+ __Lbss = .;}
 	*(.bss)
 	*(bss)
+	${RELOCATING+ *(COMMON)}
 	${RELOCATING+ __Hbss = .;}
 	}
+	${RELOCATING+ __Lheap = .;}
 }
 EOF

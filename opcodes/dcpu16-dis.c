@@ -25,7 +25,7 @@
 #include "opcode/dcpu16.h"
 
 static const struct dcpu16_opcode *
-lookup_instruction(unsigned short opcode)
+lookup_instruction(u16 opcode)
 {
   int start = 0;
   int end = DCPU16_INSN_COUNT;
@@ -56,11 +56,10 @@ lookup_instruction(unsigned short opcode)
 }
 
 static int
-print_operand (bfd_vma memaddr, struct disassemble_info *info, int arg, int is_dest)
+read_word (bfd_vma memaddr, struct disassemble_info *info, u16 arg, u16 *val)
 {
   int status;
   bfd_byte buffer[8];
-  int w = 0;
 
   if ((arg >= 0x10 && arg <= 0x17) || arg == 0x1a || arg == 0x1e || arg == 0x1f)
     {
@@ -70,23 +69,31 @@ print_operand (bfd_vma memaddr, struct disassemble_info *info, int arg, int is_d
 	  (*info->memory_error_func) (status, memaddr, info);
 	  return -1;
 	}
-      w = bfd_getb16 (buffer);
+      *val = bfd_getb16 (buffer);
+
+      return 1;
     }
 
+  return 0;
+}
+
+static void
+print_operand (struct disassemble_info *info, u16 arg, u16 val, int is_dest)
+{
   if (arg < 0x08)
     {
       (*info->fprintf_func) (info->stream, "%s", dcpu16_register_table[arg].name);
-      return 0;
+      return;
     }
   if (arg < 0x10)
     {
       (*info->fprintf_func) (info->stream, "[%s]", dcpu16_register_table[arg&0x7].name);
-      return 0;
+      return;
     }
   if (arg < 0x18)
     {
-	(*info->fprintf_func) (info->stream, "[%s+0x%04x]", dcpu16_register_table[arg&0x7].name, w);
-      return 1;
+	(*info->fprintf_func) (info->stream, "[%s+0x%04x]", dcpu16_register_table[arg&0x7].name, val);
+      return;
     }
 
   switch(arg)
@@ -96,32 +103,31 @@ print_operand (bfd_vma memaddr, struct disassemble_info *info, int arg, int is_d
 	(*info->fprintf_func) (info->stream, "[--SP]");
       else
 	(*info->fprintf_func) (info->stream, "[SP++]");
-      return 0;
+      return;
     case 0x19:
       (*info->fprintf_func) (info->stream, "[SP]");
-      return 0;
+      return;
     case 0x1a:
-      (*info->fprintf_func) (info->stream, "[SP+0x%04x]", w);
-      return 1;
+      (*info->fprintf_func) (info->stream, "[SP+0x%04x]", val);
+      return;
     case 0x1b:
       (*info->fprintf_func) (info->stream, "SP");
-      return 0;
+      return;
     case 0x1c:
       (*info->fprintf_func) (info->stream, "PC");
-      return 0;
+      return;
     case 0x1d:
       (*info->fprintf_func) (info->stream, "EX");
-      return 0;
+      return;
     case 0x1e:
-      (*info->fprintf_func) (info->stream, "[0x%04x]", w);
-      return 1;
+      (*info->fprintf_func) (info->stream, "[0x%04x]", val);
+      return;
     case 0x1f:
-      (*info->fprintf_func) (info->stream, "0x%04x", w);
-      return 1;
+      (*info->fprintf_func) (info->stream, "0x%04x", val);
+      return;
     }
 
   (*info->fprintf_func) (info->stream, "0x%02x", (arg&0x1f)-1);
-  return 0;
 }
 
 int
@@ -129,7 +135,7 @@ print_insn_dcpu16 (bfd_vma memaddr, struct disassemble_info *info)
 {
   int status, result;
   bfd_byte buffer[8];
-  unsigned short opcode;
+  u16 opcode, aword, bword;
   const struct dcpu16_opcode *op;
 
   info->bytes_per_line = 6;
@@ -152,9 +158,13 @@ print_insn_dcpu16 (bfd_vma memaddr, struct disassemble_info *info)
       if (op)
 	{
 	  (*info->fprintf_func) (info->stream, "%s\t", op->name);
-	  result += print_operand(memaddr+result, info, (opcode>>5)&0x1f, 1);
+
+	  result += read_word(memaddr+result, info, opcode>>10, &aword);
+	  result += read_word(memaddr+result, info, (opcode>>5)&0x1f, &bword);
+
+	  print_operand(info, (opcode>>5)&0x1f, bword, 1);
 	  (*info->fprintf_func) (info->stream, ", ");
-	  result += print_operand(memaddr+result, info, opcode>>10, 0);
+	  print_operand(info, opcode>>10, aword, 0);
 	}
     }
   else
@@ -163,7 +173,8 @@ print_insn_dcpu16 (bfd_vma memaddr, struct disassemble_info *info)
       if (op)
 	{
 	  (*info->fprintf_func) (info->stream, "%s\t", op->name);
-	  result += print_operand(memaddr+result, info, opcode>>10, 0);
+	  result += read_word(memaddr+result, info, opcode>>10, &aword);
+	  print_operand(info, opcode>>10, aword, 0);
 	}
     }
 

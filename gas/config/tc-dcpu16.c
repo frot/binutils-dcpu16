@@ -129,8 +129,7 @@ dcpu16_number_to_chars (char *buf, valueT val, int n)
 static void
 parse_operand (int pos, struct dcpu16_operand *operand)
 {
-  expressionS expS;
-  expressionS *expP = &expS;
+  expressionS *expP = &operand->exp;
 
   char c;
   symbolS *symbolP;
@@ -139,7 +138,6 @@ parse_operand (int pos, struct dcpu16_operand *operand)
   int indirect = 0;
   int pre_decrement = 0;
   int post_increment = 0;
-  char *frag = 0;
   const struct dcpu16_register *reg = 0;
 
   /* check for indirect operand start */
@@ -257,7 +255,6 @@ parse_operand (int pos, struct dcpu16_operand *operand)
 		  /* [reg+offset] */
 		  operand->value = 0x10 + reg->opcode;
 		  operand->is_long = 1;
-		  operand->long_value = expP->X_add_number;
 		}
 	    }
 	  else if (reg->opcode == REG_OP_SP)
@@ -281,7 +278,6 @@ parse_operand (int pos, struct dcpu16_operand *operand)
 		  /* [SP+offset] */
 		  operand->value = 0x1a;
 		  operand->is_long = 1;
-		  operand->long_value = expP->X_add_number;
 		}
 	      else
 		{
@@ -298,7 +294,6 @@ parse_operand (int pos, struct dcpu16_operand *operand)
 	    {
 	      operand->value = 0x1a;
 	      operand->is_long = 1;
-	      operand->long_value = expP->X_add_number;
 	    }
 	  else
 	    {
@@ -329,23 +324,11 @@ parse_operand (int pos, struct dcpu16_operand *operand)
 	  /* long literal */
 	  operand->value = indirect ? 0x1e : 0x1f;
 	  operand->is_long = 1;
-	  operand->long_value = expP->X_add_number;
 	}
     }
   else
     {
 	operand->value = 0x21;
-    }
-
-  if (operand->is_long)
-    {
-      frag = frag_more (2);
-      md_number_to_chars (frag, operand->long_value, 2);
-    }
-  
-  if (frag && expP && expP->X_op != O_constant)
-    {
-      fix_new_exp (frag_now, (frag - frag_now->fr_literal), 2, expP, 0, BFD_RELOC_16);
     }
 
   /* skip trailing whitespace */
@@ -362,7 +345,7 @@ void
 md_assemble (char *str)
 {
   struct dcpu16_opcode *opcode;
-  struct dcpu16_operand operand[2] = { { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 } };
+  struct dcpu16_operand operand[2];
 
   char *p;
   int  nlen = 0;
@@ -370,6 +353,8 @@ md_assemble (char *str)
   char *frag;
   int op = 0;
   int oplen = 2;
+
+  memset(operand, 0, sizeof(operand));
 
   /* Find the opcode end.  */
   for (p = str; *p && *p != ' '; p++, nlen++);
@@ -431,6 +416,30 @@ md_assemble (char *str)
     }
   
   md_number_to_chars (frag, op, 2);
+
+  /* Operand 'a' should be handled first */
+  if (operand[1].is_long)
+    {
+      frag = frag_more (2);
+      md_number_to_chars (frag, operand[1].exp.X_add_number, 2);
+
+      if (operand[1].exp.X_op != O_constant)
+	{
+	  fix_new_exp (frag_now, (frag - frag_now->fr_literal), 2, &operand[1].exp, 0, BFD_RELOC_16);
+	}
+    }
+
+  /* then operand 'b' */
+  if (operand[0].is_long)
+    {
+      frag = frag_more (2);
+      md_number_to_chars (frag, operand[0].exp.X_add_number, 2);
+
+      if (operand[0].exp.X_op != O_constant)
+	{
+	  fix_new_exp (frag_now, (frag - frag_now->fr_literal), 2, &operand[0].exp, 0, BFD_RELOC_16);
+	}
+    }
 
   input_line_pointer = save_input_line_pointer;
 }
