@@ -3,6 +3,21 @@ dnl
 dnl And be careful when changing it!  If you must add tests with square
 dnl brackets, be sure changequote invocations surround it.
 dnl
+dnl   Copyright 2012 Free Software Foundation
+dnl
+dnl This file is free software; you can redistribute it and/or modify
+dnl it under the terms of the GNU General Public License as published by
+dnl the Free Software Foundation; either version 3 of the License, or
+dnl (at your option) any later version.
+dnl 
+dnl This program is distributed in the hope that it will be useful,
+dnl but WITHOUT ANY WARRANTY; without even the implied warranty of
+dnl MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+dnl GNU General Public License for more details.
+dnl 
+dnl You should have received a copy of the GNU General Public License
+dnl along with this program; see the file COPYING3.  If not see
+dnl <http://www.gnu.org/licenses/>.
 dnl
 dnl v2.5 needed for --bindir et al
 AC_PREREQ(2.59)
@@ -17,7 +32,7 @@ AC_CANONICAL_TARGET
 AC_ISC_POSIX
 
 changequote(,)dnl
-BFD_VERSION=`sed -n -e 's/^.._INIT_AUTOMAKE.*,[ 	]*\([^ 	]*\)[ 	]*).*/\1/p' < ${srcdir}/../bfd/configure.in`
+BFD_VERSION=`${srcdir}/../bfd/configure --version | sed -n -e '1s,.* ,,p'`
 changequote([,])dnl
 AM_INIT_AUTOMAKE(gas, ${BFD_VERSION})
 
@@ -57,6 +72,15 @@ AM_BINUTILS_WARNINGS
 
 # Generate a header file
 AC_CONFIG_HEADERS(config.h:config.in)
+
+# PR 14072
+AH_VERBATIM([00_CONFIG_H_CHECK],
+[/* Check that config.h is #included before system headers
+   (this works only for glibc, but that should be enough).  */
+#if defined(__GLIBC__) && !defined(__FreeBSD_kernel__) && !defined(__CONFIG_H__)
+#  error config.h must be #included before system headers
+#endif
+#define __CONFIG_H__ 1])
 
 # If we are on a DOS filesystem, we must use gdb.ini rather than
 # .gdbinit.
@@ -299,9 +323,9 @@ changequote([,])dnl
           extra_objects="$extra_objects bfin-parse.o"
         fi
 
-        echo ${extra_objects} | grep -s "bfin-lex.o"
+        echo ${extra_objects} | grep -s "bfin-lex-wrapper.o"
         if test $? -ne 0 ; then
-          extra_objects="$extra_objects bfin-lex.o"
+          extra_objects="$extra_objects bfin-lex-wrapper.o"
         fi
         ;;
 
@@ -332,9 +356,9 @@ changequote([,])dnl
 	  extra_objects="$extra_objects itbl-parse.o"
 	fi
 
-	echo ${extra_objects} | grep -s "itbl-lex.o"
+	echo ${extra_objects} | grep -s "itbl-lex-wrapper.o"
 	if test $? -ne 0 ; then
-	  extra_objects="$extra_objects itbl-lex.o"
+	  extra_objects="$extra_objects itbl-lex-wrapper.o"
 	fi
 
 	echo ${extra_objects} | grep -s "itbl-ops.o"
@@ -634,6 +658,7 @@ AM_CONDITIONAL(GENINSRC_NEVER, false)
 AC_EXEEXT
 
 AC_CHECK_HEADERS(string.h stdlib.h memory.h strings.h unistd.h errno.h sys/types.h limits.h locale.h time.h sys/stat.h)
+ACX_HEADER_STRING
 
 # Put this here so that autoconf's "cross-compiling" message doesn't confuse
 # people who are not cross-compiling but are compiling cross-assemblers.
@@ -653,11 +678,8 @@ AC_C_INLINE
 
 # VMS doesn't have unlink.
 AC_CHECK_FUNCS(unlink remove, break)
+AC_CHECK_FUNCS(sbrk setlocale)
 
-# Some systems don't have sbrk().
-AC_CHECK_FUNCS(sbrk)
-
-AC_CHECK_FUNCS(setlocale)
 AM_LC_MESSAGES
 
 # do we need the math library?
@@ -720,8 +742,7 @@ GAS_CHECK_DECL_NEEDED(malloc, f, char *(*f)(), $gas_test_headers)
 GAS_CHECK_DECL_NEEDED(sbrk, f, char *(*f)(), $gas_test_headers)
 GAS_CHECK_DECL_NEEDED(strstr, f, char *(*f)(), $gas_test_headers)
 
-AC_CHECK_DECLS([mempcpy])
-AC_CHECK_DECLS([vsnprintf])
+AC_CHECK_DECLS([free, getenv, malloc, mempcpy, realloc, stpcpy, strstr, vsnprintf])
 
 BFD_BINARY_FOPEN
 

@@ -348,14 +348,14 @@ static int sizemap[] = { BSIZE, WSIZE, LSIZE, WSIZE };
 #define F(val,pos,sz)      rx_field (val, pos, sz)
 #define FE(exp,pos,sz)	   rx_field (exp_val (exp), pos, sz);
 
-#define O1(v)              rx_op (v, 1, RXREL_SIGNED)
-#define O2(v)              rx_op (v, 2, RXREL_SIGNED)
-#define O3(v)              rx_op (v, 3, RXREL_SIGNED)
+#define O1(v)              rx_op (v, 1, RXREL_SIGNED); rx_range (v, -128, 255)
+#define O2(v)              rx_op (v, 2, RXREL_SIGNED); rx_range (v, -32768, 65536)
+#define O3(v)              rx_op (v, 3, RXREL_SIGNED); rx_range (v, -8388608, 16777216)
 #define O4(v)              rx_op (v, 4, RXREL_SIGNED)
 
-#define UO1(v)             rx_op (v, 1, RXREL_UNSIGNED)
-#define UO2(v)             rx_op (v, 2, RXREL_UNSIGNED)
-#define UO3(v)             rx_op (v, 3, RXREL_UNSIGNED)
+#define UO1(v)             rx_op (v, 1, RXREL_UNSIGNED); rx_range (v, 0, 255)
+#define UO2(v)             rx_op (v, 2, RXREL_UNSIGNED); rx_range (v, 0, 65536)
+#define UO3(v)             rx_op (v, 3, RXREL_UNSIGNED); rx_range (v, 0, 16777216)
 #define UO4(v)             rx_op (v, 4, RXREL_UNSIGNED)
 
 #define NO1(v)             rx_op (v, 1, RXREL_NEGATIVE)
@@ -370,8 +370,8 @@ static int sizemap[] = { BSIZE, WSIZE, LSIZE, WSIZE };
 #define IMM_(v,pos,size)   F (immediate (v, RXREL_SIGNED, pos, size), pos, 2); \
 			   if (v.X_op != O_constant && v.X_op != O_big) rx_linkrelax_imm (pos)
 #define IMM(v,pos)	   IMM_ (v, pos, 32)
-#define IMMW(v,pos)	   IMM_ (v, pos, 16)
-#define IMMB(v,pos)	   IMM_ (v, pos, 8)
+#define IMMW(v,pos)	   IMM_ (v, pos, 16); rx_range (v, -32768, 65536)
+#define IMMB(v,pos)	   IMM_ (v, pos, 8); rx_range (v, -128, 255)
 #define NIMM(v,pos)	   F (immediate (v, RXREL_NEGATIVE, pos, 32), pos, 2)
 #define NBIMM(v,pos)	   F (immediate (v, RXREL_NEGATIVE_BORROW, pos, 32), pos, 2)
 #define DSP(v,pos,msz)	   if (!v.X_md) rx_relax (RX_RELAX_DISP, pos); \
@@ -380,7 +380,7 @@ static int sizemap[] = { BSIZE, WSIZE, LSIZE, WSIZE };
 
 #define id24(a,b2,b3)	   B3 (0xfb+a, b2, b3)
 
-static int         rx_intop (expressionS, int);
+static int         rx_intop (expressionS, int, int);
 static int         rx_uintop (expressionS, int);
 static int         rx_disp3op (expressionS);
 static int         rx_disp5op (expressionS *, int);
@@ -390,6 +390,7 @@ static expressionS zero_expr (void);
 static int         immediate (expressionS, int, int, int);
 static int         displacement (expressionS, int);
 static void        rtsd_immediate (expressionS);
+static void	   rx_range (expressionS, int, int);
 
 static int    need_flag = 0;
 static int    rx_in_brackets = 0;
@@ -418,13 +419,13 @@ static int    sub_op2;
 #endif
 
 #if ! defined (YYSTYPE) && ! defined (YYSTYPE_IS_DECLARED)
-#line 133 "rx-parse.y"
+#line 134 "rx-parse.y"
 typedef union YYSTYPE {
   int regno;
   expressionS exp;
 } YYSTYPE;
 /* Line 191 of yacc.c.  */
-#line 428 "rx-parse.c"
+#line 429 "rx-parse.c"
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1
 # define YYSTYPE_IS_TRIVIAL 1
@@ -436,7 +437,7 @@ typedef union YYSTYPE {
 
 
 /* Line 214 of yacc.c.  */
-#line 440 "rx-parse.c"
+#line 441 "rx-parse.c"
 
 #if ! defined (yyoverflow) || YYERROR_VERBOSE
 
@@ -744,31 +745,31 @@ static const short yyrhs[] =
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const unsigned short yyrline[] =
 {
-       0,   173,   173,   178,   181,   184,   187,   192,   207,   210,
-     215,   224,   229,   237,   240,   245,   247,   249,   254,   272,
-     280,   286,   294,   303,   308,   311,   316,   321,   324,   332,
-     339,   347,   353,   359,   365,   371,   379,   389,   394,   394,
-     395,   395,   396,   396,   400,   413,   426,   431,   436,   438,
-     443,   448,   450,   452,   457,   462,   467,   475,   483,   485,
-     490,   492,   494,   496,   501,   503,   505,   507,   512,   514,
-     516,   521,   526,   528,   530,   532,   537,   543,   551,   565,
-     570,   575,   580,   585,   590,   592,   594,   599,   604,   604,
-     605,   605,   606,   606,   607,   607,   608,   608,   609,   609,
-     610,   610,   611,   611,   612,   612,   613,   613,   614,   614,
-     615,   615,   616,   616,   617,   617,   618,   618,   622,   622,
-     623,   623,   624,   624,   625,   625,   629,   631,   633,   635,
-     638,   640,   642,   644,   649,   649,   650,   650,   651,   651,
-     652,   652,   653,   653,   654,   654,   655,   655,   659,   661,
-     666,   672,   678,   680,   682,   684,   690,   692,   694,   696,
-     698,   701,   712,   714,   719,   721,   726,   728,   733,   733,
-     734,   734,   735,   735,   736,   736,   740,   746,   751,   753,
-     758,   763,   769,   774,   777,   780,   785,   785,   786,   786,
-     787,   787,   788,   788,   789,   789,   794,   804,   806,   808,
-     810,   817,   819,   827,   829,   831,   837,   842,   843,   847,
-     848,   852,   854,   860,   862,   864,   871,   875,   877,   879,
-     885,   887,   890,   892,   898,   899,   902,   902,   907,   908,
-     909,   910,   911,   914,   915,   916,   917,   920,   921,   922,
-     925,   926
+       0,   174,   174,   179,   182,   185,   188,   193,   208,   211,
+     216,   225,   230,   238,   241,   246,   248,   250,   255,   273,
+     281,   287,   295,   304,   309,   312,   317,   322,   325,   333,
+     340,   348,   354,   360,   366,   372,   380,   390,   395,   395,
+     396,   396,   397,   397,   401,   414,   427,   432,   437,   439,
+     444,   449,   451,   453,   458,   463,   468,   476,   484,   486,
+     491,   493,   495,   497,   502,   504,   506,   508,   513,   515,
+     517,   522,   527,   529,   531,   533,   538,   544,   552,   566,
+     571,   576,   581,   586,   591,   593,   595,   600,   605,   605,
+     606,   606,   607,   607,   608,   608,   609,   609,   610,   610,
+     611,   611,   612,   612,   613,   613,   614,   614,   615,   615,
+     616,   616,   617,   617,   618,   618,   619,   619,   623,   623,
+     624,   624,   625,   625,   626,   626,   630,   632,   634,   636,
+     639,   641,   643,   645,   650,   650,   651,   651,   652,   652,
+     653,   653,   654,   654,   655,   655,   656,   656,   660,   662,
+     667,   673,   679,   681,   683,   685,   691,   693,   695,   697,
+     699,   702,   713,   715,   720,   722,   727,   729,   734,   734,
+     735,   735,   736,   736,   737,   737,   741,   747,   752,   754,
+     759,   764,   770,   775,   778,   781,   786,   786,   787,   787,
+     788,   788,   789,   789,   790,   790,   795,   805,   807,   809,
+     811,   818,   820,   828,   830,   832,   838,   843,   844,   848,
+     849,   853,   855,   861,   863,   865,   872,   876,   878,   880,
+     886,   888,   891,   893,   899,   900,   903,   903,   908,   909,
+     910,   911,   912,   915,   916,   917,   918,   921,   922,   923,
+     926,   927
 };
 #endif
 
@@ -1853,39 +1854,39 @@ yyreduce:
   switch (yyn)
     {
         case 2:
-#line 174 "rx-parse.y"
+#line 175 "rx-parse.y"
     { as_bad (_("Unknown opcode: %s"), rx_init_start); }
     break;
 
   case 3:
-#line 179 "rx-parse.y"
+#line 180 "rx-parse.y"
     { B1 (0x00); }
     break;
 
   case 4:
-#line 182 "rx-parse.y"
+#line 183 "rx-parse.y"
     { B1 (0x01); }
     break;
 
   case 5:
-#line 185 "rx-parse.y"
+#line 186 "rx-parse.y"
     { B1 (0x02); }
     break;
 
   case 6:
-#line 188 "rx-parse.y"
+#line 189 "rx-parse.y"
     { B1 (0x03); }
     break;
 
   case 7:
-#line 193 "rx-parse.y"
+#line 194 "rx-parse.y"
     { if (rx_disp3op (yyvsp[0].exp))
 	      { B1 (0x08); rx_disp3 (yyvsp[0].exp, 5); }
-	    else if (rx_intop (yyvsp[0].exp, 8))
+	    else if (rx_intop (yyvsp[0].exp, 8, 8))
 	      { B1 (0x2e); PC1 (yyvsp[0].exp); }
-	    else if (rx_intop (yyvsp[0].exp, 16))
+	    else if (rx_intop (yyvsp[0].exp, 16, 16))
 	      { B1 (0x38); PC2 (yyvsp[0].exp); }
-	    else if (rx_intop (yyvsp[0].exp, 24))
+	    else if (rx_intop (yyvsp[0].exp, 24, 24))
 	      { B1 (0x04); PC3 (yyvsp[0].exp); }
 	    else
 	      { rx_relax (RX_RELAX_BRANCH, 0);
@@ -1895,20 +1896,20 @@ yyreduce:
     break;
 
   case 8:
-#line 208 "rx-parse.y"
+#line 209 "rx-parse.y"
     { B1 (0x04); PC3 (yyvsp[0].exp); }
     break;
 
   case 9:
-#line 211 "rx-parse.y"
+#line 212 "rx-parse.y"
     { B1 (0x08); rx_disp3 (yyvsp[0].exp, 5); }
     break;
 
   case 10:
-#line 216 "rx-parse.y"
-    { if (rx_intop (yyvsp[0].exp, 16))
+#line 217 "rx-parse.y"
+    { if (rx_intop (yyvsp[0].exp, 16, 16))
 	      { B1 (0x39); PC2 (yyvsp[0].exp); }
-	    else if (rx_intop (yyvsp[0].exp, 24))
+	    else if (rx_intop (yyvsp[0].exp, 24, 24))
 	      { B1 (0x05); PC3 (yyvsp[0].exp); }
 	    else
 	      { rx_relax (RX_RELAX_BRANCH, 0);
@@ -1917,12 +1918,12 @@ yyreduce:
     break;
 
   case 11:
-#line 225 "rx-parse.y"
+#line 226 "rx-parse.y"
     { B1 (0x05), PC3 (yyvsp[0].exp); }
     break;
 
   case 12:
-#line 230 "rx-parse.y"
+#line 231 "rx-parse.y"
     { if (yyvsp[-2].regno == COND_EQ || yyvsp[-2].regno == COND_NE)
 	      { B1 (yyvsp[-2].regno == COND_EQ ? 0x10 : 0x18); rx_disp3 (yyvsp[0].exp, 5); }
 	    else
@@ -1930,27 +1931,27 @@ yyreduce:
     break;
 
   case 13:
-#line 238 "rx-parse.y"
+#line 239 "rx-parse.y"
     { B1 (0x20); F (yyvsp[-2].regno, 4, 4); PC1 (yyvsp[0].exp); }
     break;
 
   case 14:
-#line 241 "rx-parse.y"
+#line 242 "rx-parse.y"
     { B1 (0x2e), PC1 (yyvsp[0].exp); }
     break;
 
   case 15:
-#line 246 "rx-parse.y"
+#line 247 "rx-parse.y"
     { B1 (0x38), PC2 (yyvsp[0].exp); }
     break;
 
   case 16:
-#line 248 "rx-parse.y"
+#line 249 "rx-parse.y"
     { B1 (0x39), PC2 (yyvsp[0].exp); }
     break;
 
   case 17:
-#line 250 "rx-parse.y"
+#line 251 "rx-parse.y"
     { if (yyvsp[-2].regno == COND_EQ || yyvsp[-2].regno == COND_NE)
 	      { B1 (yyvsp[-2].regno == COND_EQ ? 0x3a : 0x3b); PC2 (yyvsp[0].exp); }
 	    else
@@ -1958,7 +1959,7 @@ yyreduce:
     break;
 
   case 18:
-#line 255 "rx-parse.y"
+#line 256 "rx-parse.y"
     { if (yyvsp[-1].regno == COND_EQ || yyvsp[-1].regno == COND_NE)
 	      {
 		rx_relax (RX_RELAX_BRANCH, 0);
@@ -1976,7 +1977,7 @@ yyreduce:
     break;
 
   case 19:
-#line 274 "rx-parse.y"
+#line 275 "rx-parse.y"
     { if (yyvsp[-1].regno <= 7 && rx_uintop (yyvsp[-5].exp, 8) && rx_disp5op0 (&yyvsp[-3].exp, BSIZE))
 	      { B2 (0x3c, 0); rx_field5s2 (yyvsp[-3].exp); F (yyvsp[-1].regno, 9, 3); O1 (yyvsp[-5].exp); }
 	    else
@@ -1985,7 +1986,7 @@ yyreduce:
     break;
 
   case 20:
-#line 281 "rx-parse.y"
+#line 282 "rx-parse.y"
     { if (yyvsp[-1].regno <= 7 && rx_uintop (yyvsp[-5].exp, 8) && rx_disp5op0 (&yyvsp[-3].exp, WSIZE))
 	      { B2 (0x3d, 0); rx_field5s2 (yyvsp[-3].exp); F (yyvsp[-1].regno, 9, 3); O1 (yyvsp[-5].exp); }
 	    else
@@ -1993,7 +1994,7 @@ yyreduce:
     break;
 
   case 21:
-#line 287 "rx-parse.y"
+#line 288 "rx-parse.y"
     { if (yyvsp[-1].regno <= 7 && rx_uintop (yyvsp[-5].exp, 8) && rx_disp5op0 (&yyvsp[-3].exp, LSIZE))
 	      { B2 (0x3e, 0); rx_field5s2 (yyvsp[-3].exp); F (yyvsp[-1].regno, 9, 3); O1 (yyvsp[-5].exp); }
 	    else
@@ -2001,7 +2002,7 @@ yyreduce:
     break;
 
   case 22:
-#line 295 "rx-parse.y"
+#line 296 "rx-parse.y"
     { B2 (0x3f, 0); F (yyvsp[-2].regno, 8, 4); F (yyvsp[0].regno, 12, 4); rtsd_immediate (yyvsp[-4].exp);
 	    if (yyvsp[-2].regno == 0)
 	      rx_error (_("RTSD cannot pop R0"));
@@ -2010,32 +2011,32 @@ yyreduce:
     break;
 
   case 23:
-#line 304 "rx-parse.y"
+#line 305 "rx-parse.y"
     { B2 (0x47, 0); F (yyvsp[-2].regno, 8, 4); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 24:
-#line 309 "rx-parse.y"
+#line 310 "rx-parse.y"
     { B2 (0x44, 0); F (yyvsp[-4].regno, 8, 4); F (yyvsp[0].regno, 12, 4); DSP (yyvsp[-6].exp, 6, BSIZE); }
     break;
 
   case 25:
-#line 312 "rx-parse.y"
+#line 313 "rx-parse.y"
     { B3 (MEMEX, 0x04, 0); F (yyvsp[-2].regno, 8, 2);  F (yyvsp[-4].regno, 16, 4); F (yyvsp[0].regno, 20, 4); DSP (yyvsp[-6].exp, 14, sizemap[yyvsp[-2].regno]); }
     break;
 
   case 26:
-#line 317 "rx-parse.y"
+#line 318 "rx-parse.y"
     { B2 (0x5b, 0x00); F (yyvsp[-3].regno, 5, 1); F (yyvsp[-2].regno, 8, 4); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 27:
-#line 322 "rx-parse.y"
+#line 323 "rx-parse.y"
     { B2 (0x58, 0x00); F (yyvsp[-5].regno, 5, 1); F (yyvsp[-3].regno, 8, 4); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 28:
-#line 325 "rx-parse.y"
+#line 326 "rx-parse.y"
     { if (yyvsp[-3].regno <= 7 && yyvsp[0].regno <= 7 && rx_disp5op (&yyvsp[-5].exp, yyvsp[-6].regno))
 	      { B2 (0xb0, 0); F (yyvsp[-6].regno, 4, 1); F (yyvsp[-3].regno, 9, 3); F (yyvsp[0].regno, 13, 3); rx_field5s (yyvsp[-5].exp); }
 	    else
@@ -2043,7 +2044,7 @@ yyreduce:
     break;
 
   case 29:
-#line 333 "rx-parse.y"
+#line 334 "rx-parse.y"
     { if (rx_uintop (yyvsp[-2].exp, 4))
 	      { B2 (0x60, 0); FE (yyvsp[-2].exp, 8, 4); F (yyvsp[0].regno, 12, 4); }
 	    else
@@ -2052,7 +2053,7 @@ yyreduce:
     break;
 
   case 30:
-#line 340 "rx-parse.y"
+#line 341 "rx-parse.y"
     { if (rx_uintop (yyvsp[-2].exp, 4))
 	      { B2 (0x61, 0); FE (yyvsp[-2].exp, 8, 4); F (yyvsp[0].regno, 12, 4); }
 	    else if (rx_uintop (yyvsp[-2].exp, 8))
@@ -2062,7 +2063,7 @@ yyreduce:
     break;
 
   case 31:
-#line 348 "rx-parse.y"
+#line 349 "rx-parse.y"
     { if (rx_uintop (yyvsp[-2].exp, 4))
 	      { B2 (0x62, 0); FE (yyvsp[-2].exp, 8, 4); F (yyvsp[0].regno, 12, 4); }
 	    else
@@ -2070,7 +2071,7 @@ yyreduce:
     break;
 
   case 32:
-#line 354 "rx-parse.y"
+#line 355 "rx-parse.y"
     { if (rx_uintop (yyvsp[-2].exp, 4))
 	      { B2 (0x63, 0); FE (yyvsp[-2].exp, 8, 4); F (yyvsp[0].regno, 12, 4); }
 	    else
@@ -2078,7 +2079,7 @@ yyreduce:
     break;
 
   case 33:
-#line 360 "rx-parse.y"
+#line 361 "rx-parse.y"
     { if (rx_uintop (yyvsp[-2].exp, 4))
 	      { B2 (0x64, 0); FE (yyvsp[-2].exp, 8, 4); F (yyvsp[0].regno, 12, 4); }
 	    else
@@ -2086,7 +2087,7 @@ yyreduce:
     break;
 
   case 34:
-#line 366 "rx-parse.y"
+#line 367 "rx-parse.y"
     { if (rx_uintop (yyvsp[-2].exp, 4))
 	      { B2 (0x65, 0); FE (yyvsp[-2].exp, 8, 4); F (yyvsp[0].regno, 12, 4); }
 	    else
@@ -2094,7 +2095,7 @@ yyreduce:
     break;
 
   case 35:
-#line 372 "rx-parse.y"
+#line 373 "rx-parse.y"
     { if (rx_uintop (yyvsp[-2].exp, 4))
 	      { B2 (0x66, 0); FE (yyvsp[-2].exp, 8, 4); F (yyvsp[0].regno, 12, 4); }
 	    else if (rx_uintop (yyvsp[-2].exp, 8))
@@ -2104,7 +2105,7 @@ yyreduce:
     break;
 
   case 36:
-#line 380 "rx-parse.y"
+#line 381 "rx-parse.y"
     { if (rx_uintop (yyvsp[-2].exp, 4))
 	      { B2 (0x66, 0); FE (yyvsp[-2].exp, 8, 4); F (yyvsp[0].regno, 12, 4); }
 	    else if (rx_uintop (yyvsp[-2].exp, 8))
@@ -2114,27 +2115,27 @@ yyreduce:
     break;
 
   case 37:
-#line 390 "rx-parse.y"
+#line 391 "rx-parse.y"
     { B1 (0x67); rtsd_immediate (yyvsp[0].exp); }
     break;
 
   case 38:
-#line 394 "rx-parse.y"
+#line 395 "rx-parse.y"
     { sub_op = 0; }
     break;
 
   case 40:
-#line 395 "rx-parse.y"
+#line 396 "rx-parse.y"
     { sub_op = 1; }
     break;
 
   case 42:
-#line 396 "rx-parse.y"
+#line 397 "rx-parse.y"
     { sub_op = 2; }
     break;
 
   case 44:
-#line 401 "rx-parse.y"
+#line 402 "rx-parse.y"
     {
 	    if (yyvsp[-2].regno == yyvsp[0].regno)
 	      { B2 (0x7e, 0x80); F (LSIZE, 10, 2); F (yyvsp[-2].regno, 12, 4); }
@@ -2147,7 +2148,7 @@ yyreduce:
     break;
 
   case 45:
-#line 414 "rx-parse.y"
+#line 415 "rx-parse.y"
     {
 	    if (yyvsp[-2].regno == yyvsp[0].regno)
 	      { B2 (0x7e, 0xb0); F (yyvsp[-2].regno, 12, 4); }
@@ -2160,57 +2161,57 @@ yyreduce:
     break;
 
   case 46:
-#line 427 "rx-parse.y"
+#line 428 "rx-parse.y"
     { B2 (0x70, 0x00); F (yyvsp[-2].regno, 8, 4); F (yyvsp[0].regno, 12, 4); IMM (yyvsp[-4].exp, 6); }
     break;
 
   case 47:
-#line 432 "rx-parse.y"
+#line 433 "rx-parse.y"
     { B2(0x75, 0x60), UO1 (yyvsp[0].exp); }
     break;
 
   case 48:
-#line 437 "rx-parse.y"
+#line 438 "rx-parse.y"
     { B2 (0x78, 0); FE (yyvsp[-2].exp, 7, 5); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 49:
-#line 439 "rx-parse.y"
+#line 440 "rx-parse.y"
     { B2 (0x7a, 0); FE (yyvsp[-2].exp, 7, 5); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 50:
-#line 444 "rx-parse.y"
+#line 445 "rx-parse.y"
     { B2 (0x7c, 0x00); FE (yyvsp[-2].exp, 7, 5); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 51:
-#line 449 "rx-parse.y"
+#line 450 "rx-parse.y"
     { B2 (0x7e, 0x30); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 52:
-#line 451 "rx-parse.y"
+#line 452 "rx-parse.y"
     { B2 (0x7e, 0x40); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 53:
-#line 453 "rx-parse.y"
+#line 454 "rx-parse.y"
     { B2 (0x7e, 0x50); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 54:
-#line 458 "rx-parse.y"
+#line 459 "rx-parse.y"
     { B2 (0x7e, 0x80); F (yyvsp[-1].regno, 10, 2); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 55:
-#line 463 "rx-parse.y"
+#line 464 "rx-parse.y"
     { B2 (0x7e, 0xb0); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 56:
-#line 468 "rx-parse.y"
+#line 469 "rx-parse.y"
     { if (yyvsp[0].regno < 16)
 	      { B2 (0x7e, 0xc0); F (yyvsp[0].regno, 12, 4); }
 	    else
@@ -2218,7 +2219,7 @@ yyreduce:
     break;
 
   case 57:
-#line 476 "rx-parse.y"
+#line 477 "rx-parse.y"
     { if (yyvsp[0].regno < 16)
 	      { B2 (0x7e, 0xe0); F (yyvsp[0].regno, 12, 4); }
 	    else
@@ -2226,102 +2227,102 @@ yyreduce:
     break;
 
   case 58:
-#line 484 "rx-parse.y"
+#line 485 "rx-parse.y"
     { B2 (0x7f, 0xa0); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 59:
-#line 486 "rx-parse.y"
+#line 487 "rx-parse.y"
     { B2 (0x7f, 0xb0); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 60:
-#line 491 "rx-parse.y"
+#line 492 "rx-parse.y"
     { B2 (0x7f, 0x00); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 61:
-#line 493 "rx-parse.y"
+#line 494 "rx-parse.y"
     { B2 (0x7f, 0x10); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 62:
-#line 495 "rx-parse.y"
+#line 496 "rx-parse.y"
     { B2 (0x7f, 0x40); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 63:
-#line 497 "rx-parse.y"
+#line 498 "rx-parse.y"
     { B2 (0x7f, 0x50); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 64:
-#line 502 "rx-parse.y"
+#line 503 "rx-parse.y"
     { B2 (0x7f, 0x83); }
     break;
 
   case 65:
-#line 504 "rx-parse.y"
+#line 505 "rx-parse.y"
     { B2 (0x7f, 0x87); }
     break;
 
   case 66:
-#line 506 "rx-parse.y"
+#line 507 "rx-parse.y"
     { B2 (0x7f, 0x8b); }
     break;
 
   case 67:
-#line 508 "rx-parse.y"
+#line 509 "rx-parse.y"
     { B2 (0x7f, 0x8f); }
     break;
 
   case 68:
-#line 513 "rx-parse.y"
+#line 514 "rx-parse.y"
     { B2 (0x7f, 0x80); F (yyvsp[0].regno, 14, 2); }
     break;
 
   case 69:
-#line 515 "rx-parse.y"
+#line 516 "rx-parse.y"
     { B2 (0x7f, 0x84); F (yyvsp[0].regno, 14, 2); }
     break;
 
   case 70:
-#line 517 "rx-parse.y"
+#line 518 "rx-parse.y"
     { B2 (0x7f, 0x88); F (yyvsp[0].regno, 14, 2); }
     break;
 
   case 71:
-#line 522 "rx-parse.y"
+#line 523 "rx-parse.y"
     { B2 (0x7f, 0x8c); F (yyvsp[0].regno, 14, 2); }
     break;
 
   case 72:
-#line 527 "rx-parse.y"
+#line 528 "rx-parse.y"
     { B2 (0x7f, 0x94); }
     break;
 
   case 73:
-#line 529 "rx-parse.y"
+#line 530 "rx-parse.y"
     { B2 (0x7f, 0x95); }
     break;
 
   case 74:
-#line 531 "rx-parse.y"
+#line 532 "rx-parse.y"
     { B2 (0x7f, 0x96); }
     break;
 
   case 75:
-#line 533 "rx-parse.y"
+#line 534 "rx-parse.y"
     { B2 (0x7f, 0x93); }
     break;
 
   case 76:
-#line 538 "rx-parse.y"
+#line 539 "rx-parse.y"
     { B3 (0x75, 0x70, 0x00); FE (yyvsp[0].exp, 20, 4); }
     break;
 
   case 77:
-#line 544 "rx-parse.y"
+#line 545 "rx-parse.y"
     { if (yyvsp[-5].regno <= 7 && yyvsp[-1].regno <= 7 && rx_disp5op (&yyvsp[-3].exp, yyvsp[-6].regno))
 	      { B2 (0x80, 0); F (yyvsp[-6].regno, 2, 2); F (yyvsp[-1].regno, 9, 3); F (yyvsp[-5].regno, 13, 3); rx_field5s (yyvsp[-3].exp); }
 	    else
@@ -2329,7 +2330,7 @@ yyreduce:
     break;
 
   case 78:
-#line 552 "rx-parse.y"
+#line 553 "rx-parse.y"
     { if (yyvsp[-3].regno <= 7 && yyvsp[0].regno <= 7 && rx_disp5op (&yyvsp[-5].exp, yyvsp[-6].regno))
 	      { B2 (0x88, 0); F (yyvsp[-6].regno, 2, 2); F (yyvsp[-3].regno, 9, 3); F (yyvsp[0].regno, 13, 3); rx_field5s (yyvsp[-5].exp); }
 	    else
@@ -2337,289 +2338,289 @@ yyreduce:
     break;
 
   case 79:
-#line 566 "rx-parse.y"
+#line 567 "rx-parse.y"
     { B2 (0xc3, 0x00); F (yyvsp[-5].regno, 2, 2); F (yyvsp[-1].regno, 8, 4); F (yyvsp[-4].regno, 12, 4); }
     break;
 
   case 80:
-#line 571 "rx-parse.y"
+#line 572 "rx-parse.y"
     { B2 (0xc0, 0); F (yyvsp[-8].regno, 2, 2); F (yyvsp[-6].regno, 8, 4); F (yyvsp[-1].regno, 12, 4); DSP (yyvsp[-3].exp, 4, yyvsp[-8].regno); }
     break;
 
   case 81:
-#line 576 "rx-parse.y"
+#line 577 "rx-parse.y"
     { B2 (0xc0, 0x00); F (yyvsp[-9].regno, 2, 2); F (yyvsp[-6].regno, 8, 4); F (yyvsp[-1].regno, 12, 4); DSP (yyvsp[-8].exp, 6, yyvsp[-9].regno); DSP (yyvsp[-3].exp, 4, yyvsp[-9].regno); }
     break;
 
   case 82:
-#line 581 "rx-parse.y"
+#line 582 "rx-parse.y"
     { B2 (0xcf, 0x00); F (yyvsp[-3].regno, 2, 2); F (yyvsp[-2].regno, 8, 4); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 83:
-#line 586 "rx-parse.y"
+#line 587 "rx-parse.y"
     { B2 (0xcc, 0x00); F (yyvsp[-5].regno, 2, 2); F (yyvsp[-3].regno, 8, 4); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 84:
-#line 591 "rx-parse.y"
+#line 592 "rx-parse.y"
     { B2 (0xf0, 0x00); F (yyvsp[-2].regno, 8, 4); FE (yyvsp[-6].exp, 13, 3); DSP (yyvsp[-4].exp, 6, BSIZE); }
     break;
 
   case 85:
-#line 593 "rx-parse.y"
+#line 594 "rx-parse.y"
     { B2 (0xf0, 0x08); F (yyvsp[-2].regno, 8, 4); FE (yyvsp[-6].exp, 13, 3); DSP (yyvsp[-4].exp, 6, BSIZE); }
     break;
 
   case 86:
-#line 595 "rx-parse.y"
+#line 596 "rx-parse.y"
     { B2 (0xf4, 0x00); F (yyvsp[-2].regno, 8, 4); FE (yyvsp[-6].exp, 13, 3); DSP (yyvsp[-4].exp, 6, BSIZE); }
     break;
 
   case 87:
-#line 600 "rx-parse.y"
+#line 601 "rx-parse.y"
     { B2 (0xf4, 0x08); F (yyvsp[-4].regno, 14, 2); F (yyvsp[-1].regno, 8, 4); DSP (yyvsp[-3].exp, 6, yyvsp[-4].regno); }
     break;
 
   case 88:
-#line 604 "rx-parse.y"
+#line 605 "rx-parse.y"
     { sub_op = 0; }
     break;
 
   case 90:
-#line 605 "rx-parse.y"
+#line 606 "rx-parse.y"
     { sub_op = 1; sub_op2 = 1; }
     break;
 
   case 92:
-#line 606 "rx-parse.y"
+#line 607 "rx-parse.y"
     { sub_op = 2; }
     break;
 
   case 94:
-#line 607 "rx-parse.y"
+#line 608 "rx-parse.y"
     { sub_op = 3; sub_op2 = 2; }
     break;
 
   case 96:
-#line 608 "rx-parse.y"
+#line 609 "rx-parse.y"
     { sub_op = 4; }
     break;
 
   case 98:
-#line 609 "rx-parse.y"
+#line 610 "rx-parse.y"
     { sub_op = 5; }
     break;
 
   case 100:
-#line 610 "rx-parse.y"
+#line 611 "rx-parse.y"
     { sub_op = 6; }
     break;
 
   case 102:
-#line 611 "rx-parse.y"
+#line 612 "rx-parse.y"
     { sub_op = 7; }
     break;
 
   case 104:
-#line 612 "rx-parse.y"
+#line 613 "rx-parse.y"
     { sub_op = 8; }
     break;
 
   case 106:
-#line 613 "rx-parse.y"
+#line 614 "rx-parse.y"
     { sub_op = 9; }
     break;
 
   case 108:
-#line 614 "rx-parse.y"
+#line 615 "rx-parse.y"
     { sub_op = 12; }
     break;
 
   case 110:
-#line 615 "rx-parse.y"
+#line 616 "rx-parse.y"
     { sub_op = 13; }
     break;
 
   case 112:
-#line 616 "rx-parse.y"
+#line 617 "rx-parse.y"
     { sub_op = 14; sub_op2 = 0; }
     break;
 
   case 114:
-#line 617 "rx-parse.y"
+#line 618 "rx-parse.y"
     { sub_op = 14; }
     break;
 
   case 116:
-#line 618 "rx-parse.y"
+#line 619 "rx-parse.y"
     { sub_op = 15; }
     break;
 
   case 118:
-#line 622 "rx-parse.y"
+#line 623 "rx-parse.y"
     { sub_op = 6; }
     break;
 
   case 120:
-#line 623 "rx-parse.y"
+#line 624 "rx-parse.y"
     { sub_op = 7; }
     break;
 
   case 122:
-#line 624 "rx-parse.y"
+#line 625 "rx-parse.y"
     { sub_op = 16; }
     break;
 
   case 124:
-#line 625 "rx-parse.y"
+#line 626 "rx-parse.y"
     { sub_op = 17; }
     break;
 
   case 126:
-#line 630 "rx-parse.y"
+#line 631 "rx-parse.y"
     { id24 (1, 0x63, 0x00); F (yyvsp[0].regno, 16, 4); F (yyvsp[-2].regno, 20, 4); }
     break;
 
   case 127:
-#line 632 "rx-parse.y"
+#line 633 "rx-parse.y"
     { id24 (1, 0x67, 0x00); F (yyvsp[0].regno, 16, 4); F (yyvsp[-2].regno, 20, 4); }
     break;
 
   case 128:
-#line 634 "rx-parse.y"
+#line 635 "rx-parse.y"
     { id24 (1, 0x6b, 0x00); F (yyvsp[0].regno, 16, 4); F (yyvsp[-2].regno, 20, 4); }
     break;
 
   case 129:
-#line 636 "rx-parse.y"
+#line 637 "rx-parse.y"
     { id24 (1, 0x6f, 0x00); F (yyvsp[0].regno, 16, 4); F (yyvsp[-2].regno, 20, 4); }
     break;
 
   case 130:
-#line 639 "rx-parse.y"
+#line 640 "rx-parse.y"
     { id24 (1, 0x60, 0x00); F (yyvsp[-2].regno, 16, 4); F (yyvsp[-6].regno, 20, 4); DSP (yyvsp[-4].exp, 14, BSIZE); }
     break;
 
   case 131:
-#line 641 "rx-parse.y"
+#line 642 "rx-parse.y"
     { id24 (1, 0x64, 0x00); F (yyvsp[-2].regno, 16, 4); F (yyvsp[-6].regno, 20, 4); DSP (yyvsp[-4].exp, 14, BSIZE); }
     break;
 
   case 132:
-#line 643 "rx-parse.y"
+#line 644 "rx-parse.y"
     { id24 (1, 0x68, 0x00); F (yyvsp[-2].regno, 16, 4); F (yyvsp[-6].regno, 20, 4); DSP (yyvsp[-4].exp, 14, BSIZE); }
     break;
 
   case 133:
-#line 645 "rx-parse.y"
+#line 646 "rx-parse.y"
     { id24 (1, 0x6c, 0x00); F (yyvsp[-2].regno, 16, 4); F (yyvsp[-6].regno, 20, 4); DSP (yyvsp[-4].exp, 14, BSIZE); }
     break;
 
   case 134:
-#line 649 "rx-parse.y"
+#line 650 "rx-parse.y"
     { sub_op = 0; }
     break;
 
   case 136:
-#line 650 "rx-parse.y"
+#line 651 "rx-parse.y"
     { sub_op = 1; }
     break;
 
   case 138:
-#line 651 "rx-parse.y"
+#line 652 "rx-parse.y"
     { sub_op = 2; }
     break;
 
   case 140:
-#line 652 "rx-parse.y"
+#line 653 "rx-parse.y"
     { sub_op = 3; }
     break;
 
   case 142:
-#line 653 "rx-parse.y"
+#line 654 "rx-parse.y"
     { sub_op = 4; }
     break;
 
   case 144:
-#line 654 "rx-parse.y"
+#line 655 "rx-parse.y"
     { sub_op = 5; }
     break;
 
   case 146:
-#line 655 "rx-parse.y"
+#line 656 "rx-parse.y"
     { sub_op = 6; }
     break;
 
   case 148:
-#line 660 "rx-parse.y"
+#line 661 "rx-parse.y"
     { id24 (1, 0xdb, 0x00); F (yyvsp[-2].regno, 20, 4); F (yyvsp[0].regno, 16, 4); }
     break;
 
   case 149:
-#line 662 "rx-parse.y"
+#line 663 "rx-parse.y"
     { id24 (1, 0xd0, 0x00); F (yyvsp[-5].regno, 20, 4); F (yyvsp[-4].regno, 12, 2); F (yyvsp[-1].regno, 16, 4); DSP (yyvsp[-3].exp, 14, yyvsp[-4].regno); }
     break;
 
   case 150:
-#line 667 "rx-parse.y"
+#line 668 "rx-parse.y"
     { id24 (1, 0xe0, 0x00); F (yyvsp[-8].regno, 20, 4); FE (yyvsp[-6].exp, 11, 3);
 	      F (yyvsp[-2].regno, 16, 4); DSP (yyvsp[-4].exp, 14, BSIZE); }
     break;
 
   case 151:
-#line 673 "rx-parse.y"
+#line 674 "rx-parse.y"
     { id24 (1, 0xe0, 0x0f); FE (yyvsp[-6].exp, 11, 3); F (yyvsp[-2].regno, 16, 4);
 	      DSP (yyvsp[-4].exp, 14, BSIZE); }
     break;
 
   case 152:
-#line 679 "rx-parse.y"
+#line 680 "rx-parse.y"
     { id24 (2, 0x00, 0x00); F (yyvsp[-2].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 153:
-#line 681 "rx-parse.y"
+#line 682 "rx-parse.y"
     { id24 (2, 0x01, 0x00); F (yyvsp[-2].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 154:
-#line 683 "rx-parse.y"
+#line 684 "rx-parse.y"
     { id24 (2, 0x04, 0x00); F (yyvsp[-2].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 155:
-#line 685 "rx-parse.y"
+#line 686 "rx-parse.y"
     { id24 (2, 0x05, 0x00); F (yyvsp[-2].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 156:
-#line 691 "rx-parse.y"
+#line 692 "rx-parse.y"
     { id24 (2, 0x17, 0x00); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 157:
-#line 693 "rx-parse.y"
+#line 694 "rx-parse.y"
     { id24 (2, 0x17, 0x10); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 158:
-#line 695 "rx-parse.y"
+#line 696 "rx-parse.y"
     { id24 (2, 0x1f, 0x00); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 159:
-#line 697 "rx-parse.y"
+#line 698 "rx-parse.y"
     { id24 (2, 0x1f, 0x20); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 160:
-#line 699 "rx-parse.y"
+#line 700 "rx-parse.y"
     { id24 (2, 0x1f, 0x10); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 161:
-#line 702 "rx-parse.y"
+#line 703 "rx-parse.y"
     { id24 (2, 0x18, 0x00);
 	    if (rx_uintop (yyvsp[0].exp, 4) && yyvsp[0].exp.X_add_number == 1)
 	      ;
@@ -2630,332 +2631,332 @@ yyreduce:
     break;
 
   case 162:
-#line 713 "rx-parse.y"
+#line 714 "rx-parse.y"
     { id24 (2, 0x20, 0); F (yyvsp[-6].regno, 14, 2); F (yyvsp[-2].regno, 16, 4); F (yyvsp[-5].regno, 20, 4); }
     break;
 
   case 163:
-#line 715 "rx-parse.y"
+#line 716 "rx-parse.y"
     { id24 (2, 0x24, 0); F (yyvsp[-6].regno, 14, 2); F (yyvsp[-1].regno, 16, 4); F (yyvsp[-5].regno, 20, 4); }
     break;
 
   case 164:
-#line 720 "rx-parse.y"
+#line 721 "rx-parse.y"
     { id24 (2, 0x28, 0); F (yyvsp[-6].regno, 14, 2); F (yyvsp[-4].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 165:
-#line 722 "rx-parse.y"
+#line 723 "rx-parse.y"
     { id24 (2, 0x2c, 0); F (yyvsp[-6].regno, 14, 2); F (yyvsp[-3].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 166:
-#line 727 "rx-parse.y"
+#line 728 "rx-parse.y"
     { id24 (2, 0x38, 0); F (yyvsp[-6].regno, 15, 1); F (yyvsp[-4].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 167:
-#line 729 "rx-parse.y"
+#line 730 "rx-parse.y"
     { id24 (2, 0x3c, 0); F (yyvsp[-6].regno, 15, 1); F (yyvsp[-3].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 168:
-#line 733 "rx-parse.y"
+#line 734 "rx-parse.y"
     { sub_op = 6; }
     break;
 
   case 170:
-#line 734 "rx-parse.y"
+#line 735 "rx-parse.y"
     { sub_op = 4; }
     break;
 
   case 172:
-#line 735 "rx-parse.y"
+#line 736 "rx-parse.y"
     { sub_op = 5; }
     break;
 
   case 174:
-#line 736 "rx-parse.y"
+#line 737 "rx-parse.y"
     { sub_op = 7; }
     break;
 
   case 176:
-#line 741 "rx-parse.y"
+#line 742 "rx-parse.y"
     { id24 (2, 0x68, 0x00); F (yyvsp[0].regno % 16, 20, 4); F (yyvsp[0].regno / 16, 15, 1);
 	    F (yyvsp[-2].regno, 16, 4); }
     break;
 
   case 177:
-#line 747 "rx-parse.y"
+#line 748 "rx-parse.y"
     { id24 (2, 0x6a, 0); F (yyvsp[-2].regno, 15, 5); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 178:
-#line 752 "rx-parse.y"
+#line 753 "rx-parse.y"
     { id24 (2, 0x6e, 0); FE (yyvsp[-2].exp, 15, 5); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 179:
-#line 754 "rx-parse.y"
+#line 755 "rx-parse.y"
     { id24 (2, 0x6c, 0); FE (yyvsp[-2].exp, 15, 5); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 180:
-#line 759 "rx-parse.y"
+#line 760 "rx-parse.y"
     { id24 (2, 0x73, 0x00); F (yyvsp[0].regno, 19, 5); IMM (yyvsp[-2].exp, 12); }
     break;
 
   case 181:
-#line 764 "rx-parse.y"
+#line 765 "rx-parse.y"
     { id24 (2, 0xe0, 0x00); F (yyvsp[-4].regno, 16, 4); FE (yyvsp[-2].exp, 11, 5);
 	      F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 182:
-#line 770 "rx-parse.y"
+#line 771 "rx-parse.y"
     { id24 (2, 0xe0, 0xf0); FE (yyvsp[-2].exp, 11, 5); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 183:
-#line 775 "rx-parse.y"
+#line 776 "rx-parse.y"
     { id24 (3, 0x00, 0); F (yyvsp[-7].regno, 10, 2); F (yyvsp[-3].regno, 12, 4); F (yyvsp[-1].regno, 16, 4); F (yyvsp[-6].regno, 20, 4); }
     break;
 
   case 184:
-#line 778 "rx-parse.y"
+#line 779 "rx-parse.y"
     { id24 (3, 0x40, 0); F (yyvsp[-7].regno, 10, 2); F (yyvsp[-5].regno, 12, 4); F (yyvsp[-3].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 185:
-#line 781 "rx-parse.y"
+#line 782 "rx-parse.y"
     { id24 (3, 0xc0, 0); F (yyvsp[-7].regno, 10, 2); F (yyvsp[-5].regno, 12, 4); F (yyvsp[-3].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 186:
-#line 785 "rx-parse.y"
+#line 786 "rx-parse.y"
     { sub_op = 0; }
     break;
 
   case 188:
-#line 786 "rx-parse.y"
+#line 787 "rx-parse.y"
     { sub_op = 2; }
     break;
 
   case 190:
-#line 787 "rx-parse.y"
+#line 788 "rx-parse.y"
     { sub_op = 3; }
     break;
 
   case 192:
-#line 788 "rx-parse.y"
+#line 789 "rx-parse.y"
     { sub_op = 4; }
     break;
 
   case 194:
-#line 789 "rx-parse.y"
+#line 790 "rx-parse.y"
     { sub_op = 5; }
     break;
 
   case 196:
-#line 795 "rx-parse.y"
+#line 796 "rx-parse.y"
     { id24 (2, 0x70, 0x20); F (yyvsp[0].regno, 20, 4); NBIMM (yyvsp[-2].exp, 12); }
     break;
 
   case 197:
-#line 805 "rx-parse.y"
+#line 806 "rx-parse.y"
     { B2 (0x43 + (sub_op<<2), 0); F (yyvsp[-2].regno, 8, 4); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 198:
-#line 807 "rx-parse.y"
+#line 808 "rx-parse.y"
     { B2 (0x40 + (sub_op<<2), 0); F (yyvsp[-4].regno, 8, 4); F (yyvsp[0].regno, 12, 4); DSP (yyvsp[-6].exp, 6, BSIZE); }
     break;
 
   case 199:
-#line 809 "rx-parse.y"
+#line 810 "rx-parse.y"
     { B3 (MEMEX, sub_op<<2, 0); F (yyvsp[-2].regno, 8, 2); F (yyvsp[-4].regno, 16, 4); F (yyvsp[0].regno, 20, 4); DSP (yyvsp[-6].exp, 14, sizemap[yyvsp[-2].regno]); }
     break;
 
   case 200:
-#line 811 "rx-parse.y"
+#line 812 "rx-parse.y"
     { id24 (4, sub_op<<4, 0), F (yyvsp[0].regno, 12, 4), F (yyvsp[-4].regno, 16, 4), F (yyvsp[-2].regno, 20, 4); }
     break;
 
   case 201:
-#line 818 "rx-parse.y"
+#line 819 "rx-parse.y"
     { id24 (1, 0x03 + (sub_op<<2), 0x00); F (yyvsp[-2].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 202:
-#line 820 "rx-parse.y"
+#line 821 "rx-parse.y"
     { B4 (MEMEX, 0xa0, 0x00 + sub_op, 0x00);
 	  F (yyvsp[-4].regno, 24, 4); F (yyvsp[0].regno, 28, 4); DSP (yyvsp[-6].exp, 14, LSIZE); }
     break;
 
   case 203:
-#line 828 "rx-parse.y"
+#line 829 "rx-parse.y"
     { id24 (1, 0x03 + (sub_op<<2), 0x00); F (yyvsp[-2].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 204:
-#line 830 "rx-parse.y"
+#line 831 "rx-parse.y"
     { id24 (1, 0x00 + (sub_op<<2), 0x00); F (yyvsp[-4].regno, 16, 4); F (yyvsp[0].regno, 20, 4); DSP (yyvsp[-6].exp, 14, BSIZE); }
     break;
 
   case 205:
-#line 832 "rx-parse.y"
+#line 833 "rx-parse.y"
     { B4 (MEMEX, 0x20 + (yyvsp[-2].regno << 6), 0x00 + sub_op, 0x00);
 	  F (yyvsp[-4].regno, 24, 4); F (yyvsp[0].regno, 28, 4); DSP (yyvsp[-6].exp, 14, sizemap[yyvsp[-2].regno]); }
     break;
 
   case 206:
-#line 838 "rx-parse.y"
+#line 839 "rx-parse.y"
     { id24 (2, 0x70, sub_op<<4); F (yyvsp[0].regno, 20, 4); IMM (yyvsp[-2].exp, 12); }
     break;
 
   case 211:
-#line 853 "rx-parse.y"
+#line 854 "rx-parse.y"
     { id24 (1, 0x03 + (sub_op<<2), 0x00); F (yyvsp[-2].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 212:
-#line 855 "rx-parse.y"
+#line 856 "rx-parse.y"
     { B2 (0x7e, sub_op2 << 4); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 213:
-#line 861 "rx-parse.y"
+#line 862 "rx-parse.y"
     { id24 (1, 0x03 + (sub_op<<2), 0); F (yyvsp[-2].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 214:
-#line 863 "rx-parse.y"
+#line 864 "rx-parse.y"
     { id24 (1, 0x00 + (sub_op<<2), 0); F (yyvsp[-4].regno, 16, 4); F (yyvsp[0].regno, 20, 4); DSP (yyvsp[-6].exp, 14, BSIZE); }
     break;
 
   case 215:
-#line 865 "rx-parse.y"
+#line 866 "rx-parse.y"
     { B4 (MEMEX, 0x20, 0x00 + sub_op, 0); F (yyvsp[-2].regno, 8, 2); F (yyvsp[-4].regno, 24, 4); F (yyvsp[0].regno, 28, 4);
 	    DSP (yyvsp[-6].exp, 14, sizemap[yyvsp[-2].regno]); }
     break;
 
   case 216:
-#line 872 "rx-parse.y"
+#line 873 "rx-parse.y"
     { id24 (2, 0x60 + sub_op, 0); F (yyvsp[-2].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 217:
-#line 876 "rx-parse.y"
+#line 877 "rx-parse.y"
     { B2 (0x68 + (sub_op<<1), 0); FE (yyvsp[-2].exp, 7, 5); F (yyvsp[0].regno, 12, 4); }
     break;
 
   case 218:
-#line 878 "rx-parse.y"
+#line 879 "rx-parse.y"
     { id24 (2, 0x80 + (sub_op << 5), 0); FE (yyvsp[-4].exp, 11, 5); F (yyvsp[-2].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 220:
-#line 886 "rx-parse.y"
+#line 887 "rx-parse.y"
     { id24 (2, 0x72, sub_op << 4); F (yyvsp[0].regno, 20, 4); O4 (yyvsp[-2].exp); }
     break;
 
   case 222:
-#line 891 "rx-parse.y"
+#line 892 "rx-parse.y"
     { id24 (1, 0x83 + (sub_op << 2), 0); F (yyvsp[-2].regno, 16, 4); F (yyvsp[0].regno, 20, 4); }
     break;
 
   case 223:
-#line 893 "rx-parse.y"
+#line 894 "rx-parse.y"
     { id24 (1, 0x80 + (sub_op << 2), 0); F (yyvsp[-4].regno, 16, 4); F (yyvsp[0].regno, 20, 4); DSP (yyvsp[-6].exp, 14, LSIZE); }
     break;
 
   case 224:
-#line 898 "rx-parse.y"
+#line 899 "rx-parse.y"
     { yyval.exp = zero_expr (); }
     break;
 
   case 225:
-#line 899 "rx-parse.y"
+#line 900 "rx-parse.y"
     { yyval.exp = yyvsp[0].exp; }
     break;
 
   case 226:
-#line 902 "rx-parse.y"
+#line 903 "rx-parse.y"
     { need_flag = 1; }
     break;
 
   case 227:
-#line 902 "rx-parse.y"
+#line 903 "rx-parse.y"
     { need_flag = 0; yyval.regno = yyvsp[0].regno; }
     break;
 
   case 228:
-#line 907 "rx-parse.y"
+#line 908 "rx-parse.y"
     { yyval.regno = 0; }
     break;
 
   case 229:
-#line 908 "rx-parse.y"
+#line 909 "rx-parse.y"
     { yyval.regno = 1; }
     break;
 
   case 230:
-#line 909 "rx-parse.y"
-    { yyval.regno = 2; }
-    break;
-
-  case 231:
 #line 910 "rx-parse.y"
     { yyval.regno = 2; }
     break;
 
-  case 232:
+  case 231:
 #line 911 "rx-parse.y"
+    { yyval.regno = 2; }
+    break;
+
+  case 232:
+#line 912 "rx-parse.y"
     { yyval.regno = 3; }
     break;
 
   case 233:
-#line 914 "rx-parse.y"
+#line 915 "rx-parse.y"
     { yyval.regno = LSIZE; }
     break;
 
   case 234:
-#line 915 "rx-parse.y"
+#line 916 "rx-parse.y"
     { yyval.regno = BSIZE; }
     break;
 
   case 235:
-#line 916 "rx-parse.y"
+#line 917 "rx-parse.y"
     { yyval.regno = WSIZE; }
     break;
 
   case 236:
-#line 917 "rx-parse.y"
+#line 918 "rx-parse.y"
     { yyval.regno = LSIZE; }
     break;
 
   case 237:
-#line 920 "rx-parse.y"
+#line 921 "rx-parse.y"
     { yyval.regno = 1; }
     break;
 
   case 238:
-#line 921 "rx-parse.y"
+#line 922 "rx-parse.y"
     { yyval.regno = 0; }
     break;
 
   case 239:
-#line 922 "rx-parse.y"
+#line 923 "rx-parse.y"
     { yyval.regno = 1; }
     break;
 
   case 240:
-#line 925 "rx-parse.y"
+#line 926 "rx-parse.y"
     {}
     break;
 
   case 241:
-#line 926 "rx-parse.y"
+#line 927 "rx-parse.y"
     {}
     break;
 
@@ -2963,7 +2964,7 @@ yyreduce:
     }
 
 /* Line 1000 of yacc.c.  */
-#line 2967 "rx-parse.c"
+#line 2968 "rx-parse.c"
 
   yyvsp -= yylen;
   yyssp -= yylen;
@@ -3188,7 +3189,7 @@ yyreturn:
 }
 
 
-#line 929 "rx-parse.y"
+#line 930 "rx-parse.y"
 
 /* ====================================================================== */
 
@@ -3571,15 +3572,22 @@ rx_error (const char * str)
 }
 
 static int
-rx_intop (expressionS exp, int nbits)
+rx_intop (expressionS exp, int nbits, int opbits)
 {
   long v;
+  long mask, msb;
 
   if (exp.X_op == O_big && nbits == 32)
       return 1;
   if (exp.X_op != O_constant)
     return 0;
   v = exp.X_add_number;
+
+  msb = 1UL << (opbits - 1);
+  mask = (1UL << opbits) - 1;
+
+  if ((v & msb) && ! (v & ~mask))
+    v -= 1UL << opbits;
 
   switch (nbits)
     {
@@ -3724,12 +3732,12 @@ immediate (expressionS exp, int type, int pos, int bits)
 	rx_error (_("sbb cannot use symbolic immediates"));
     }
 
-  if (rx_intop (exp, 8))
+  if (rx_intop (exp, 8, bits))
     {
       rx_op (exp, 1, type);
       return 1;
     }
-  else if (rx_intop (exp, 16))
+  else if (rx_intop (exp, 16, bits))
     {
       rx_op (exp, 2, type);
       return 2;
@@ -3739,12 +3747,12 @@ immediate (expressionS exp, int type, int pos, int bits)
       rx_op (exp, 2, type);
       return 2;
     }
-  else if (rx_intop (exp, 24))
+  else if (rx_intop (exp, 24, bits))
     {
       rx_op (exp, 3, type);
       return 3;
     }
-  else if (rx_intop (exp, 32))
+  else if (rx_intop (exp, 32, bits))
     {
       rx_op (exp, 4, type);
       return 0;
@@ -3870,5 +3878,18 @@ rtsd_immediate (expressionS exp)
   val >>= 2;
   exp.X_add_number = val;
   O1 (exp);
+}
+
+static void
+rx_range (expressionS exp, int minv, int maxv)
+{
+  int val;
+
+  if (exp.X_op != O_constant)
+    return;
+
+  val = exp.X_add_number;
+  if (val < minv || val > maxv)
+    as_warn (_("Value %d out of range %d..%d"), val, minv, maxv);
 }
 

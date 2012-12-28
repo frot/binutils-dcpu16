@@ -45,7 +45,7 @@ Introduction
 ************
 
 This brief manual contains documentation for the GNU binary utilities
-(GNU Binutils) version 2.22.52:
+(GNU Binutils) version 2.23.51:
 
    This document is distributed under the terms of the GNU Free
 Documentation License version 1.3.  A copy of the license is included
@@ -538,17 +538,19 @@ File: binutils.info,  Node: nm,  Next: objcopy,  Prev: ar,  Up: Top
 2 nm
 ****
 
-     nm [`-a'|`--debug-syms']
-        [`-g'|`--extern-only'][`--plugin' NAME]
-        [`-B'] [`-C'|`--demangle'[=STYLE]] [`-D'|`--dynamic']
-        [`-S'|`--print-size'] [`-s'|`--print-armap']
-        [`-A'|`-o'|`--print-file-name'][`--special-syms']
-        [`-n'|`-v'|`--numeric-sort'] [`-p'|`--no-sort']
-        [`-r'|`--reverse-sort'] [`--size-sort'] [`-u'|`--undefined-only']
-        [`-t' RADIX|`--radix='RADIX] [`-P'|`--portability']
-        [`--target='BFDNAME] [`-f'FORMAT|`--format='FORMAT]
-        [`--defined-only'] [`-l'|`--line-numbers'] [`--no-demangle']
-        [`-V'|`--version'] [`-X 32_64'] [`--help']  [OBJFILE...]
+     nm [`-A'|`-o'|`--print-file-name'] [`-a'|`--debug-syms']
+        [`-B'|`--format=bsd'] [`-C'|`--demangle'[=STYLE]]
+        [`-D'|`--dynamic'] [`-f'FORMAT|`--format='FORMAT]
+        [`-g'|`--extern-only'] [`-h'|`--help']
+        [`-l'|`--line-numbers'] [`-n'|`-v'|`--numeric-sort']
+        [`-P'|`--portability'] [`-p'|`--no-sort']
+        [`-r'|`--reverse-sort'] [`-S'|`--print-size']
+        [`-s'|`--print-armap'] [`-t' RADIX|`--radix='RADIX]
+        [`-u'|`--undefined-only'] [`-V'|`--version']
+        [`-X 32_64'] [`--defined-only'] [`--no-demangle']
+        [`--plugin' NAME] [`--size-sort'] [`--special-syms']
+        [`--synthetic'] [`--target='BFDNAME]
+        [OBJFILE...]
 
    GNU `nm' lists the symbols from object files OBJFILE....  If no
 object files are listed as arguments, `nm' assumes the file `a.out'.
@@ -709,10 +711,9 @@ equivalent.
 `--extern-only'
      Display only external symbols.
 
-`--plugin NAME'
-     Load the plugin called NAME to add support for extra target types.
-     This option is only available if the toolchain has been built
-     with plugin support enabled.
+`-h'
+`--help'
+     Show a summary of the options to `nm' and exit.
 
 `-l'
 `--line-numbers'
@@ -739,6 +740,11 @@ equivalent.
      Use the POSIX.2 standard output format instead of the default
      format.  Equivalent to `-f posix'.
 
+`-r'
+`--reverse-sort'
+     Reverse the order of the sort (whether numeric or alphabetic); let
+     the last come first.
+
 `-S'
 `--print-size'
      Print both value and size of defined symbols for the `bsd' output
@@ -752,10 +758,33 @@ equivalent.
      mapping (stored in the archive by `ar' or `ranlib') of which
      modules contain definitions for which names.
 
-`-r'
-`--reverse-sort'
-     Reverse the order of the sort (whether numeric or alphabetic); let
-     the last come first.
+`-t RADIX'
+`--radix=RADIX'
+     Use RADIX as the radix for printing the symbol values.  It must be
+     `d' for decimal, `o' for octal, or `x' for hexadecimal.
+
+`-u'
+`--undefined-only'
+     Display only undefined symbols (those external to each object
+     file).
+
+`-V'
+`--version'
+     Show the version number of `nm' and exit.
+
+`-X'
+     This option is ignored for compatibility with the AIX version of
+     `nm'.  It takes one parameter which must be the string `32_64'.
+     The default mode of AIX `nm' corresponds to `-X 32', which is not
+     supported by GNU `nm'.
+
+`--defined-only'
+     Display only defined symbols for each object file.
+
+`--plugin NAME'
+     Load the plugin called NAME to add support for extra target types.
+     This option is only available if the toolchain has been built
+     with plugin support enabled.
 
 `--size-sort'
      Sort symbols by size.  The size is computed as the difference
@@ -772,35 +801,16 @@ equivalent.
      would skip the mapping symbols used to mark transitions between
      ARM code, THUMB code and data.
 
-`-t RADIX'
-`--radix=RADIX'
-     Use RADIX as the radix for printing the symbol values.  It must be
-     `d' for decimal, `o' for octal, or `x' for hexadecimal.
+`--synthetic'
+     Include synthetic symbols in the output.  These are special symbols
+     created by the linker for various purposes.  They are not shown by
+     default since they are not part of the binary's original source
+     code.
 
 `--target=BFDNAME'
      Specify an object code format other than your system's default
      format.  *Note Target Selection::, for more information.
 
-`-u'
-`--undefined-only'
-     Display only undefined symbols (those external to each object
-     file).
-
-`--defined-only'
-     Display only defined symbols for each object file.
-
-`-V'
-`--version'
-     Show the version number of `nm' and exit.
-
-`-X'
-     This option is ignored for compatibility with the AIX version of
-     `nm'.  It takes one parameter which must be the string `32_64'.
-     The default mode of AIX `nm' corresponds to `-X 32', which is not
-     supported by GNU `nm'.
-
-`--help'
-     Show a summary of the options to `nm' and exit.
 
 
 File: binutils.info,  Node: objcopy,  Next: objdump,  Prev: nm,  Up: Top
@@ -831,6 +841,7 @@ File: binutils.info,  Node: objcopy,  Next: objdump,  Prev: nm,  Up: Top
              [`-j' SECTIONNAME|`--only-section='SECTIONNAME]
              [`-R' SECTIONNAME|`--remove-section='SECTIONNAME]
              [`-p'|`--preserve-dates']
+             [`-D'|`--enable-deterministic-archives']
              [`--debugging']
              [`--gap-fill='VAL]
              [`--pad-to='ADDRESS]
@@ -865,6 +876,8 @@ File: binutils.info,  Node: objcopy,  Next: objdump,  Prev: nm,  Up: Top
              [`--add-gnu-debuglink='PATH-TO-FILE]
              [`--keep-file-symbols']
              [`--only-keep-debug']
+             [`--strip-dwo']
+             [`--extract-dwo']
              [`--extract-symbol']
              [`--writable-text']
              [`--readonly-text']
@@ -1084,6 +1097,12 @@ the `--reverse-bytes' option.)
 `--preserve-dates'
      Set the access and modification dates of the output file to be the
      same as those of the input file.
+
+`-D'
+`--enable-deterministic-archives'
+     Operate in _deterministic_ mode.  When copying archive members and
+     writing the archive index, use zero for UIDs, GIDs, timestamps,
+     and use consistent file modes for all files.
 
 `--debugging'
      Convert debugging information, if possible.  This is not the
@@ -1420,6 +1439,20 @@ the `--reverse-bytes' option.)
      gnu_debuglink feature currently only supports the presence of one
      filename containing debugging information, not multiple filenames
      on a one-per-object-file basis.
+
+`--strip-dwo'
+     Remove the contents of all DWARF .dwo sections, leaving the
+     remaining debugging sections and all symbols intact.  This option
+     is intended for use by the compiler as part of the `-gsplit-dwarf'
+     option, which splits debug information between the .o file and a
+     separate .dwo file.  The compiler generates all debug information
+     in the same file, then uses the `--extract-dwo' option to copy the
+     .dwo sections to the .dwo file, then the `--strip-dwo' option to
+     remove those sections from the original .o file.
+
+`--extract-dwo'
+     Extract the contents of all DWARF .dwo sections.  See the
+     `--strip-dwo' option for more information.
 
 `--file-alignment NUM'
      Specify the file alignment.  Sections in the file will always
@@ -1881,7 +1914,8 @@ given.
      of trace sections or .gdb_index.
 
      Note: the output from the `=info' option can also be affected by
-     the options `--dwarf-depth' and `--dwarf-start'.
+     the options `--dwarf-depth', the `--dwarf-start' and the
+     `--dwarf-check'.
 
 `--dwarf-depth=N'
      Limit the dump of the `.debug_info' section to N children.  This
@@ -1900,6 +1934,9 @@ given.
      and children of the specified DIE will be printed.
 
      This can be used in conjunction with `--dwarf-depth'.
+
+`--dwarf-check'
+     Enable additional checks for consistency of Dwarf information.
 
 `-G'
 `--stabs'
@@ -2266,12 +2303,14 @@ File: binutils.info,  Node: strip,  Next: elfedit,  Prev: strings,  Up: Top
            [`-O' BFDNAME |`--output-target='BFDNAME]
            [`-s'|`--strip-all']
            [`-S'|`-g'|`-d'|`--strip-debug']
+           [`--strip-dwo']
            [`-K' SYMBOLNAME |`--keep-symbol='SYMBOLNAME]
            [`-N' SYMBOLNAME |`--strip-symbol='SYMBOLNAME]
            [`-w'|`--wildcard']
            [`-x'|`--discard-all'] [`-X' |`--discard-locals']
            [`-R' SECTIONNAME |`--remove-section='SECTIONNAME]
            [`-o' FILE] [`-p'|`--preserve-dates']
+           [`-D'|`--enable-deterministic-archives']
            [`--keep-file-symbols']
            [`--only-keep-debug']
            [`-v' |`--verbose'] [`-V'|`--version']
@@ -2324,6 +2363,12 @@ writing modified copies under different names.
 `--strip-debug'
      Remove debugging symbols only.
 
+`--strip-dwo'
+     Remove the contents of all DWARF .dwo sections, leaving the
+     remaining debugging sections and all symbols intact.  See the
+     description of this option in the `objcopy' section for more
+     information.
+
 `--strip-unneeded'
      Remove all symbols that are not needed for relocation processing.
 
@@ -2346,6 +2391,12 @@ writing modified copies under different names.
 `-p'
 `--preserve-dates'
      Preserve the access and modification dates of the file.
+
+`-D'
+`--enable-deterministic-archives'
+     Operate in _deterministic_ mode.  When copying archive members and
+     writing the archive index, use zero for UIDs, GIDs, timestamps,
+     and use consistent file modes for all files.
 
 `-w'
 `--wildcard'
@@ -3610,7 +3661,7 @@ equivalent.  At least one option besides `-v' or `-H' must be given.
 
 `-c'
 `--archive-index'
-     Displays the file symbol index infomation contained in the header
+     Displays the file symbol index information contained in the header
      part of binary archives.  Performs the same function as the `t'
      command to `ar', but without using the BFD library.  *Note ar::.
 
@@ -4596,11 +4647,11 @@ Binutils Index
 
 * --enable-deterministic-archives <1>:   ranlib.              (line  32)
 * --enable-deterministic-archives:       ar cmdline.          (line 148)
-* .stab:                                 objdump.             (line 406)
+* .stab:                                 objdump.             (line 410)
 * Add prefix to absolute paths:          objdump.             (line 353)
 * addr2line:                             addr2line.           (line   6)
 * address to file name and line number:  addr2line.           (line   6)
-* all header information, object file:   objdump.             (line 525)
+* all header information, object file:   objdump.             (line 529)
 * ar:                                    ar.                  (line   6)
 * ar compatibility:                      ar.                  (line  50)
 * architecture:                          objdump.             (line 197)
@@ -4615,11 +4666,11 @@ Binutils Index
 * bugs:                                  Reporting Bugs.      (line   6)
 * bugs, reporting:                       Bug Reporting.       (line   6)
 * c++filt:                               c++filt.             (line   6)
-* changing object addresses:             objcopy.             (line 310)
-* changing section address:              objcopy.             (line 320)
-* changing section LMA:                  objcopy.             (line 328)
-* changing section VMA:                  objcopy.             (line 341)
-* changing start address:                objcopy.             (line 305)
+* changing object addresses:             objcopy.             (line 319)
+* changing section address:              objcopy.             (line 329)
+* changing section LMA:                  objcopy.             (line 337)
+* changing section VMA:                  objcopy.             (line 350)
+* changing start address:                objcopy.             (line 314)
 * collections of files:                  ar.                  (line   6)
 * compatibility, ar:                     ar.                  (line  50)
 * contents of archive:                   ar cmdline.          (line  94)
@@ -4629,10 +4680,10 @@ Binutils Index
 * cxxfilt:                               c++filt.             (line  14)
 * dates in archive:                      ar cmdline.          (line 181)
 * debug symbols:                         objdump.             (line 375)
-* debugging symbols:                     nm.                  (line 143)
+* debugging symbols:                     nm.                  (line 145)
 * deleting from archive:                 ar cmdline.          (line  26)
 * demangling C++ symbols:                c++filt.             (line   6)
-* demangling in nm:                      nm.                  (line 151)
+* demangling in nm:                      nm.                  (line 153)
 * demangling in objdump <1>:             addr2line.           (line  78)
 * demangling in objdump:                 objdump.             (line  95)
 * deterministic archives <1>:            ranlib.              (line  32)
@@ -4646,50 +4697,50 @@ Binutils Index
 * dlltool:                               dlltool.             (line   6)
 * DWARF:                                 objdump.             (line 375)
 * dynamic relocation entries, in object file: objdump.        (line 337)
-* dynamic symbol table entries, printing: objdump.            (line 509)
-* dynamic symbols:                       nm.                  (line 163)
+* dynamic symbol table entries, printing: objdump.            (line 513)
+* dynamic symbols:                       nm.                  (line 165)
 * ELF dynamic section information:       readelf.             (line 113)
 * ELF dynamic symbol table information:  readelf.             (line  88)
 * ELF file header information:           readelf.             (line  57)
 * ELF file information:                  readelf.             (line   6)
 * ELF notes:                             readelf.             (line  97)
-* ELF object file format:                objdump.             (line 406)
+* ELF object file format:                objdump.             (line 410)
 * ELF program header information:        readelf.             (line  63)
 * ELF reloc information:                 readelf.             (line 101)
 * ELF section group information:         readelf.             (line  74)
 * ELF section information:               readelf.             (line  69)
 * ELF segment information:               readelf.             (line  63)
 * ELF symbol table information:          readelf.             (line  84)
-* ELF version sections informations:     readelf.             (line 117)
+* ELF version sections information:      readelf.             (line 117)
 * elfedit:                               elfedit.             (line   6)
 * endianness:                            objdump.             (line 137)
 * error on valid input:                  Bug Criteria.        (line  12)
-* external symbols:                      nm.                  (line 175)
+* external symbols:                      nm.                  (line 177)
 * extract from archive:                  ar cmdline.          (line 109)
 * fatal signal:                          Bug Criteria.        (line   9)
-* file name:                             nm.                  (line 137)
-* header information, all:               objdump.             (line 525)
+* file name:                             nm.                  (line 139)
+* header information, all:               objdump.             (line 529)
 * input .def file:                       dlltool.             (line 120)
-* input file name:                       nm.                  (line 137)
+* input file name:                       nm.                  (line 139)
 * Instruction width:                     objdump.             (line 370)
 * libraries:                             ar.                  (line  25)
 * listings strings:                      strings.             (line   6)
-* load plugin:                           nm.                  (line 178)
+* load plugin:                           nm.                  (line 250)
 * machine instructions:                  objdump.             (line 117)
 * moving in archive:                     ar cmdline.          (line  34)
 * MRI compatibility, ar:                 ar scripts.          (line   8)
 * name duplication in archive:           ar cmdline.          (line 103)
 * name length:                           ar.                  (line  18)
 * nm:                                    nm.                  (line   6)
-* nm compatibility:                      nm.                  (line 147)
-* nm format:                             nm.                  (line 147)
+* nm compatibility:                      nm.                  (line 149)
+* nm format:                             nm.                  (line 149)
 * not writing archive index:             ar cmdline.          (line 200)
 * objdump:                               objdump.             (line   6)
 * object code format <1>:                addr2line.           (line  73)
 * object code format <2>:                strings.             (line  67)
 * object code format <3>:                size.                (line  84)
 * object code format <4>:                objdump.             (line  81)
-* object code format:                    nm.                  (line 246)
+* object code format:                    nm.                  (line 276)
 * object file header:                    objdump.             (line 143)
 * object file information:               objdump.             (line   6)
 * object file offsets:                   objdump.             (line 148)
@@ -4718,34 +4769,34 @@ Binutils Index
 * size:                                  size.                (line   6)
 * size display format:                   size.                (line  27)
 * size number format:                    size.                (line  66)
-* sorting symbols:                       nm.                  (line 199)
+* sorting symbols:                       nm.                  (line 200)
 * source code context:                   objdump.             (line 157)
 * source disassembly:                    objdump.             (line 349)
-* source file name:                      nm.                  (line 137)
+* source file name:                      nm.                  (line 139)
 * source filenames for object files:     objdump.             (line 191)
-* stab:                                  objdump.             (line 406)
-* start-address:                         objdump.             (line 416)
-* stop-address:                          objdump.             (line 420)
+* stab:                                  objdump.             (line 410)
+* start-address:                         objdump.             (line 420)
+* stop-address:                          objdump.             (line 424)
 * strings:                               strings.             (line   6)
 * strings, printing:                     strings.             (line   6)
 * strip:                                 strip.               (line   6)
 * Strip absolute paths:                  objdump.             (line 356)
 * symbol index <1>:                      ranlib.              (line   6)
 * symbol index:                          ar.                  (line  28)
-* symbol index, listing:                 nm.                  (line 216)
-* symbol line numbers:                   nm.                  (line 184)
-* symbol table entries, printing:        objdump.             (line 425)
+* symbol index, listing:                 nm.                  (line 222)
+* symbol line numbers:                   nm.                  (line 185)
+* symbol table entries, printing:        objdump.             (line 429)
 * symbols:                               nm.                  (line   6)
 * symbols, discarding:                   strip.               (line   6)
 * thin archives:                         ar.                  (line  40)
-* undefined symbols:                     nm.                  (line 251)
+* undefined symbols:                     nm.                  (line 233)
 * Unix compatibility, ar:                ar cmdline.          (line   8)
 * unwind information:                    readelf.             (line 106)
 * Update ELF header:                     elfedit.             (line   6)
 * updating an archive:                   ar cmdline.          (line 212)
 * version:                               Top.                 (line   6)
 * VMA in objdump:                        objdump.             (line  73)
-* wide output, printing:                 objdump.             (line 531)
+* wide output, printing:                 objdump.             (line 535)
 * writing archive index:                 ar cmdline.          (line 194)
 
 
@@ -4756,30 +4807,30 @@ Node: ar3730
 Node: ar cmdline6556
 Node: ar scripts16771
 Node: nm22459
-Node: objcopy32056
-Node: objdump61730
-Node: ranlib83744
-Node: size85264
-Node: strings88269
-Node: strip90727
-Node: c++filt96678
-Ref: c++filt-Footnote-1101521
-Node: addr2line101627
-Node: nlmconv105964
-Node: windmc108570
-Node: windres112219
-Node: dlltool118580
-Node: def file format131466
-Node: readelf134005
-Node: elfedit141555
-Node: Common Options143800
-Node: Selecting the Target System144840
-Node: Target Selection145772
-Node: Architecture Selection147754
-Node: Reporting Bugs148582
-Node: Bug Criteria149361
-Node: Bug Reporting149914
-Node: GNU Free Documentation License156784
-Node: Binutils Index181963
+Node: objcopy32355
+Node: objdump63062
+Node: ranlib85191
+Node: size86711
+Node: strings89716
+Node: strip92174
+Node: c++filt98666
+Ref: c++filt-Footnote-1103509
+Node: addr2line103615
+Node: nlmconv107952
+Node: windmc110558
+Node: windres114207
+Node: dlltool120568
+Node: def file format133454
+Node: readelf135993
+Node: elfedit143544
+Node: Common Options145789
+Node: Selecting the Target System146829
+Node: Target Selection147761
+Node: Architecture Selection149743
+Node: Reporting Bugs150571
+Node: Bug Criteria151350
+Node: Bug Reporting151903
+Node: GNU Free Documentation License158773
+Node: Binutils Index183952
 
 End Tag Table

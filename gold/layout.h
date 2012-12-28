@@ -1,6 +1,7 @@
 // layout.h -- lay out output file sections for gold  -*- C++ -*-
 
-// Copyright 2006, 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
+// Copyright 2006, 2007, 2008, 2009, 2010, 2011, 2012
+// Free Software Foundation, Inc.
 // Written by Ian Lance Taylor <iant@google.com>.
 
 // This file is part of gold.
@@ -171,7 +172,7 @@ class Layout_task_runner : public Task_function_runner
   Layout_task_runner(const General_options& options,
 		     const Input_objects* input_objects,
 		     Symbol_table* symtab,
-                     Target* target,
+		     Target* target,
 		     Layout* layout,
 		     Mapfile* mapfile)
     : options_(options), input_objects_(input_objects), symtab_(symtab),
@@ -526,7 +527,40 @@ class Layout
   std::map<Section_id, unsigned int>*
   get_section_order_map()
   { return &this->section_order_map_; }
- 
+
+  // Struct to store segment info when mapping some input sections to
+  // unique segments using linker plugins.  Mapping an input section to
+  // a unique segment is done by first placing such input sections in
+  // unique output sections and then mapping the output section to a
+  // unique segment.  NAME is the name of the output section.  FLAGS
+  // and ALIGN are the extra flags and alignment of the segment.
+  struct Unique_segment_info
+  {
+    // Identifier for the segment.  ELF segments dont have names.  This
+    // is used as the name of the output section mapped to the segment.
+    const char* name;
+    // Additional segment flags.
+    uint64_t flags;
+    // Segment alignment.
+    uint64_t align;
+  };
+
+  // Mapping from input section to segment.
+  typedef std::map<Const_section_id, Unique_segment_info*>
+  Section_segment_map;
+
+  // Maps section SECN to SEGMENT s.
+  void
+  insert_section_segment_map(Const_section_id secn, Unique_segment_info *s);
+
+  // Some input sections require special ordering, for compatibility
+  // with GNU ld.  Given the name of an input section, return -1 if it
+  // does not require special ordering.  Otherwise, return the index
+  // by which it should be ordered compared to other input sections
+  // that require special ordering.
+  static int
+  special_ordering_of_input_section(const char* name);
+
   bool
   is_section_ordering_specified()
   { return this->section_ordering_specified_; }
@@ -534,6 +568,14 @@ class Layout
   void
   set_section_ordering_specified()
   { this->section_ordering_specified_ = true; }
+
+  bool
+  is_unique_segment_for_sections_specified() const
+  { return this->unique_segment_for_sections_specified_; }
+
+  void
+  set_unique_segment_for_sections_specified()
+  { this->unique_segment_for_sections_specified_ = true; }
 
   // For incremental updates, allocate a block of memory from the
   // free list.  Find a block starting at or after MINOFF.
@@ -709,11 +751,11 @@ class Layout
   {
     // Debugging sections can only be recognized by name.
     return (strncmp(name, ".debug", sizeof(".debug") - 1) == 0
-            || strncmp(name, ".zdebug", sizeof(".zdebug") - 1) == 0
-            || strncmp(name, ".gnu.linkonce.wi.",
-                       sizeof(".gnu.linkonce.wi.") - 1) == 0
-            || strncmp(name, ".line", sizeof(".line") - 1) == 0
-            || strncmp(name, ".stab", sizeof(".stab") - 1) == 0);
+	    || strncmp(name, ".zdebug", sizeof(".zdebug") - 1) == 0
+	    || strncmp(name, ".gnu.linkonce.wi.",
+		       sizeof(".gnu.linkonce.wi.") - 1) == 0
+	    || strncmp(name, ".line", sizeof(".line") - 1) == 0
+	    || strncmp(name, ".stab", sizeof(".stab") - 1) == 0);
   }
 
   // Return true if RELOBJ is an input file whose base name matches
@@ -736,7 +778,7 @@ class Layout
   // *KEPT_SECTION is set to the internal copy and the function return
   // false.
   bool
-  find_or_add_kept_section(const std::string& name, Relobj* object, 
+  find_or_add_kept_section(const std::string& name, Relobj* object,
 			   unsigned int shndx, bool is_comdat,
 			   bool is_group_name, Kept_section** kept_section);
 
@@ -883,6 +925,10 @@ class Layout
   void
   get_allocated_sections(Section_list*) const;
 
+  // Store the executable sections into the section list.
+  void
+  get_executable_sections(Section_list*) const;
+
   // Make a section for a linker script to hold data.
   Output_section*
   make_output_section_for_script(const char* name,
@@ -903,7 +949,7 @@ class Layout
 
   // Attach sections to segments.
   void
-  attach_sections_to_segments();
+  attach_sections_to_segments(const Target*);
 
   // For relaxation clean up, we need to know output section data created
   // from a linker script.
@@ -919,6 +965,11 @@ class Layout
   section_list() const
   { return this->section_list_; }
 
+  // Returns TRUE iff NAME (an input section from RELOBJ) will
+  // be mapped to an output section that should be KEPT.
+  bool
+  keep_input_section(const Relobj*, const char*);
+  
  private:
   Layout(const Layout&);
   Layout& operator=(const Layout&);
@@ -982,7 +1033,7 @@ class Layout
   // Find the first read-only PT_LOAD segment, creating one if
   // necessary.
   Output_segment*
-  find_first_load_seg();
+  find_first_load_seg(const Target*);
 
   // Count the local symbols in the regular symbol table and the dynamic
   // symbol table, and build the respective string pools.
@@ -1064,6 +1115,11 @@ class Layout
 		     elfcpp::Elf_Word type, elfcpp::Elf_Xword flags,
 		     Output_section_order order, bool is_relro);
 
+  // Clear the input section flags that should not be copied to the
+  // output section.
+  elfcpp::Elf_Xword
+  get_output_section_flags (elfcpp::Elf_Xword input_section_flags);
+
   // Choose the output section for NAME in RELOBJ.
   Output_section*
   choose_output_section(const Relobj* relobj, const char* name,
@@ -1079,7 +1135,7 @@ class Layout
 
   // Attach a section to a segment.
   void
-  attach_section_to_segment(Output_section*);
+  attach_section_to_segment(const Target*, Output_section*);
 
   // Get section order.
   Output_section_order
@@ -1087,7 +1143,7 @@ class Layout
 
   // Attach an allocated section to a segment.
   void
-  attach_allocated_section_to_segment(Output_section*);
+  attach_allocated_section_to_segment(const Target*, Output_section*);
 
   // Make the .eh_frame section.
   Output_section*
@@ -1134,7 +1190,7 @@ class Layout
   bool
   segment_precedes(const Output_segment* seg1, const Output_segment* seg2);
 
-  // Use to save and restore segments during relaxation. 
+  // Use to save and restore segments during relaxation.
   typedef Unordered_map<const Output_segment*, const Output_segment*>
     Segment_states;
 
@@ -1205,12 +1261,12 @@ class Layout
     Relaxation_debug_check()
       : section_infos_()
     { }
- 
+
     // Check that sections and special data are in reset states.
     void
     check_output_data_for_reset_values(const Layout::Section_list&,
 				       const Layout::Data_list&);
-  
+
     // Record information of a section list.
     void
     read_sections(const Layout::Section_list&);
@@ -1218,7 +1274,7 @@ class Layout
     // Verify a section list with recorded information.
     void
     verify_sections(const Layout::Section_list&);
- 
+
    private:
     // Information we care about a section.
     struct Section_info
@@ -1330,6 +1386,9 @@ class Layout
   // True if the input sections in the output sections should be sorted
   // as specified in a section ordering file.
   bool section_ordering_specified_;
+  // True if some input sections need to be mapped to a unique segment,
+  // after being mapped to a unique Output_section.
+  bool unique_segment_for_sections_specified_;
   // In incremental build, holds information check the inputs and build the
   // .gnu_incremental_inputs section.
   Incremental_inputs* incremental_inputs_;
@@ -1344,6 +1403,11 @@ class Layout
   // Plugins specify section_ordering using this map.  This is set in
   // update_section_order in plugin.cc
   std::map<Section_id, unsigned int> section_order_map_;
+  // This maps an input section to a unique segment. This is done by first
+  // placing such input sections in unique output sections and then mapping
+  // the output section to a unique segment.  Unique_segment_info stores
+  // any additional flags and alignment of the new segment.
+  Section_segment_map section_segment_map_;
   // Hash a pattern to its position in the section ordering file.
   Unordered_map<std::string, unsigned int> input_section_position_;
   // Vector of glob only patterns in the section_ordering file.

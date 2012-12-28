@@ -2359,6 +2359,12 @@ _bfd_generic_link_output_symbols (bfd *output_bfd,
 	  else
 	    output = FALSE;
 	}
+      else if (sym->flags == 0
+	       && (sym->section->owner->flags & BFD_PLUGIN) != 0)
+	/* LTO doesn't set symbol information.  We get here with the
+	   generic linker for a symbol that was "common" but no longer
+	   needs to be global.  */
+	output = FALSE;
       else
 	abort ();
 
@@ -3197,11 +3203,6 @@ _bfd_nearby_section (bfd *obfd, asection *s, bfd_vma addr)
       if (addr < next->vma)
 	best = prev;
     }
-
-  /* Refuse to choose a section for which we are out of bounds.  */
-  /* ??? This may make most of the above moot.  */
-  if (addr < best->vma || addr > best->vma + best->size)
-    best = bfd_abs_section_ptr;
 
   return best;
 }

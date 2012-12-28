@@ -101,6 +101,8 @@ struct areltdata
   bfd_size_type extra_size;	/* BSD4.4: extra bytes after the header.  */
   char *filename;		/* Null-terminated.  */
   file_ptr origin;		/* For element of a thin archive.  */
+  void *parent_cache;		/* Where and how to find this member.  */
+  file_ptr key;
 };
 
 #define arelt_size(bfd) (((struct areltdata *)((bfd)->arelt_data))->parsed_size)
@@ -122,6 +124,7 @@ extern void *bfd_zmalloc2
 
 extern void _bfd_default_error_handler (const char *s, ...);
 extern bfd_error_handler_type _bfd_error_handler;
+extern bfd_assert_handler_type _bfd_assert_handler;
 
 /* These routines allocate and free things on the BFD's objalloc.  */
 
@@ -164,8 +167,6 @@ extern bfd *_bfd_generic_get_elt_at_index
   (bfd *, symindex);
 bfd * _bfd_new_bfd
   (void);
-void _bfd_delete_bfd
-  (bfd *);
 bfd_boolean _bfd_free_cached_info
   (bfd *);
 
@@ -236,7 +237,9 @@ int bfd_generic_stat_arch_elt
 /* Generic routines to use for BFD_JUMP_TABLE_GENERIC.  Use
    BFD_JUMP_TABLE_GENERIC (_bfd_generic).  */
 
-#define _bfd_generic_close_and_cleanup bfd_true
+#define _bfd_generic_close_and_cleanup _bfd_archive_close_and_cleanup
+extern bfd_boolean _bfd_archive_close_and_cleanup
+  (bfd *);
 #define _bfd_generic_bfd_free_cached_info bfd_true
 extern bfd_boolean _bfd_generic_new_section_hook
   (bfd *, asection *);
@@ -463,7 +466,7 @@ extern bfd_boolean _bfd_generic_set_section_contents
   ((bfd_boolean (*) (bfd *, struct bfd_link_info *)) \
    bfd_false)
 #define _bfd_nolink_bfd_lookup_section_flags \
-  ((void (*) (struct bfd_link_info *, struct flag_info *)) \
+  ((bfd_boolean (*) (struct bfd_link_info *, struct flag_info *, asection *)) \
    bfd_0)
 #define _bfd_nolink_bfd_merge_sections \
   ((bfd_boolean (*) (bfd *, struct bfd_link_info *)) \
@@ -544,15 +547,20 @@ extern const struct dwarf_debug_section dwarf_debug_sections[];
 /* Find the nearest line using DWARF 2 debugging information.  */
 extern bfd_boolean _bfd_dwarf2_find_nearest_line
   (bfd *, const struct dwarf_debug_section *, asection *, asymbol **, bfd_vma,
-   const char **, const char **, unsigned int *, unsigned int, void **);
+   const char **, const char **, unsigned int *, unsigned int *, unsigned int,
+   void **);
 
 /* Find the line using DWARF 2 debugging information.  */
 extern bfd_boolean _bfd_dwarf2_find_line
   (bfd *, asymbol **, asymbol *, const char **,
-   unsigned int *, unsigned int, void **);
+   unsigned int *, unsigned int *, unsigned int, void **);
 
 bfd_boolean _bfd_generic_find_line
   (bfd *, asymbol **, asymbol *, const char **, unsigned int *);
+
+bfd_boolean _bfd_generic_find_nearest_line_discriminator
+  (bfd *, asection *, asymbol **, bfd_vma, const char **, const char **,
+   unsigned int *, unsigned int *);
 
 /* Find inliner info after calling bfd_find_nearest_line. */
 extern bfd_boolean _bfd_dwarf2_find_inliner_info
@@ -863,7 +871,7 @@ struct bfd_iovec
   /* For the following, on successful completion a value of 0 is returned.
      Otherwise, a value of -1 is returned (and  <<bfd_error>> is set).  */
   int (*bseek) (struct bfd *abfd, file_ptr offset, int whence);
-  int (*bclose) (struct bfd *abfd);
+  bfd_boolean (*bclose) (struct bfd *abfd);
   int (*bflush) (struct bfd *abfd);
   int (*bstat) (struct bfd *abfd, struct stat *sb);
   /* Mmap a part of the files. ADDR, LEN, PROT, FLAGS and OFFSET are the usual
@@ -1342,6 +1350,23 @@ static const char *const bfd_reloc_code_real_names[] = { "@@uninitialized@@",
   "BFD_RELOC_PPC_EMB_RELST_HA",
   "BFD_RELOC_PPC_EMB_BIT_FLD",
   "BFD_RELOC_PPC_EMB_RELSDA",
+  "BFD_RELOC_PPC_VLE_REL8",
+  "BFD_RELOC_PPC_VLE_REL15",
+  "BFD_RELOC_PPC_VLE_REL24",
+  "BFD_RELOC_PPC_VLE_LO16A",
+  "BFD_RELOC_PPC_VLE_LO16D",
+  "BFD_RELOC_PPC_VLE_HI16A",
+  "BFD_RELOC_PPC_VLE_HI16D",
+  "BFD_RELOC_PPC_VLE_HA16A",
+  "BFD_RELOC_PPC_VLE_HA16D",
+  "BFD_RELOC_PPC_VLE_SDA21",
+  "BFD_RELOC_PPC_VLE_SDA21_LO",
+  "BFD_RELOC_PPC_VLE_SDAREL_LO16A",
+  "BFD_RELOC_PPC_VLE_SDAREL_LO16D",
+  "BFD_RELOC_PPC_VLE_SDAREL_HI16A",
+  "BFD_RELOC_PPC_VLE_SDAREL_HI16D",
+  "BFD_RELOC_PPC_VLE_SDAREL_HA16A",
+  "BFD_RELOC_PPC_VLE_SDAREL_HA16D",
   "BFD_RELOC_PPC64_HIGHER",
   "BFD_RELOC_PPC64_HIGHER_S",
   "BFD_RELOC_PPC64_HIGHEST",
@@ -1866,6 +1891,9 @@ static const char *const bfd_reloc_code_real_names[] = { "@@uninitialized@@",
   "BFD_RELOC_AVR_LDI",
   "BFD_RELOC_AVR_6",
   "BFD_RELOC_AVR_6_ADIW",
+  "BFD_RELOC_AVR_8_LO",
+  "BFD_RELOC_AVR_8_HI",
+  "BFD_RELOC_AVR_8_HLO",
   "BFD_RELOC_RL78_NEG8",
   "BFD_RELOC_RL78_NEG16",
   "BFD_RELOC_RL78_NEG24",
@@ -1975,6 +2003,7 @@ static const char *const bfd_reloc_code_real_names[] = { "@@uninitialized@@",
   "BFD_RELOC_390_GOT20",
   "BFD_RELOC_390_GOTPLT20",
   "BFD_RELOC_390_TLS_GOTIE20",
+  "BFD_RELOC_390_IRELATIVE",
   "BFD_RELOC_SCORE_GPREL15",
   "BFD_RELOC_SCORE_DUMMY2",
   "BFD_RELOC_SCORE_JMP",
@@ -2092,6 +2121,24 @@ static const char *const bfd_reloc_code_real_names[] = { "@@uninitialized@@",
   "BFD_RELOC_M68HC11_PAGE",
   "BFD_RELOC_M68HC11_24",
   "BFD_RELOC_M68HC12_5B",
+  "BFD_RELOC_XGATE_RL_JUMP",
+  "BFD_RELOC_XGATE_RL_GROUP",
+  "BFD_RELOC_XGATE_LO16",
+  "BFD_RELOC_XGATE_GPAGE",
+  "BFD_RELOC_XGATE_24",
+  "BFD_RELOC_XGATE_PCREL_9",
+  "BFD_RELOC_XGATE_PCREL_10",
+  "BFD_RELOC_XGATE_IMM8_LO",
+  "BFD_RELOC_XGATE_IMM8_HI",
+  "BFD_RELOC_XGATE_IMM3",
+  "BFD_RELOC_XGATE_IMM4",
+  "BFD_RELOC_XGATE_IMM5",
+  "BFD_RELOC_M68HC12_9B",
+  "BFD_RELOC_M68HC12_16B",
+  "BFD_RELOC_M68HC12_9_PCREL",
+  "BFD_RELOC_M68HC12_10_PCREL",
+  "BFD_RELOC_M68HC12_LO8XG",
+  "BFD_RELOC_M68HC12_HI8XG",
   "BFD_RELOC_16C_NUM08",
   "BFD_RELOC_16C_NUM08_C",
   "BFD_RELOC_16C_NUM16",
@@ -2373,6 +2420,72 @@ static const char *const bfd_reloc_code_real_names[] = { "@@uninitialized@@",
   "BFD_RELOC_MICROBLAZE_64_GOTOFF",
   "BFD_RELOC_MICROBLAZE_32_GOTOFF",
   "BFD_RELOC_MICROBLAZE_COPY",
+  "BFD_RELOC_MICROBLAZE_64_TLS",
+  "BFD_RELOC_MICROBLAZE_64_TLSGD",
+  "BFD_RELOC_MICROBLAZE_64_TLSLD",
+  "BFD_RELOC_MICROBLAZE_32_TLSDTPMOD",
+  "BFD_RELOC_MICROBLAZE_32_TLSDTPREL",
+  "BFD_RELOC_MICROBLAZE_64_TLSDTPREL",
+  "BFD_RELOC_MICROBLAZE_64_TLSGOTTPREL",
+  "BFD_RELOC_MICROBLAZE_64_TLSTPREL",
+  "BFD_RELOC_AARCH64_ADD_LO12",
+  "BFD_RELOC_AARCH64_GOT_LD_PREL19",
+  "BFD_RELOC_AARCH64_ADR_GOT_PAGE",
+  "BFD_RELOC_AARCH64_ADR_HI21_PCREL",
+  "BFD_RELOC_AARCH64_ADR_HI21_NC_PCREL",
+  "BFD_RELOC_AARCH64_ADR_LO21_PCREL",
+  "BFD_RELOC_AARCH64_BRANCH19",
+  "BFD_RELOC_AARCH64_CALL26",
+  "BFD_RELOC_AARCH64_GAS_INTERNAL_FIXUP",
+  "BFD_RELOC_AARCH64_JUMP26",
+  "BFD_RELOC_AARCH64_LD_LO19_PCREL",
+  "BFD_RELOC_AARCH64_LD64_GOT_LO12_NC",
+  "BFD_RELOC_AARCH64_LDST_LO12",
+  "BFD_RELOC_AARCH64_LDST8_LO12",
+  "BFD_RELOC_AARCH64_LDST16_LO12",
+  "BFD_RELOC_AARCH64_LDST32_LO12",
+  "BFD_RELOC_AARCH64_LDST64_LO12",
+  "BFD_RELOC_AARCH64_LDST128_LO12",
+  "BFD_RELOC_AARCH64_MOVW_G0",
+  "BFD_RELOC_AARCH64_MOVW_G0_S",
+  "BFD_RELOC_AARCH64_MOVW_G0_NC",
+  "BFD_RELOC_AARCH64_MOVW_G1",
+  "BFD_RELOC_AARCH64_MOVW_G1_NC",
+  "BFD_RELOC_AARCH64_MOVW_G1_S",
+  "BFD_RELOC_AARCH64_MOVW_G2",
+  "BFD_RELOC_AARCH64_MOVW_G2_NC",
+  "BFD_RELOC_AARCH64_MOVW_G2_S",
+  "BFD_RELOC_AARCH64_MOVW_G3",
+  "BFD_RELOC_AARCH64_TLSDESC",
+  "BFD_RELOC_AARCH64_TLSDESC_ADD",
+  "BFD_RELOC_AARCH64_TLSDESC_ADD_LO12_NC",
+  "BFD_RELOC_AARCH64_TLSDESC_ADR_PAGE",
+  "BFD_RELOC_AARCH64_TLSDESC_ADR_PREL21",
+  "BFD_RELOC_AARCH64_TLSDESC_CALL",
+  "BFD_RELOC_AARCH64_TLSDESC_LD64_LO12_NC",
+  "BFD_RELOC_AARCH64_TLSDESC_LD64_PREL19",
+  "BFD_RELOC_AARCH64_TLSDESC_LDR",
+  "BFD_RELOC_AARCH64_TLSDESC_OFF_G0_NC",
+  "BFD_RELOC_AARCH64_TLSDESC_OFF_G1",
+  "BFD_RELOC_AARCH64_TLSGD_ADD_LO12_NC",
+  "BFD_RELOC_AARCH64_TLSGD_ADR_PAGE21",
+  "BFD_RELOC_AARCH64_TLSIE_ADR_GOTTPREL_PAGE21",
+  "BFD_RELOC_AARCH64_TLSIE_LD_GOTTPREL_PREL19",
+  "BFD_RELOC_AARCH64_TLSIE_LD64_GOTTPREL_LO12_NC",
+  "BFD_RELOC_AARCH64_TLSIE_MOVW_GOTTPREL_G0_NC",
+  "BFD_RELOC_AARCH64_TLSIE_MOVW_GOTTPREL_G1",
+  "BFD_RELOC_AARCH64_TLSLE_ADD_TPREL_HI12",
+  "BFD_RELOC_AARCH64_TLSLE_ADD_TPREL_LO12",
+  "BFD_RELOC_AARCH64_TLSLE_ADD_TPREL_LO12_NC",
+  "BFD_RELOC_AARCH64_TLSLE_MOVW_TPREL_G0",
+  "BFD_RELOC_AARCH64_TLSLE_MOVW_TPREL_G0_NC",
+  "BFD_RELOC_AARCH64_TLSLE_MOVW_TPREL_G1",
+  "BFD_RELOC_AARCH64_TLSLE_MOVW_TPREL_G1_NC",
+  "BFD_RELOC_AARCH64_TLSLE_MOVW_TPREL_G2",
+  "BFD_RELOC_AARCH64_TLS_DTPMOD64",
+  "BFD_RELOC_AARCH64_TLS_DTPREL64",
+  "BFD_RELOC_AARCH64_TLS_TPREL64",
+  "BFD_RELOC_AARCH64_TSTBR14",
   "BFD_RELOC_TILEPRO_COPY",
   "BFD_RELOC_TILEPRO_GLOB_DAT",
   "BFD_RELOC_TILEPRO_JMP_SLOT",
@@ -2509,10 +2622,18 @@ static const char *const bfd_reloc_code_real_names[] = { "@@uninitialized@@",
   "BFD_RELOC_TILEGX_IMM16_X1_HW2_LAST_PCREL",
   "BFD_RELOC_TILEGX_IMM16_X0_HW0_GOT",
   "BFD_RELOC_TILEGX_IMM16_X1_HW0_GOT",
+  "BFD_RELOC_TILEGX_IMM16_X0_HW0_PLT_PCREL",
+  "BFD_RELOC_TILEGX_IMM16_X1_HW0_PLT_PCREL",
+  "BFD_RELOC_TILEGX_IMM16_X0_HW1_PLT_PCREL",
+  "BFD_RELOC_TILEGX_IMM16_X1_HW1_PLT_PCREL",
+  "BFD_RELOC_TILEGX_IMM16_X0_HW2_PLT_PCREL",
+  "BFD_RELOC_TILEGX_IMM16_X1_HW2_PLT_PCREL",
   "BFD_RELOC_TILEGX_IMM16_X0_HW0_LAST_GOT",
   "BFD_RELOC_TILEGX_IMM16_X1_HW0_LAST_GOT",
   "BFD_RELOC_TILEGX_IMM16_X0_HW1_LAST_GOT",
   "BFD_RELOC_TILEGX_IMM16_X1_HW1_LAST_GOT",
+  "BFD_RELOC_TILEGX_IMM16_X0_HW3_PLT_PCREL",
+  "BFD_RELOC_TILEGX_IMM16_X1_HW3_PLT_PCREL",
   "BFD_RELOC_TILEGX_IMM16_X0_HW0_TLS_GD",
   "BFD_RELOC_TILEGX_IMM16_X1_HW0_TLS_GD",
   "BFD_RELOC_TILEGX_IMM16_X0_HW0_TLS_LE",
@@ -2527,6 +2648,12 @@ static const char *const bfd_reloc_code_real_names[] = { "@@uninitialized@@",
   "BFD_RELOC_TILEGX_IMM16_X1_HW1_LAST_TLS_GD",
   "BFD_RELOC_TILEGX_IMM16_X0_HW0_TLS_IE",
   "BFD_RELOC_TILEGX_IMM16_X1_HW0_TLS_IE",
+  "BFD_RELOC_TILEGX_IMM16_X0_HW0_LAST_PLT_PCREL",
+  "BFD_RELOC_TILEGX_IMM16_X1_HW0_LAST_PLT_PCREL",
+  "BFD_RELOC_TILEGX_IMM16_X0_HW1_LAST_PLT_PCREL",
+  "BFD_RELOC_TILEGX_IMM16_X1_HW1_LAST_PLT_PCREL",
+  "BFD_RELOC_TILEGX_IMM16_X0_HW2_LAST_PLT_PCREL",
+  "BFD_RELOC_TILEGX_IMM16_X1_HW2_LAST_PLT_PCREL",
   "BFD_RELOC_TILEGX_IMM16_X0_HW0_LAST_TLS_IE",
   "BFD_RELOC_TILEGX_IMM16_X1_HW0_LAST_TLS_IE",
   "BFD_RELOC_TILEGX_IMM16_X0_HW1_LAST_TLS_IE",
@@ -2570,8 +2697,8 @@ bfd_boolean bfd_generic_relax_section
 bfd_boolean bfd_generic_gc_sections
    (bfd *, struct bfd_link_info *);
 
-void bfd_generic_lookup_section_flags
-   (struct bfd_link_info *, struct flag_info *);
+bfd_boolean bfd_generic_lookup_section_flags
+   (struct bfd_link_info *, struct flag_info *, asection *);
 
 bfd_boolean bfd_generic_merge_sections
    (bfd *, struct bfd_link_info *);

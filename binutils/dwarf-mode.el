@@ -1,6 +1,8 @@
 ;;; dwarf-mode.el --- Browser for DWARF information.
 
-;; Version: 1.0
+;; Version: 1.1
+
+;; Copyright (C) 2012 Free Software Foundation, Inc.
 
 ;; This file is not part of GNU Emacs, but is distributed under the
 ;; same terms:
@@ -56,7 +58,7 @@
   (beginning-of-line)
   (unless (looking-at "^ <\\([0-9]+\\)>")
     (error "Unrecognized line."))
-  (let ((new-depth (1+ (string-to-int (match-string 1)))))
+  (let ((new-depth (1+ (string-to-number (match-string 1)))))
     (dwarf-do-insert-substructure new-depth die)))
 
 (defun dwarf-insert-substructure (arg)
@@ -152,7 +154,7 @@ A prefix argument means expand all children."
 
 (define-key dwarf-mode-map [(control ?m)] #'dwarf-insert-substructure)
 
-;;:###autoload
+;;;###autoload
 (defun dwarf-browse (file)
   "Invoke `objdump' and put output into a `dwarf-mode' buffer.
 This is the main interface to `dwarf-mode'."
@@ -165,3 +167,5 @@ This is the main interface to `dwarf-mode'."
     (dwarf-do-refresh)))
 
 (provide 'dwarf-mode)
+
+;;; dwarf-mode.el ends here

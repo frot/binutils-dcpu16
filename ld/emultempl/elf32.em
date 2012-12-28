@@ -72,7 +72,7 @@ EOF
 
 if [ "x${USE_LIBPATH}" = xyes ] ; then
   case ${target} in
-    *-*-linux-* | *-*-k*bsd*-*)
+    *-*-linux-* | *-*-k*bsd*-* | *-*-gnu*)
   fragment <<EOF
 #ifdef HAVE_GLOB
 #include <glob.h>
@@ -104,6 +104,7 @@ gld${EMULATION_NAME}_before_parse (void)
   ldfile_set_output_arch ("${OUTPUT_ARCH}", bfd_arch_`echo ${ARCH} | sed -e 's/:.*//'`);
   input_flags.dynamic = ${DYNAMIC_LINK-TRUE};
   config.has_shared = `if test -n "$GENERATE_SHLIB_SCRIPT" ; then echo TRUE ; else echo FALSE ; fi`;
+  config.separate_code = `if test "x${SEPARATE_CODE}" = xyes ; then echo TRUE ; else echo FALSE ; fi`;
 }
 
 EOF
@@ -140,7 +141,7 @@ gld${EMULATION_NAME}_load_symbols (lang_input_statement_type *entry)
     return FALSE;
 
   bfd_elf_set_dyn_lib_class (entry->the_bfd,
-                             (enum dynamic_lib_link_class) link_class);
+			     (enum dynamic_lib_link_class) link_class);
 
   /* Continue on with normal load_symbols processing.  */
   return FALSE;
@@ -374,7 +375,7 @@ gld${EMULATION_NAME}_try_needed (struct dt_needed *needed,
 
 EOF
 case ${target} in
-  *-*-linux-* | *-*-k*bsd*-*)
+  *-*-linux-* | *-*-k*bsd*-* | *-*-gnu*)
     fragment <<EOF
 	  {
 	    struct bfd_link_needed_list *l;
@@ -412,7 +413,7 @@ fragment <<EOF
   /* First strip off everything before the last '/'.  */
   soname = lbasename (abfd->filename);
 
-  if (trace_file_tries)
+  if (verbose)
     info_msg (_("found %s at %s\n"), soname, name);
 
   global_found = NULL;
@@ -620,7 +621,7 @@ EOF
     # FreeBSD
     ;;
 
-    *-*-linux-* | *-*-k*bsd*-*)
+    *-*-linux-* | *-*-k*bsd*-* | *-*-gnu*)
       fragment <<EOF
 /* For a native linker, check the file /etc/ld.so.conf for directories
    in which we may find shared libraries.  /etc/ld.so.conf is really
@@ -1104,7 +1105,7 @@ gld${EMULATION_NAME}_after_open (void)
 		{
 		  struct elf_obj_tdata *t = elf_tdata (link_info.output_bfd);
 		  struct build_id_info *b =
-                      (struct build_id_info *) xmalloc (sizeof *b);
+		      (struct build_id_info *) xmalloc (sizeof *b);
 
 		  b->style = link_info.emit_note_gnu_build_id;
 		  b->sec = s;
@@ -1142,10 +1143,11 @@ gld${EMULATION_NAME}_after_open (void)
 	  if (!warn_eh_frame)
 	    {
 	      s = bfd_get_section_by_name (abfd, ".eh_frame");
-	      warn_eh_frame
-		= (s
-		   && s->size > 8
-		   && !bfd_is_abs_section (s->output_section));
+	      while (s != NULL
+		     && (s->size <= 8
+			 || bfd_is_abs_section (s->output_section)))
+		s = bfd_get_next_section_by_name (s);
+	      warn_eh_frame = s != NULL;
 	    }
 	  if (elfbfd && warn_eh_frame)
 	    break;
@@ -1179,8 +1181,6 @@ gld${EMULATION_NAME}_after_open (void)
      special action by the person doing the link.  Note that the
      needed list can actually grow while we are stepping through this
      loop.  */
-  if (!link_info.executable)
-    return;
   needed = bfd_elf_get_needed_list (link_info.output_bfd, &link_info);
   for (l = needed; l != NULL; l = l->next)
     {
@@ -1189,9 +1189,13 @@ gld${EMULATION_NAME}_after_open (void)
       int force;
 
       /* If the lib that needs this one was --as-needed and wasn't
-	 found to be needed, then this lib isn't needed either.  */
+	 found to be needed, then this lib isn't needed either.  Skip
+	 the lib when creating a shared object unless we are copying
+	 DT_NEEDED entres.  */
       if (l->by != NULL
-	  && (bfd_elf_get_dyn_lib_class (l->by) & DYN_AS_NEEDED) != 0)
+	  && ((bfd_elf_get_dyn_lib_class (l->by) & DYN_AS_NEEDED) != 0
+	      || (!link_info.executable
+		  && bfd_elf_get_dyn_lib_class (l->by) & DYN_NO_ADD_NEEDED) != 0))
 	continue;
 
       /* If we've already seen this file, skip it.  */
@@ -1215,7 +1219,7 @@ gld${EMULATION_NAME}_after_open (void)
       n.by = l->by;
       n.name = l->name;
       nn.by = l->by;
-      if (trace_file_tries)
+      if (verbose)
 	info_msg (_("%s needed by %B\n"), l->name, l->by);
 
       /* As-needed libs specified on the command line (or linker script)
@@ -1310,7 +1314,7 @@ EOF
     # FreeBSD
     ;;
 
-    *-*-linux-* | *-*-k*bsd*-*)
+    *-*-linux-* | *-*-k*bsd*-* | *-*-gnu*)
     # Linux
       fragment <<EOF
 	  if (gld${EMULATION_NAME}_check_ld_so_conf (l->name, force))
@@ -1438,7 +1442,7 @@ if test x"$LDEMUL_BEFORE_ALLOCATION" != xgld"$EMULATION_NAME"_before_allocation;
 fragment <<EOF
 
 /* used by before_allocation and handle_option. */
-static void 
+static void
 gld${EMULATION_NAME}_append_to_separated_string (char **to, char *op_arg)
 {
   if (*to == NULL)
@@ -1506,7 +1510,7 @@ gld${EMULATION_NAME}_before_allocation (void)
       {
 	const char *audit_libs = elf_dt_audit (abfd);
 
-	/* If the input bfd contains an audit entry, we need to add it as 
+	/* If the input bfd contains an audit entry, we need to add it as
 	   a dep audit entry.  */
 	if (audit_libs && *audit_libs != '\0')
 	  {
@@ -1861,7 +1865,7 @@ gld${EMULATION_NAME}_place_orphan (asection *s,
 	       If the section already exists but does not have any flags
 	       set, then it has been created by the linker, probably as a
 	       result of a --section-start command line switch.  */
-	    lang_add_section (&os->children, s, os);
+	    lang_add_section (&os->children, s, NULL, os);
 	    return os;
 	  }
 
@@ -1875,7 +1879,7 @@ gld${EMULATION_NAME}_place_orphan (asection *s,
      unused one and use that.  */
   if (match_by_name)
     {
-      lang_add_section (&match_by_name->children, s, match_by_name);
+      lang_add_section (&match_by_name->children, s, NULL, match_by_name);
       return match_by_name;
     }
 
@@ -1901,7 +1905,7 @@ gld${EMULATION_NAME}_place_orphan (asection *s,
       && hold[orphan_text].os != NULL)
     {
       os = hold[orphan_text].os;
-      lang_add_section (&os->children, s, os);
+      lang_add_section (&os->children, s, NULL, os);
       return os;
     }
 
@@ -2203,7 +2207,7 @@ EOF
 if test x"$GENERATE_SHLIB_SCRIPT" = xyes; then
 fragment <<EOF
     case OPTION_AUDIT:
-  	gld${EMULATION_NAME}_append_to_separated_string (&audit, optarg); 
+	gld${EMULATION_NAME}_append_to_separated_string (&audit, optarg);
 	break;
 
     case 'P':
@@ -2275,6 +2279,17 @@ fragment <<EOF
 	    einfo (_("%P%F: invalid common page size \`%s'\n"),
 		   optarg + 17);
 	}
+      else if (CONST_STRNEQ (optarg, "stack-size="))
+	{
+	  char *end;
+	  link_info.stacksize = strtoul (optarg + 11, &end, 0);
+	  if (*end || link_info.stacksize < 0)
+	    einfo (_("%P%F: invalid stack size \`%s'\n"), optarg + 11);
+	  if (!link_info.stacksize)
+	    /* Use -1 for explicit no-stack, because zero means
+	       'default'.   */
+	    link_info.stacksize = -1;
+	}
       else if (strcmp (optarg, "execstack") == 0)
 	{
 	  link_info.execstack = TRUE;
@@ -2288,6 +2303,8 @@ fragment <<EOF
 EOF
 if test x"$GENERATE_SHLIB_SCRIPT" = xyes; then
 fragment <<EOF
+      else if (strcmp (optarg, "global") == 0)
+	link_info.flags_1 |= (bfd_vma) DF_1_GLOBAL;
       else if (strcmp (optarg, "initfirst") == 0)
 	link_info.flags_1 |= (bfd_vma) DF_1_INITFIRST;
       else if (strcmp (optarg, "interpose") == 0)
@@ -2379,7 +2396,7 @@ if test x"$GENERATE_SHLIB_SCRIPT" = xyes; then
 fragment <<EOF
   fprintf (file, _("\
   -P AUDITLIB, --depaudit=AUDITLIB\n" "\
-                              Specify a library to use for auditing dependencies\n"));
+			      Specify a library to use for auditing dependencies\n"));
   fprintf (file, _("\
   --disable-new-dtags         Disable new dynamic tags\n"));
   fprintf (file, _("\
@@ -2406,6 +2423,9 @@ EOF
 
 if test x"$GENERATE_SHLIB_SCRIPT" = xyes; then
 fragment <<EOF
+  fprintf (file, _("\
+  -z global                   Make symbols in DSO available for subsequently\n\
+			       loaded objects\n"));
   fprintf (file, _("\
   -z initfirst                Mark DSO to be initialized first at runtime\n"));
   fprintf (file, _("\
@@ -2452,9 +2472,11 @@ fragment <<EOF
   -z now                      Mark object non-lazy runtime binding\n"));
   fprintf (file, _("\
   -z origin                   Mark object requiring immediate \$ORIGIN\n\
-                                processing at runtime\n"));
+				processing at runtime\n"));
   fprintf (file, _("\
   -z relro                    Create RELRO program header\n"));
+  fprintf (file, _("\
+  -z stacksize=SIZE           Set size of stack segment\n"));
 EOF
 fi
 

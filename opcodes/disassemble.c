@@ -24,6 +24,7 @@
 #include "dis-asm.h"
 
 #ifdef ARCH_all
+#define ARCH_aarch64
 #define ARCH_alpha
 #define ARCH_arc
 #define ARCH_arm
@@ -91,6 +92,7 @@
 #define ARCH_w65
 #define ARCH_xstormy16
 #define ARCH_xc16x
+#define ARCH_xgate
 #define ARCH_xtensa
 #define ARCH_z80
 #define ARCH_z8k
@@ -112,6 +114,11 @@ disassembler (abfd)
     {
       /* If you add a case to this table, also add it to the
 	 ARCH_all definition right above this function.  */
+#ifdef ARCH_aarch64
+    case bfd_arch_aarch64:
+      disassemble = print_insn_aarch64;
+      break;
+#endif
 #ifdef ARCH_alpha
     case bfd_arch_alpha:
       disassemble = print_insn_alpha;
@@ -247,12 +254,19 @@ disassembler (abfd)
       disassemble = print_insn_m32r;
       break;
 #endif
-#if defined(ARCH_m68hc11) || defined(ARCH_m68hc12)
+#if defined(ARCH_m68hc11) || defined(ARCH_m68hc12) \
+    || defined(ARCH_9s12x) || defined(ARCH_m9s12xg)
     case bfd_arch_m68hc11:
       disassemble = print_insn_m68hc11;
       break;
     case bfd_arch_m68hc12:
       disassemble = print_insn_m68hc12;
+      break;
+    case bfd_arch_m9s12x:
+      disassemble = print_insn_m9s12x;
+      break;
+    case bfd_arch_m9s12xg:
+      disassemble = print_insn_m9s12xg;
       break;
 #endif
 #ifdef ARCH_m68k
@@ -422,12 +436,18 @@ disassembler (abfd)
 #endif
 #ifdef ARCH_v850
     case bfd_arch_v850:
+    case bfd_arch_v850_rh850:
       disassemble = print_insn_v850;
       break;
 #endif
 #ifdef ARCH_w65
     case bfd_arch_w65:
       disassemble = print_insn_w65;
+      break;
+#endif
+#ifdef ARCH_xgate
+    case bfd_arch_xgate:
+      disassemble = print_insn_xgate;
       break;
 #endif
 #ifdef ARCH_xstormy16
@@ -503,6 +523,9 @@ void
 disassembler_usage (stream)
      FILE * stream ATTRIBUTE_UNUSED;
 {
+#ifdef ARCH_aarch64
+  print_aarch64_disassembler_options (stream);
+#endif
 #ifdef ARCH_arm
   print_arm_disassembler_options (stream);
 #endif
@@ -530,6 +553,12 @@ disassemble_init_for_target (struct disassemble_info * info)
 
   switch (info->arch)
     {
+#ifdef ARCH_aarch64
+    case bfd_arch_aarch64:
+      info->symbol_is_valid = aarch64_symbol_is_valid;
+      info->disassembler_needs_relocs = TRUE;
+      break;
+#endif
 #ifdef ARCH_arm
     case bfd_arch_arm:
       info->symbol_is_valid = arm_symbol_is_valid;

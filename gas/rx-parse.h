@@ -260,7 +260,7 @@
 
 
 #if ! defined (YYSTYPE) && ! defined (YYSTYPE_IS_DECLARED)
-#line 133 "rx-parse.y"
+#line 134 "rx-parse.y"
 typedef union YYSTYPE {
   int regno;
   expressionS exp;

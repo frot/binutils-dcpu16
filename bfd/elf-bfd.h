@@ -402,7 +402,8 @@ struct eh_frame_hdr_info
    one line.  */
 enum elf_target_id
 {
-  ALPHA_ELF_DATA = 1,
+  AARCH64_ELF_DATA = 1,
+  ALPHA_ELF_DATA,
   ARM_ELF_DATA,
   AVR_ELF_DATA,
   BFIN_ELF_DATA,
@@ -428,6 +429,7 @@ enum elf_target_id
   TIC6X_ELF_DATA,
   X86_64_ELF_DATA,
   XTENSA_ELF_DATA,
+  XGATE_ELF_DATA,
   TILEGX_ELF_DATA,
   TILEPRO_ELF_DATA,
   GENERIC_ELF_DATA
@@ -495,6 +497,9 @@ struct elf_link_hash_table
 
   /* The _PROCEDURE_LINKAGE_TABLE_ symbol.  */
   struct elf_link_hash_entry *hplt;
+
+  /* The _DYNAMIC symbol.  */
+  struct elf_link_hash_entry *hdynamic;
 
   /* A pointer to information used to merge SEC_MERGE sections.  */
   void *merge_info;
@@ -1185,7 +1190,8 @@ struct elf_backend_data
      see elf.c, elfcode.h.  */
   bfd *(*elf_backend_bfd_from_remote_memory)
      (bfd *templ, bfd_vma ehdr_vma, bfd_vma *loadbasep,
-      int (*target_read_memory) (bfd_vma vma, bfd_byte *myaddr, int len));
+      int (*target_read_memory) (bfd_vma vma, bfd_byte *myaddr,
+				 bfd_size_type len));
 
   /* This function is used by `_bfd_elf_get_synthetic_symtab';
      see elf.c.  */
@@ -1221,10 +1227,11 @@ struct elf_backend_data
   /* Return TRUE if type is a function symbol type.  */
   bfd_boolean (*is_function_type) (unsigned int type);
 
-  /* Return TRUE if symbol may be a function.  Set *CODE_SEC and *CODE_VAL
-     to the function's entry point.  */
-  bfd_boolean (*maybe_function_sym) (const asymbol *sym,
-				     asection **code_sec, bfd_vma *code_off);
+  /* If the ELF symbol SYM might be a function in SEC, return the
+     function size and set *CODE_OFF to the function's entry point,
+     otherwise return zero.  */
+  bfd_size_type (*maybe_function_sym) (const asymbol *sym, asection *sec,
+				       bfd_vma *code_off);
 
   /* Used to handle bad SHF_LINK_ORDER input.  */
   bfd_error_handler_type link_order_error_handler;
@@ -1277,6 +1284,9 @@ struct elf_backend_data
 
   /* This is non-zero if static TLS segments require a special alignment.  */
   unsigned static_tls_alignment;
+
+  /* Alignment for the PT_GNU_STACK segment. */
+  unsigned stack_align;
 
   /* This is TRUE if the linker should act like collect and gather
      global constructors and destructors by name.  This is TRUE for
@@ -1365,6 +1375,9 @@ struct bfd_elf_section_data
 {
   /* The ELF header for this section.  */
   Elf_Internal_Shdr this_hdr;
+
+  /* INPUT_SECTION_FLAGS if specified in the linker script.  */
+  struct flag_info *section_flag_info;
 
   /* Information about the REL and RELA reloc sections associated
      with this section, if any.  */
@@ -1870,9 +1883,16 @@ extern bfd_boolean _bfd_elf_set_arch_mach
 extern bfd_boolean _bfd_elf_find_nearest_line
   (bfd *, asection *, asymbol **, bfd_vma, const char **, const char **,
    unsigned int *);
+extern bfd_boolean _bfd_elf_find_nearest_line_discriminator
+  (bfd *, asection *, asymbol **, bfd_vma, const char **, const char **,
+   unsigned int *, unsigned int *);
 extern bfd_boolean _bfd_elf_find_line
   (bfd *, asymbol **, asymbol *, const char **, unsigned int *);
+extern bfd_boolean _bfd_elf_find_line_discriminator
+  (bfd *, asymbol **, asymbol *, const char **, unsigned int *, unsigned int *);
 #define _bfd_generic_find_line _bfd_elf_find_line
+#define _bfd_generic_find_nearest_line_discriminator \
+        _bfd_elf_find_nearest_line_discriminator
 extern bfd_boolean _bfd_elf_find_inliner_info
   (bfd *, const char **, const char **, unsigned int *);
 #define _bfd_elf_read_minisymbols _bfd_generic_read_minisymbols
@@ -1946,12 +1966,14 @@ extern bfd_boolean _bfd_elf_write_section_eh_frame
   (bfd *, struct bfd_link_info *, asection *, bfd_byte *);
 extern bfd_boolean _bfd_elf_write_section_eh_frame_hdr
   (bfd *, struct bfd_link_info *);
+extern bfd_boolean _bfd_elf_eh_frame_present
+  (struct bfd_link_info *);
 extern bfd_boolean _bfd_elf_maybe_strip_eh_frame_hdr
   (struct bfd_link_info *);
 
 extern bfd_boolean _bfd_elf_merge_symbol
   (bfd *, struct bfd_link_info *, const char *, Elf_Internal_Sym *,
-   asection **, bfd_vma *, unsigned int *,
+   asection **, bfd_vma *, bfd_boolean *, unsigned int *,
    struct elf_link_hash_entry **, bfd_boolean *,
    bfd_boolean *, bfd_boolean *, bfd_boolean *);
 
@@ -2201,13 +2223,13 @@ extern bfd_boolean _bfd_elf_map_sections_to_segments
 
 extern bfd_boolean _bfd_elf_is_function_type (unsigned int);
 
-extern bfd_boolean _bfd_elf_maybe_function_sym (const asymbol *,
-						asection **, bfd_vma *);
+extern bfd_size_type _bfd_elf_maybe_function_sym (const asymbol *, asection *,
+						  bfd_vma *);
 
 extern int bfd_elf_get_default_section_type (flagword);
 
-extern void bfd_elf_lookup_section_flags
-  (struct bfd_link_info *, struct flag_info *);
+extern bfd_boolean bfd_elf_lookup_section_flags
+  (struct bfd_link_info *, struct flag_info *, asection *);
 
 extern Elf_Internal_Phdr * _bfd_elf_find_segment_containing_section
   (bfd * abfd, asection * section);
@@ -2254,10 +2276,10 @@ extern char *elfcore_write_register_note
 
 extern bfd *_bfd_elf32_bfd_from_remote_memory
   (bfd *templ, bfd_vma ehdr_vma, bfd_vma *loadbasep,
-   int (*target_read_memory) (bfd_vma, bfd_byte *, int));
+   int (*target_read_memory) (bfd_vma, bfd_byte *, bfd_size_type));
 extern bfd *_bfd_elf64_bfd_from_remote_memory
   (bfd *templ, bfd_vma ehdr_vma, bfd_vma *loadbasep,
-   int (*target_read_memory) (bfd_vma, bfd_byte *, int));
+   int (*target_read_memory) (bfd_vma, bfd_byte *, bfd_size_type));
 
 extern bfd_vma bfd_elf_obj_attr_size (bfd *);
 extern void bfd_elf_set_obj_attr_contents (bfd *, bfd_byte *, bfd_vma);
@@ -2407,10 +2429,12 @@ extern asection _bfd_elf_large_com_section;
    link, we remove such relocations.  Otherwise, we just want the
    section contents zeroed and avoid any special processing.  */
 #define RELOC_AGAINST_DISCARDED_SECTION(info, input_bfd, input_section,	\
-					rel, relend, howto, contents)	\
+					rel, count, relend,		\
+					howto, index, contents)		\
   {									\
+    int i_;								\
     _bfd_clear_contents (howto, input_bfd, input_section,		\
-			 contents + rel->r_offset);			\
+			 contents + rel[index].r_offset);		\
 									\
     if (info->relocatable						\
 	&& (input_section->flags & SEC_DEBUGGING))			\
@@ -2422,27 +2446,32 @@ extern asection _bfd_elf_large_com_section;
 	rel_hdr = _bfd_elf_single_rel_hdr (input_section->output_section); \
 									\
 	/* Avoid empty output section.  */				\
-	if (rel_hdr->sh_size > rel_hdr->sh_entsize)			\
+	if (rel_hdr->sh_size > count * rel_hdr->sh_entsize)		\
 	  {								\
-	    rel_hdr->sh_size -= rel_hdr->sh_entsize;			\
+	    rel_hdr->sh_size -= count * rel_hdr->sh_entsize;		\
 	    rel_hdr = _bfd_elf_single_rel_hdr (input_section);		\
-	    rel_hdr->sh_size -= rel_hdr->sh_entsize;			\
+	    rel_hdr->sh_size -= count * rel_hdr->sh_entsize;		\
 									\
-	    memmove (rel, rel + 1, (relend - rel - 1) * sizeof (*rel));	\
+	    memmove (rel, rel + count,					\
+		     (relend - rel - count) * sizeof (*rel));		\
 									\
-	    input_section->reloc_count--;				\
-	    relend--;							\
+	    input_section->reloc_count -= count;			\
+	    relend -= count;						\
 	    rel--;							\
 	    continue;							\
 	  }								\
       }									\
 									\
-    rel->r_info = 0;							\
-    rel->r_addend = 0;							\
+    for (i_ = 0; i_ < count; i_++)					\
+      {									\
+	rel[i_].r_info = 0;						\
+	rel[i_].r_addend = 0;						\
+      }									\
+    rel += count - 1;							\
     continue;								\
   }
 
-/* Will a symbol be bound to the the definition within the shared
+/* Will a symbol be bound to the definition within the shared
    library, if any.  A unique symbol can never be bound locally.  */
 #define SYMBOLIC_BIND(INFO, H) \
     (!(H)->unique_global \

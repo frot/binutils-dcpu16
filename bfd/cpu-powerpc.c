@@ -26,13 +26,9 @@
 
 /* The common PowerPC architecture is compatible with the RS/6000.  */
 
-static const bfd_arch_info_type *powerpc_compatible
-  PARAMS ((const bfd_arch_info_type *, const bfd_arch_info_type *));
-
 static const bfd_arch_info_type *
-powerpc_compatible (a,b)
-     const bfd_arch_info_type *a;
-     const bfd_arch_info_type *b;
+powerpc_compatible (const bfd_arch_info_type *a,
+		    const bfd_arch_info_type *b)
 {
   BFD_ASSERT (a->arch == bfd_arch_powerpc);
   switch (b->arch)
@@ -376,6 +372,21 @@ const bfd_arch_info_type bfd_powerpc_archs[] =
     &bfd_powerpc_archs[19]
   },
   {
+    16, /* 16 or 32 bits in a word */
+    32, /* 32 bits in an address */
+    8,  /* 8 bits in a byte */
+    bfd_arch_powerpc,
+    bfd_mach_ppc_vle,
+    "powerpc",
+    "powerpc:vle",
+    3,
+    FALSE, /* not the default */
+    powerpc_compatible,
+    bfd_default_scan,
+    bfd_arch_default_fill,
+    &bfd_powerpc_archs[20]
+  },
+  {
     64, /* 64 bits in a word */
     64, /* 64 bits in an address */
     8,  /* 8 bits in a byte */
@@ -388,7 +399,7 @@ const bfd_arch_info_type bfd_powerpc_archs[] =
     powerpc_compatible,
     bfd_default_scan,
     bfd_arch_default_fill,
-    &bfd_powerpc_archs[20]
+    &bfd_powerpc_archs[21]
   },
   {
     64, /* 64 bits in a word */

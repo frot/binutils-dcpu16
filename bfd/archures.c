@@ -244,6 +244,7 @@ DESCRIPTION
 .#define bfd_mach_ppc_e5500     5006
 .#define bfd_mach_ppc_e6500     5007
 .#define bfd_mach_ppc_titan     83
+.#define bfd_mach_ppc_vle       84
 .  bfd_arch_rs6000,    {* IBM RS/6000 *}
 .#define bfd_mach_rs6k		6000
 .#define bfd_mach_rs6k_rs1	6001
@@ -265,6 +266,8 @@ DESCRIPTION
 .#define bfd_mach_m6812_default 0
 .#define bfd_mach_m6812         1
 .#define bfd_mach_m6812s        2
+.  bfd_arch_m9s12x,   {* Freescale S12X *}
+.  bfd_arch_m9s12xg,  {* Freescale XGATE *}
 .  bfd_arch_z8k,       {* Zilog Z8000 *}
 .#define bfd_mach_z8001		1
 .#define bfd_mach_z8002		2
@@ -320,6 +323,7 @@ DESCRIPTION
 .  bfd_arch_tic6x,     {* Texas Instruments TMS320C6X *}
 .  bfd_arch_tic80,     {* TI TMS320c80 (MVP) *}
 .  bfd_arch_v850,      {* NEC V850 *}
+.  bfd_arch_v850_rh850,{* NEC V850 (using RH850 ABI) *}
 .#define bfd_mach_v850          1
 .#define bfd_mach_v850e 	'E'
 .#define bfd_mach_v850e1        '1'
@@ -440,7 +444,9 @@ DESCRIPTION
 .  bfd_arch_xc16x,     {* Infineon's XC16X Series.               *}
 .#define bfd_mach_xc16x         1
 .#define bfd_mach_xc16xl        2
-.#define bfd_mach_xc16xs         3
+.#define bfd_mach_xc16xs        3
+.  bfd_arch_xgate,   {* Freescale XGATE *}
+.#define bfd_mach_xgate         1
 .  bfd_arch_xtensa,    {* Tensilica's Xtensa cores.  *}
 .#define bfd_mach_xtensa	1
 .  bfd_arch_z80,
@@ -456,6 +462,8 @@ DESCRIPTION
 .#define bfd_mach_tilepro   1
 .#define bfd_mach_tilegx    1
 .#define bfd_mach_tilegx32  2
+.  bfd_arch_aarch64,   {* AArch64  *}
+.#define bfd_mach_aarch64 0
 .  bfd_arch_last
 .  };
 */
@@ -500,6 +508,7 @@ DESCRIPTION
 .
 */
 
+extern const bfd_arch_info_type bfd_aarch64_arch;
 extern const bfd_arch_info_type bfd_alpha_arch;
 extern const bfd_arch_info_type bfd_arc_arch;
 extern const bfd_arch_info_type bfd_arm_arch;
@@ -532,6 +541,8 @@ extern const bfd_arch_info_type bfd_m32c_arch;
 extern const bfd_arch_info_type bfd_m32r_arch;
 extern const bfd_arch_info_type bfd_m68hc11_arch;
 extern const bfd_arch_info_type bfd_m68hc12_arch;
+extern const bfd_arch_info_type bfd_m9s12x_arch;
+extern const bfd_arch_info_type bfd_m9s12xg_arch;
 extern const bfd_arch_info_type bfd_m68k_arch;
 extern const bfd_arch_info_type bfd_m88k_arch;
 extern const bfd_arch_info_type bfd_mcore_arch;
@@ -568,12 +579,14 @@ extern const bfd_arch_info_type bfd_tic80_arch;
 extern const bfd_arch_info_type bfd_tilegx_arch;
 extern const bfd_arch_info_type bfd_tilepro_arch;
 extern const bfd_arch_info_type bfd_v850_arch;
+extern const bfd_arch_info_type bfd_v850_rh850_arch;
 extern const bfd_arch_info_type bfd_vax_arch;
 extern const bfd_arch_info_type bfd_w65_arch;
 extern const bfd_arch_info_type bfd_we32k_arch;
 extern const bfd_arch_info_type bfd_xstormy16_arch;
 extern const bfd_arch_info_type bfd_xtensa_arch;
 extern const bfd_arch_info_type bfd_xc16x_arch;
+extern const bfd_arch_info_type bfd_xgate_arch;
 extern const bfd_arch_info_type bfd_z80_arch;
 extern const bfd_arch_info_type bfd_z8k_arch;
 
@@ -582,6 +595,7 @@ static const bfd_arch_info_type * const bfd_archures_list[] =
 #ifdef SELECT_ARCHITECTURES
     SELECT_ARCHITECTURES,
 #else
+    &bfd_aarch64_arch,
     &bfd_alpha_arch,
     &bfd_arc_arch,
     &bfd_arm_arch,
@@ -614,6 +628,8 @@ static const bfd_arch_info_type * const bfd_archures_list[] =
     &bfd_m32r_arch,
     &bfd_m68hc11_arch,
     &bfd_m68hc12_arch,
+    &bfd_m9s12x_arch,
+    &bfd_m9s12xg_arch,
     &bfd_m68k_arch,
     &bfd_m88k_arch,
     &bfd_mcore_arch,
@@ -647,12 +663,14 @@ static const bfd_arch_info_type * const bfd_archures_list[] =
     &bfd_tilegx_arch,
     &bfd_tilepro_arch,
     &bfd_v850_arch,
+    &bfd_v850_rh850_arch,
     &bfd_vax_arch,
     &bfd_w65_arch,
     &bfd_we32k_arch,
     &bfd_xstormy16_arch,
     &bfd_xtensa_arch,
     &bfd_xc16x_arch,
+    &bfd_xgate_arch,
     &bfd_z80_arch,
     &bfd_z8k_arch,
 #endif

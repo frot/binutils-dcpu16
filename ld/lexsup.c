@@ -62,119 +62,6 @@ static void set_section_start (char *, char *);
 static void set_segment_start (const char *, char *);
 static void help (void);
 
-/* Codes used for the long options with no short synonyms.  150 isn't
-   special; it's just an arbitrary non-ASCII char value.  */
-enum option_values
-{
-  OPTION_ASSERT = 150,
-  OPTION_CALL_SHARED,
-  OPTION_CREF,
-  OPTION_DEFSYM,
-  OPTION_DEMANGLE,
-  OPTION_DYNAMIC_LINKER,
-  OPTION_SYSROOT,
-  OPTION_EB,
-  OPTION_EL,
-  OPTION_EMBEDDED_RELOCS,
-  OPTION_EXPORT_DYNAMIC,
-  OPTION_NO_EXPORT_DYNAMIC,
-  OPTION_HELP,
-  OPTION_IGNORE,
-  OPTION_MAP,
-  OPTION_NO_DEMANGLE,
-  OPTION_NO_KEEP_MEMORY,
-  OPTION_NO_WARN_MISMATCH,
-  OPTION_NO_WARN_SEARCH_MISMATCH,
-  OPTION_NOINHIBIT_EXEC,
-  OPTION_NON_SHARED,
-  OPTION_NO_WHOLE_ARCHIVE,
-  OPTION_OFORMAT,
-  OPTION_RELAX,
-  OPTION_NO_RELAX,
-  OPTION_RETAIN_SYMBOLS_FILE,
-  OPTION_RPATH,
-  OPTION_RPATH_LINK,
-  OPTION_SHARED,
-  OPTION_SONAME,
-  OPTION_SORT_COMMON,
-  OPTION_SORT_SECTION,
-  OPTION_STATS,
-  OPTION_SYMBOLIC,
-  OPTION_SYMBOLIC_FUNCTIONS,
-  OPTION_TASK_LINK,
-  OPTION_TBSS,
-  OPTION_TDATA,
-  OPTION_TTEXT,
-  OPTION_TTEXT_SEGMENT,
-  OPTION_TRADITIONAL_FORMAT,
-  OPTION_UR,
-  OPTION_VERBOSE,
-  OPTION_VERSION,
-  OPTION_VERSION_SCRIPT,
-  OPTION_VERSION_EXPORTS_SECTION,
-  OPTION_DYNAMIC_LIST,
-  OPTION_DYNAMIC_LIST_CPP_NEW,
-  OPTION_DYNAMIC_LIST_CPP_TYPEINFO,
-  OPTION_DYNAMIC_LIST_DATA,
-  OPTION_WARN_COMMON,
-  OPTION_WARN_CONSTRUCTORS,
-  OPTION_WARN_FATAL,
-  OPTION_NO_WARN_FATAL,
-  OPTION_WARN_MULTIPLE_GP,
-  OPTION_WARN_ONCE,
-  OPTION_WARN_SECTION_ALIGN,
-  OPTION_SPLIT_BY_RELOC,
-  OPTION_SPLIT_BY_FILE ,
-  OPTION_WHOLE_ARCHIVE,
-  OPTION_ADD_DT_NEEDED_FOR_DYNAMIC,
-  OPTION_NO_ADD_DT_NEEDED_FOR_DYNAMIC,
-  OPTION_ADD_DT_NEEDED_FOR_REGULAR,
-  OPTION_NO_ADD_DT_NEEDED_FOR_REGULAR,
-  OPTION_WRAP,
-  OPTION_FORCE_EXE_SUFFIX,
-  OPTION_GC_SECTIONS,
-  OPTION_NO_GC_SECTIONS,
-  OPTION_PRINT_GC_SECTIONS,
-  OPTION_NO_PRINT_GC_SECTIONS,
-  OPTION_HASH_SIZE,
-  OPTION_CHECK_SECTIONS,
-  OPTION_NO_CHECK_SECTIONS,
-  OPTION_NO_UNDEFINED,
-  OPTION_INIT,
-  OPTION_FINI,
-  OPTION_SECTION_START,
-  OPTION_UNIQUE,
-  OPTION_TARGET_HELP,
-  OPTION_ALLOW_SHLIB_UNDEFINED,
-  OPTION_NO_ALLOW_SHLIB_UNDEFINED,
-  OPTION_ALLOW_MULTIPLE_DEFINITION,
-  OPTION_NO_UNDEFINED_VERSION,
-  OPTION_DEFAULT_SYMVER,
-  OPTION_DEFAULT_IMPORTED_SYMVER,
-  OPTION_DISCARD_NONE,
-  OPTION_SPARE_DYNAMIC_TAGS,
-  OPTION_NO_DEFINE_COMMON,
-  OPTION_NOSTDLIB,
-  OPTION_NO_OMAGIC,
-  OPTION_STRIP_DISCARDED,
-  OPTION_NO_STRIP_DISCARDED,
-  OPTION_ACCEPT_UNKNOWN_INPUT_ARCH,
-  OPTION_NO_ACCEPT_UNKNOWN_INPUT_ARCH,
-  OPTION_PIE,
-  OPTION_UNRESOLVED_SYMBOLS,
-  OPTION_WARN_UNRESOLVED_SYMBOLS,
-  OPTION_ERROR_UNRESOLVED_SYMBOLS,
-  OPTION_WARN_SHARED_TEXTREL,
-  OPTION_WARN_ALTERNATE_EM,
-  OPTION_REDUCE_MEMORY_OVERHEADS,
-#ifdef ENABLE_PLUGINS
-  OPTION_PLUGIN,
-  OPTION_PLUGIN_OPT,
-#endif /* ENABLE_PLUGINS */
-  OPTION_DEFAULT_SCRIPT,
-  OPTION_PRINT_OUTPUT_FORMAT,
-};
-
 /* The long options.  This structure is used for both the option
    parsing and the help text.  */
 
@@ -518,13 +405,13 @@ static const struct ld_option ld_options[] =
   { {"pic-executable", no_argument, NULL, OPTION_PIE},
     '\0', NULL, NULL, TWO_DASHES },
   { {"sort-common", optional_argument, NULL, OPTION_SORT_COMMON},
-    '\0', N_("[=ascending|descending]"), 
-    N_("Sort common symbols by alignment [in specified order]"), 
+    '\0', N_("[=ascending|descending]"),
+    N_("Sort common symbols by alignment [in specified order]"),
     TWO_DASHES },
   { {"sort_common", no_argument, NULL, OPTION_SORT_COMMON},
     '\0', NULL, NULL, NO_HELP },
   { {"sort-section", required_argument, NULL, OPTION_SORT_SECTION},
-    '\0', N_("name|alignment"), 
+    '\0', N_("name|alignment"),
     N_("Sort sections by name or maximum alignment"), TWO_DASHES },
   { {"spare-dynamic-tags", required_argument, NULL, OPTION_SPARE_DYNAMIC_TAGS},
     '\0', N_("COUNT"), N_("How many tags to reserve in .dynamic section"),
@@ -554,6 +441,8 @@ static const struct ld_option ld_options[] =
     '\0', N_("ADDRESS"), N_("Set address of .text section"), ONE_DASH },
   { {"Ttext-segment", required_argument, NULL, OPTION_TTEXT_SEGMENT},
     '\0', N_("ADDRESS"), N_("Set address of text segment"), ONE_DASH },
+  { {"Trodata-segment", required_argument, NULL, OPTION_TRODATA_SEGMENT},
+    '\0', N_("ADDRESS"), N_("Set address of rodata segment"), ONE_DASH },
   { {"unresolved-symbols=<method>", required_argument, NULL,
      OPTION_UNRESOLVED_SYMBOLS},
     '\0', NULL, N_("How to handle unresolved symbols.  <method> is:\n"
@@ -609,6 +498,10 @@ static const struct ld_option ld_options[] =
     TWO_DASHES },
   { {"wrap", required_argument, NULL, OPTION_WRAP},
     '\0', N_("SYMBOL"), N_("Use wrapper functions for SYMBOL"), TWO_DASHES },
+  { {"ignore-unresolved-symbol", required_argument, NULL,
+    OPTION_IGNORE_UNRESOLVED_SYMBOL},
+    '\0', N_("SYMBOL"),
+    N_("Unresolved SYMBOL will not cause an error or warning"), TWO_DASHES },
 };
 
 #define OPTION_COUNT ARRAY_SIZE (ld_options)
@@ -1063,9 +956,7 @@ parse_args (unsigned argc, char **argv)
 	  break;
 #ifdef ENABLE_PLUGINS
 	case OPTION_PLUGIN:
-	  if (plugin_opt_plugin (optarg))
-	    einfo (_("%P%F: %s: error loading plugin\n"),
-		   plugin_error_plugin ());
+	  plugin_opt_plugin (optarg);
 	  break;
 	case OPTION_PLUGIN_OPT:
 	  if (plugin_opt_plugin_arg (optarg))
@@ -1302,6 +1193,9 @@ parse_args (unsigned argc, char **argv)
 	case OPTION_TTEXT_SEGMENT:
 	  set_segment_start (".text-segment", optarg);
 	  break;
+	case OPTION_TRODATA_SEGMENT:
+	  set_segment_start (".rodata-segment", optarg);
+	  break;
 	case OPTION_TRADITIONAL_FORMAT:
 	  link_info.traditional_format = TRUE;
 	  break;
@@ -1327,7 +1221,7 @@ parse_args (unsigned argc, char **argv)
 	case OPTION_VERBOSE:
 	  ldversion (1);
 	  version_printed = TRUE;
-	  trace_file_tries = TRUE;
+	  verbose = TRUE;
 	  overflow_cutoff_limit = -2;
 	  if (optarg != NULL)
 	    {
@@ -1453,6 +1347,9 @@ parse_args (unsigned argc, char **argv)
 	  break;
 	case OPTION_WRAP:
 	  add_wrap (optarg);
+	  break;
+	case OPTION_IGNORE_UNRESOLVED_SYMBOL:
+	  add_ignoresym (&link_info, optarg);
 	  break;
 	case OPTION_DISCARD_NONE:
 	  link_info.discard = discard_none;

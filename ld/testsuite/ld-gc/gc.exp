@@ -32,6 +32,11 @@ if [istarget powerpc64*-*-*] {
     set cflags "$cflags -mminimal-toc"
 }
 
+if { [istarget m681*-*-*] || [istarget m68hc1*-*-*] } {
+    # Otherwise tests FAIL due to _.frame
+    set cflags "$cflags -fomit-frame-pointer -mshort"
+}
+
 if { [is_remote host] || [which $CC] != 0 } {
     ld_compile "$CC -c $CFLAGS $cflags" $srcdir/$subdir/gc.c $objfile
 }
@@ -125,4 +130,9 @@ if { [is_remote host] || [which $CC] != 0 } {
 if { [is_remote host] || [which $CC] != 0 } {
 	ld_compile "$CC $CFLAGS $cflags" $srcdir/$subdir/pr13683.c tmpdir/pr13683.o
 	run_dump_test "pr13683"
+}
+
+if { [is_remote host] || [which $CC] != 0 } {
+    ld_compile "$CC $CFLAGS $cflags" $srcdir/$subdir/pr14265.c tmpdir/pr14265.o
+    run_dump_test "pr14265"
 }

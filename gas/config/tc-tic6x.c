@@ -1,5 +1,5 @@
 /* TI C6X assembler.
-   Copyright 2010, 2011
+   Copyright 2010, 2011, 2012
    Free Software Foundation, Inc.
    Contributed by Joseph Myers <joseph@codesourcery.com>
    		  Bernd Schmidt  <bernds@codesourcery.com>
@@ -693,7 +693,7 @@ static bfd_boolean tic6x_attributes_set_explicitly[NUM_KNOWN_OBJ_ATTRIBUTES];
 static void
 s_tic6x_c6xabi_attribute (int ignored ATTRIBUTE_UNUSED)
 {
-  int tag = s_vendor_attribute (OBJ_ATTR_PROC);
+  int tag = obj_elf_vendor_attribute (OBJ_ATTR_PROC);
 
   if (tag < NUM_KNOWN_OBJ_ATTRIBUTES)
     tic6x_attributes_set_explicitly[tag] = TRUE;
@@ -790,12 +790,12 @@ md_begin (void)
 
   /* We must construct a fake section similar to bfd_com_section
      but with the name .scommon.  */
-  scom_section                = bfd_com_section;
+  scom_section                = *bfd_com_section_ptr;
   scom_section.name           = ".scommon";
   scom_section.output_section = & scom_section;
   scom_section.symbol         = & scom_symbol;
   scom_section.symbol_ptr_ptr = & scom_section.symbol;
-  scom_symbol                 = * bfd_com_section.symbol;
+  scom_symbol                 = * bfd_com_section_ptr->symbol;
   scom_symbol.name            = ".scommon";
   scom_symbol.section         = & scom_section;
 }

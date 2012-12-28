@@ -1,5 +1,12 @@
 /* config.in.  Generated from configure.ac by autoheader.  */
 
+/* Check that config.h is #included before system headers
+   (this works only for glibc, but that should be enough).  */
+#if defined(__GLIBC__) && !defined(__FreeBSD_kernel__) && !defined(__CONFIG_H__)
+#  error config.h must be #included before system headers
+#endif
+#define __CONFIG_H__ 1
+
 /* Define if building universal (internal helper macro) */
 #undef AC_APPLE_UNIVERSAL_BUILD
 
@@ -71,6 +78,9 @@
 
 /* Define to 1 if you have the <ext/hash_set> header file. */
 #undef HAVE_EXT_HASH_SET
+
+/* Define to 1 if you have the `fallocate' function. */
+#undef HAVE_FALLOCATE
 
 /* Define to 1 if you have the `ffsll' function. */
 #undef HAVE_FFSLL
@@ -158,6 +168,9 @@
 
 /* Define to 1 if you have the `times' function. */
 #undef HAVE_TIMES
+
+/* Define if std::tr1::hash<off_t> is usable */
+#undef HAVE_TR1_HASH_OFF_T
 
 /* Define to 1 if you have the <tr1/unordered_map> header file. */
 #undef HAVE_TR1_UNORDERED_MAP

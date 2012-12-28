@@ -86,6 +86,7 @@ static int copy_width = 1;
 
 static bfd_boolean verbose;		/* Print file and target names.  */
 static bfd_boolean preserve_dates;	/* Preserve input file timestamp.  */
+static bfd_boolean deterministic;	/* Enable deterministic archives.  */
 static int status = 0;		/* Exit status.  */
 
 enum strip_action
@@ -95,11 +96,13 @@ enum strip_action
     STRIP_DEBUG,		/* Strip all debugger symbols.  */
     STRIP_UNNEEDED,		/* Strip unnecessary symbols.  */
     STRIP_NONDEBUG,		/* Strip everything but debug info.  */
+    STRIP_DWO,			/* Strip all DWO info.  */
+    STRIP_NONDWO,		/* Strip everything but DWO info.  */
     STRIP_ALL			/* Strip all symbols.  */
   };
 
 /* Which symbols to remove.  */
-static enum strip_action strip_symbols;
+static enum strip_action strip_symbols = STRIP_UNDEF;
 
 enum locals_action
   {
@@ -313,7 +316,9 @@ enum command_line_switch
     OPTION_SECTION_ALIGNMENT,
     OPTION_STACK,
     OPTION_INTERLEAVE_WIDTH,
-    OPTION_SUBSYSTEM
+    OPTION_SUBSYSTEM,
+    OPTION_EXTRACT_DWO,
+    OPTION_STRIP_DWO
   };
 
 /* Options to handle if running as "strip".  */
@@ -322,6 +327,7 @@ static struct option strip_options[] =
 {
   {"discard-all", no_argument, 0, 'x'},
   {"discard-locals", no_argument, 0, 'X'},
+  {"enable-deterministic-archives", no_argument, 0, 'D'},
   {"format", required_argument, 0, 'F'}, /* Obsolete */
   {"help", no_argument, 0, 'h'},
   {"info", no_argument, 0, OPTION_FORMATS_INFO},
@@ -337,6 +343,7 @@ static struct option strip_options[] =
   {"remove-section", required_argument, 0, 'R'},
   {"strip-all", no_argument, 0, 's'},
   {"strip-debug", no_argument, 0, 'S'},
+  {"strip-dwo", no_argument, 0, OPTION_STRIP_DWO},
   {"strip-unneeded", no_argument, 0, OPTION_STRIP_UNNEEDED},
   {"strip-symbol", required_argument, 0, 'N'},
   {"target", required_argument, 0, 'F'},
@@ -371,6 +378,8 @@ static struct option copy_options[] =
   {"decompress-debug-sections", no_argument, 0, OPTION_DECOMPRESS_DEBUG_SECTIONS},
   {"discard-all", no_argument, 0, 'x'},
   {"discard-locals", no_argument, 0, 'X'},
+  {"enable-deterministic-archives", no_argument, 0, 'D'},
+  {"extract-dwo", no_argument, 0, OPTION_EXTRACT_DWO},
   {"extract-symbol", no_argument, 0, OPTION_EXTRACT_SYMBOL},
   {"format", required_argument, 0, 'F'}, /* Obsolete */
   {"gap-fill", required_argument, 0, OPTION_GAP_FILL},
@@ -417,6 +426,7 @@ static struct option copy_options[] =
   {"srec-forceS3", no_argument, 0, OPTION_SREC_FORCES3},
   {"strip-all", no_argument, 0, 'S'},
   {"strip-debug", no_argument, 0, 'g'},
+  {"strip-dwo", no_argument, 0, OPTION_STRIP_DWO},
   {"strip-unneeded", no_argument, 0, OPTION_STRIP_UNNEEDED},
   {"strip-unneeded-symbol", required_argument, 0, OPTION_STRIP_UNNEEDED_SYMBOL},
   {"strip-unneeded-symbols", required_argument, 0, OPTION_STRIP_UNNEEDED_SYMBOLS},
@@ -480,17 +490,21 @@ copy_usage (FILE *stream, int exit_status)
   -F --target <bfdname>            Set both input and output format to <bfdname>\n\
      --debugging                   Convert debugging information, if possible\n\
   -p --preserve-dates              Copy modified/access timestamps to the output\n\
+  -D --enable-deterministic-archives\n\
+                                   Produce deterministic output when stripping archives\n\
   -j --only-section <name>         Only copy section <name> into the output\n\
      --add-gnu-debuglink=<file>    Add section .gnu_debuglink linking to <file>\n\
   -R --remove-section <name>       Remove section <name> from the output\n\
   -S --strip-all                   Remove all symbol and relocation information\n\
   -g --strip-debug                 Remove all debugging symbols & sections\n\
+     --strip-dwo                   Remove all DWO sections\n\
      --strip-unneeded              Remove all symbols not needed by relocations\n\
   -N --strip-symbol <name>         Do not copy symbol <name>\n\
      --strip-unneeded-symbol <name>\n\
                                    Do not copy symbol <name> unless needed by\n\
                                      relocations\n\
      --only-keep-debug             Strip everything but the debug information\n\
+     --extract-dwo                 Copy only DWO sections\n\
      --extract-symbol              Remove section contents but keep symbols\n\
   -K --keep-symbol <name>          Do not strip symbol <name>\n\
      --keep-file-symbols           Do not strip file symbol(s)\n\
@@ -588,9 +602,12 @@ strip_usage (FILE *stream, int exit_status)
   -O --output-target=<bfdname>     Create an output file in format <bfdname>\n\
   -F --target=<bfdname>            Set both input and output format to <bfdname>\n\
   -p --preserve-dates              Copy modified/access timestamps to the output\n\
+  -D --enable-deterministic-archives\n\
+                                   Produce deterministic output when stripping archives\n\
   -R --remove-section=<name>       Remove section <name> from the output\n\
   -s --strip-all                   Remove all symbol and relocation information\n\
   -g -S -d --strip-debug           Remove all debugging symbols & sections\n\
+     --strip-dwo                   Remove all DWO sections\n\
      --strip-unneeded              Remove all symbols not needed by relocations\n\
      --only-keep-debug             Strip everything but the debug information\n\
   -N --strip-symbol=<name>         Do not copy symbol <name>\n\
@@ -925,6 +942,17 @@ group_signature (asection *group)
   return NULL;
 }
 
+/* Return TRUE if the section is a DWO section.  */
+
+static bfd_boolean
+is_dwo_section (bfd *abfd ATTRIBUTE_UNUSED, asection *sec)
+{
+  const char *name = bfd_get_section_name (abfd, sec);
+  int len = strlen (name);
+
+  return strncmp (name + len - 4, ".dwo", 4) == 0;
+}
+
 /* See if a non-group section is being removed.  */
 
 static bfd_boolean
@@ -949,11 +977,23 @@ is_strip_section_1 (bfd *abfd ATTRIBUTE_UNUSED, asection *sec)
 	  || strip_symbols == STRIP_ALL
 	  || discard_locals == LOCALS_ALL
 	  || convert_debugging)
-	return TRUE;
+	{
+	  /* By default we don't want to strip .reloc section.
+	     This section has for pe-coff special meaning.   See
+	     pe-dll.c file in ld, and peXXigen.c in bfd for details.  */
+	  if (strcmp (bfd_get_section_name (abfd, sec), ".reloc") != 0)
+	    return TRUE;
+	}
+
+      if (strip_symbols == STRIP_DWO)
+	return is_dwo_section (abfd, sec);
 
       if (strip_symbols == STRIP_NONDEBUG)
 	return FALSE;
     }
+
+  if (strip_symbols == STRIP_NONDWO)
+    return !is_dwo_section (abfd, sec);
 
   return FALSE;
 }
@@ -1842,6 +1882,8 @@ copy_object (bfd *ibfd, bfd *obfd, const bfd_arch_info_type *input_arch)
       || strip_symbols == STRIP_ALL
       || strip_symbols == STRIP_UNNEEDED
       || strip_symbols == STRIP_NONDEBUG
+      || strip_symbols == STRIP_DWO
+      || strip_symbols == STRIP_NONDWO
       || discard_locals != LOCALS_UNDEF
       || localize_hidden
       || htab_elements (strip_specific_htab) != 0
@@ -2030,8 +2072,14 @@ copy_archive (bfd *ibfd, bfd *obfd, const char *output_target,
       fatal (_("cannot create tempdir for archive copying (error: %s)"),
 	   strerror (errno));
 
-  obfd->has_armap = ibfd->has_armap;
+  if (strip_symbols == STRIP_ALL)
+    obfd->has_armap = FALSE;
+  else
+    obfd->has_armap = ibfd->has_armap;
   obfd->is_thin_archive = ibfd->is_thin_archive;
+
+  if (deterministic)
+    obfd->flags |= BFD_DETERMINISTIC_OUTPUT;
 
   list = NULL;
 
@@ -2643,8 +2691,8 @@ copy_relocations_in_section (bfd *ibfd, sec_ptr isection, void *obfdarg)
 
   osection = isection->output_section;
 
-  /* Core files do not need to be relocated.  */
-  if (bfd_get_format (obfd) == bfd_core)
+  /* Core files and DWO files do not need to be relocated.  */
+  if (bfd_get_format (obfd) == bfd_core || strip_symbols == STRIP_NONDWO)
     relsize = 0;
   else
     {
@@ -2665,7 +2713,10 @@ copy_relocations_in_section (bfd *ibfd, sec_ptr isection, void *obfdarg)
     }
 
   if (relsize == 0)
-    bfd_set_reloc (obfd, osection, NULL, 0);
+    {
+      bfd_set_reloc (obfd, osection, NULL, 0);
+      osection->flags &= ~SEC_RELOC;
+    }
   else
     {
       relpp = (arelent **) xmalloc (relsize);
@@ -2772,7 +2823,11 @@ copy_section (bfd *ibfd, sec_ptr isection, void *obfdarg)
 
 	  for (; from < end; from += interleave)
 	    for (i = 0; i < copy_width; i++)
-	      *to++ = from[i];
+	      {
+		if (&from[i] >= end)
+		  break;
+		*to++ = from[i];
+	      }
 
 	  size = (size + interleave - 1 - copy_byte) / interleave * copy_width;
 	  osection->lma /= interleave;
@@ -3009,6 +3064,9 @@ strip_main (int argc, char *argv[])
 	case 'd':	/* Historic BSD alias for -g.  Used by early NetBSD.  */
 	  strip_symbols = STRIP_DEBUG;
 	  break;
+	case OPTION_STRIP_DWO:
+	  strip_symbols = STRIP_DWO;
+	  break;
 	case OPTION_STRIP_UNNEEDED:
 	  strip_symbols = STRIP_UNNEEDED;
 	  break;
@@ -3023,6 +3081,9 @@ strip_main (int argc, char *argv[])
 	  break;
 	case 'p':
 	  preserve_dates = TRUE;
+	  break;
+	case 'D':
+	  deterministic = TRUE;
 	  break;
 	case 'x':
 	  discard_locals = LOCALS_ALL;
@@ -3336,6 +3397,10 @@ copy_main (int argc, char *argv[])
 	  strip_symbols = STRIP_DEBUG;
 	  break;
 
+	case OPTION_STRIP_DWO:
+	  strip_symbols = STRIP_DWO;
+	  break;
+
 	case OPTION_STRIP_UNNEEDED:
 	  strip_symbols = STRIP_UNNEEDED;
 	  break;
@@ -3382,6 +3447,10 @@ copy_main (int argc, char *argv[])
 
 	case 'p':
 	  preserve_dates = TRUE;
+	  break;
+
+	case 'D':
+	  deterministic = TRUE;
 	  break;
 
 	case 'w':
@@ -3791,6 +3860,10 @@ copy_main (int argc, char *argv[])
 	case OPTION_IMPURE:
 	  bfd_flags_to_clear |= D_PAGED;
 	  bfd_flags_to_set &= ~D_PAGED;
+	  break;
+
+	case OPTION_EXTRACT_DWO:
+	  strip_symbols = STRIP_NONDWO;
 	  break;
 
 	case OPTION_EXTRACT_SYMBOL:

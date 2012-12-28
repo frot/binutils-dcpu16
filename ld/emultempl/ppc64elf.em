@@ -29,6 +29,7 @@ fragment <<EOF
 #include "libbfd.h"
 #include "elf-bfd.h"
 #include "elf64-ppc.h"
+#include "ldlex.h"
 
 /* Fake input file for stubs.  */
 static lang_input_statement_type *stub_file;
@@ -395,7 +396,7 @@ ppc_add_stub_section (const char *stub_sec_name, asection *input_section)
 
   info.input_section = input_section;
   lang_list_init (&info.add);
-  lang_add_section (&info.add, stub_sec, os);
+  lang_add_section (&info.add, stub_sec, NULL, os);
 
   if (info.add.head == NULL)
     goto err_ret;
@@ -850,6 +851,16 @@ PARSE_AND_LIST_ARGS_CASES=${PARSE_AND_LIST_ARGS_CASES}'
     case OPTION_NON_OVERLAPPING_OPD:
       non_overlapping_opd = 1;
       break;
+
+    case OPTION_TRADITIONAL_FORMAT:
+      no_tls_opt = 1;
+      no_tls_get_addr_opt = 1;
+      no_opd_opt = 1;
+      no_toc_opt = 1;
+      no_multi_toc = 1;
+      no_toc_sort = 1;
+      plt_static_chain = 1;
+      return FALSE;
 '
 
 # Put these extra ppc64elf routines in ld_${EMULATION_NAME}_emulation

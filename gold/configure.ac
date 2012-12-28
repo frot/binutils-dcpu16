@@ -1,4 +1,21 @@
 dnl Process this file with autoconf to produce a configure script.
+dnl
+dnl   Copyright 2012 Free Software Foundation
+dnl
+dnl This file is free software; you can redistribute it and/or modify
+dnl it under the terms of the GNU General Public License as published by
+dnl the Free Software Foundation; either version 3 of the License, or
+dnl (at your option) any later version.
+dnl 
+dnl This program is distributed in the hope that it will be useful,
+dnl but WITHOUT ANY WARRANTY; without even the implied warranty of
+dnl MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+dnl GNU General Public License for more details.
+dnl 
+dnl You should have received a copy of the GNU General Public License
+dnl along with this program; see the file COPYING3.  If not see
+dnl <http://www.gnu.org/licenses/>.
+dnl
 
 AC_PREREQ(2.59)
 
@@ -10,6 +27,15 @@ AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE([no-dist parallel-tests])
 
 AM_CONFIG_HEADER(config.h:config.in)
+
+# PR 14072
+AH_VERBATIM([00_CONFIG_H_CHECK],
+[/* Check that config.h is #included before system headers
+   (this works only for glibc, but that should be enough).  */
+#if defined(__GLIBC__) && !defined(__FreeBSD_kernel__) && !defined(__CONFIG_H__)
+#  error config.h must be #included before system headers
+#endif
+#define __CONFIG_H__ 1])
 
 AC_ARG_WITH(sysroot,
 [  --with-sysroot[=DIR]    search for usr/lib et al within DIR],
@@ -190,6 +216,7 @@ for targ in $target $canon_targets; do
 	AM_CONDITIONAL(DEFAULT_TARGET_POWERPC, test "$targ_obj" = "powerpc")
 	AM_CONDITIONAL(DEFAULT_TARGET_SPARC, test "$targ_obj" = "sparc")
 	AM_CONDITIONAL(DEFAULT_TARGET_X86_64, test "$targ_obj" = "x86_64")
+	AM_CONDITIONAL(DEFAULT_TARGET_TILEGX, test "$targ_obj" = "tilegx")
       fi
     fi
   fi
@@ -295,7 +322,7 @@ dnl tell the unittest framework if we're compiling for one of those
 dnl targets, so it doesn't try to run the tests that do that.
 AM_CONDITIONAL(FN_PTRS_IN_SO_WITHOUT_PIC, [
   case $target_cpu in
-    i?86) true;;
+    powerpc*) false;;
     x86_64) false;;
     sparc64) false;;
     *) true;;
@@ -476,8 +503,8 @@ else
 fi
 
 # Link in zlib if we can.  This allows us to write compressed sections.
-AC_SEARCH_LIBS(zlibVersion, z, [AC_CHECK_HEADERS(zlib.h)])
-AM_CONDITIONAL(HAVE_ZLIB, test "$ac_cv_search_zlibVersion" != "no")
+AM_ZLIB
+AM_CONDITIONAL(HAVE_ZLIB, test "$ac_cv_header_zlib_h" = "yes")
 
 dnl We have to check these in C, not C++, because autoconf generates
 dnl tests which have no type information, and current glibc provides
@@ -490,7 +517,7 @@ AC_LANG_PUSH(C++)
 AC_CHECK_HEADERS(tr1/unordered_set tr1/unordered_map)
 AC_CHECK_HEADERS(ext/hash_map ext/hash_set)
 AC_CHECK_HEADERS(byteswap.h)
-AC_CHECK_FUNCS(mallinfo posix_fallocate readv sysconf times)
+AC_CHECK_FUNCS(mallinfo posix_fallocate fallocate readv sysconf times)
 AC_CHECK_DECLS([basename, ffs, asprintf, vasprintf, snprintf, vsnprintf, strverscmp, strndup, memmem])
 
 # Use of ::std::tr1::unordered_map::rehash causes undefined symbols
@@ -504,6 +531,25 @@ void bar() { ::std::tr1::unordered_map<int, int> x; x.rehash(10); }
 if test "$gold_cv_unordered_map_rehash" = "yes"; then
   AC_DEFINE(HAVE_TR1_UNORDERED_MAP_REHASH, 1,
 	    [Define if ::std::tr1::unordered_map::rehash is usable])
+fi
+
+# Use of tr1/unordered_map with off_t as a key is not supported on GCC
+# 4.1.xx when compiling in 32-bit mode with a 64-bit off_t type.
+AC_CACHE_CHECK([whether std::tr1::hash<off_t> is defined],
+[gold_cv_hash_off_t],
+[CXXFLAGS_hold=$CXXFLAGS
+CXXFLAGS="$CXXFLAGS $LFS_CFLAGS"
+AC_COMPILE_IFELSE([
+#include <sys/types.h>
+#include <tr1/unordered_map>
+std::tr1::hash<off_t> h;
+],
+[gold_cv_hash_off_t=yes],
+[gold_cv_hash_off_t=no])
+CXXFLAGS=$CFLAGS_hold])
+if test "$gold_cv_hash_off_t" = "yes"; then
+   AC_DEFINE(HAVE_TR1_HASH_OFF_T, 1,
+	     [Define if std::tr1::hash<off_t> is usable])
 fi
 
 # gcc 4.3.0 doesn't recognize the printf attribute on a template
@@ -533,6 +579,13 @@ if test "$gold_cv_stat_st_mtim" = "yes"; then
   AC_DEFINE(HAVE_STAT_ST_MTIM, 1,
 	    [Define if struct stat has a field st_mtim with timespec for mtime])
 fi
+
+dnl Check if gcc supports the -gpubnames option.
+save_CXXFLAGS="$CXXFLAGS"
+CXXFLAGS="$CXXFLAGS -gpubnames"
+AC_COMPILE_IFELSE([int i;], [have_pubnames=yes], [have_pubnames=no])
+CXXFLAGS="$save_CXXFLAGS"
+AM_CONDITIONAL(HAVE_PUBNAMES, test "$have_pubnames" = "yes")
 
 AC_LANG_POP(C++)
 

@@ -594,6 +594,8 @@ LTLIBOBJS
 MAINT
 MAINTAINER_MODE_FALSE
 MAINTAINER_MODE_TRUE
+HAVE_PUBNAMES_FALSE
+HAVE_PUBNAMES_TRUE
 CXXCPP
 HAVE_ZLIB_FALSE
 HAVE_ZLIB_TRUE
@@ -677,6 +679,8 @@ CFLAGS
 CC
 NM
 TARGETOBJS
+DEFAULT_TARGET_TILEGX_FALSE
+DEFAULT_TARGET_TILEGX_TRUE
 DEFAULT_TARGET_X86_64_FALSE
 DEFAULT_TARGET_X86_64_TRUE
 DEFAULT_TARGET_SPARC_FALSE
@@ -782,6 +786,7 @@ enable_werror
 enable_build_warnings
 with_gold_ldflags
 with_gold_ldadd
+with_zlib
 enable_maintainer_mode
 '
       ac_precious_vars='build_alias
@@ -1439,6 +1444,7 @@ Optional Packages:
   --with-lib-path=dir1:dir2...  set default LIB_PATH
   --with-gold-ldflags=FLAGS  additional link flags for gold
   --with-gold-ldadd=LIBS     additional libraries for gold
+  --with-zlib             include zlib support (auto/yes/no) default=auto
 
 Some influential environment variables:
   CC          C compiler command
@@ -3222,6 +3228,9 @@ am__tar='${AMTAR} chof - "$$tardir"'; am__untar='${AMTAR} xf -'
 ac_config_headers="$ac_config_headers config.h:config.in"
 
 
+# PR 14072
+
+
 
 # Check whether --with-sysroot was given.
 if test "${with_sysroot+set}" = set; then :
@@ -3471,6 +3480,14 @@ fi
 else
   DEFAULT_TARGET_X86_64_TRUE='#'
   DEFAULT_TARGET_X86_64_FALSE=
+fi
+
+	 if test "$targ_obj" = "tilegx"; then
+  DEFAULT_TARGET_TILEGX_TRUE=
+  DEFAULT_TARGET_TILEGX_FALSE='#'
+else
+  DEFAULT_TARGET_TILEGX_TRUE='#'
+  DEFAULT_TARGET_TILEGX_FALSE=
 fi
 
       fi
@@ -6274,7 +6291,7 @@ fi
 
  if
   case $target_cpu in
-    i?86) true;;
+    powerpc*) false;;
     x86_64) false;;
     sparc64) false;;
     *) true;;
@@ -6791,7 +6808,19 @@ esac
 fi
 
 # Link in zlib if we can.  This allows us to write compressed sections.
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing zlibVersion" >&5
+
+  # See if the user specified whether he wants zlib support or not.
+
+# Check whether --with-zlib was given.
+if test "${with_zlib+set}" = set; then :
+  withval=$with_zlib;
+else
+  with_zlib=auto
+fi
+
+
+  if test "$with_zlib" != "no"; then
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing zlibVersion" >&5
 $as_echo_n "checking for library containing zlibVersion... " >&6; }
 if test "${ac_cv_search_zlibVersion+set}" = set; then :
   $as_echo_n "(cached) " >&6
@@ -6858,7 +6887,12 @@ done
 
 fi
 
- if test "$ac_cv_search_zlibVersion" != "no"; then
+    if test "$with_zlib" = "yes" -a "$ac_cv_header_zlib_h" != "yes"; then
+      as_fn_error "zlib (libz) library was explicitly requested but not found" "$LINENO" 5
+    fi
+  fi
+
+ if test "$ac_cv_header_zlib_h" = "yes"; then
   HAVE_ZLIB_TRUE=
   HAVE_ZLIB_FALSE='#'
 else
@@ -7121,7 +7155,7 @@ fi
 
 done
 
-for ac_func in mallinfo posix_fallocate readv sysconf times
+for ac_func in mallinfo posix_fallocate fallocate readv sysconf times
 do :
   as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
 ac_fn_cxx_check_func "$LINENO" "$ac_func" "$as_ac_var"
@@ -7263,6 +7297,39 @@ $as_echo "#define HAVE_TR1_UNORDERED_MAP_REHASH 1" >>confdefs.h
 
 fi
 
+# Use of tr1/unordered_map with off_t as a key is not supported on GCC
+# 4.1.xx when compiling in 32-bit mode with a 64-bit off_t type.
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether std::tr1::hash<off_t> is defined" >&5
+$as_echo_n "checking whether std::tr1::hash<off_t> is defined... " >&6; }
+if test "${gold_cv_hash_off_t+set}" = set; then :
+  $as_echo_n "(cached) " >&6
+else
+  CXXFLAGS_hold=$CXXFLAGS
+CXXFLAGS="$CXXFLAGS $LFS_CFLAGS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <tr1/unordered_map>
+std::tr1::hash<off_t> h;
+
+_ACEOF
+if ac_fn_cxx_try_compile "$LINENO"; then :
+  gold_cv_hash_off_t=yes
+else
+  gold_cv_hash_off_t=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+CXXFLAGS=$CFLAGS_hold
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gold_cv_hash_off_t" >&5
+$as_echo "$gold_cv_hash_off_t" >&6; }
+if test "$gold_cv_hash_off_t" = "yes"; then
+
+$as_echo "#define HAVE_TR1_HASH_OFF_T 1" >>confdefs.h
+
+fi
+
 # gcc 4.3.0 doesn't recognize the printf attribute on a template
 # function.  Check for that.  This is gcc bug 35546.  This test can
 # probably be removed after the bug has been fixed for a while.
@@ -7328,6 +7395,28 @@ if test "$gold_cv_stat_st_mtim" = "yes"; then
 $as_echo "#define HAVE_STAT_ST_MTIM 1" >>confdefs.h
 
 fi
+
+save_CXXFLAGS="$CXXFLAGS"
+CXXFLAGS="$CXXFLAGS -gpubnames"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+int i;
+_ACEOF
+if ac_fn_cxx_try_compile "$LINENO"; then :
+  have_pubnames=yes
+else
+  have_pubnames=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+CXXFLAGS="$save_CXXFLAGS"
+ if test "$have_pubnames" = "yes"; then
+  HAVE_PUBNAMES_TRUE=
+  HAVE_PUBNAMES_FALSE='#'
+else
+  HAVE_PUBNAMES_TRUE='#'
+  HAVE_PUBNAMES_FALSE=
+fi
+
 
 ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
@@ -7552,6 +7641,10 @@ if test -z "${DEFAULT_TARGET_X86_64_TRUE}" && test -z "${DEFAULT_TARGET_X86_64_F
   as_fn_error "conditional \"DEFAULT_TARGET_X86_64\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
+if test -z "${DEFAULT_TARGET_TILEGX_TRUE}" && test -z "${DEFAULT_TARGET_TILEGX_FALSE}"; then
+  as_fn_error "conditional \"DEFAULT_TARGET_TILEGX\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
 if test -z "${AMDEP_TRUE}" && test -z "${AMDEP_FALSE}"; then
   as_fn_error "conditional \"AMDEP\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
@@ -7619,6 +7712,10 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${HAVE_ZLIB_TRUE}" && test -z "${HAVE_ZLIB_FALSE}"; then
   as_fn_error "conditional \"HAVE_ZLIB\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
+if test -z "${HAVE_PUBNAMES_TRUE}" && test -z "${HAVE_PUBNAMES_FALSE}"; then
+  as_fn_error "conditional \"HAVE_PUBNAMES\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${MAINTAINER_MODE_TRUE}" && test -z "${MAINTAINER_MODE_FALSE}"; then

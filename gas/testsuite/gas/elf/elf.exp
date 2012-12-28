@@ -1,3 +1,20 @@
+# Copyright 2012
+# Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  
+
 #
 # elf tests
 #
@@ -126,6 +143,7 @@ if { [is_elf_format] } then {
 	    # against ordinary symbols into relocations against section symbols.
 	    # This is usually revealed by the error message:
 	    #  symbol `sym' required but not present
+    	setup_xfail "m681*-*-*" "m68hc*-*-*"
 	    run_dump_test redef
 	    run_dump_test equ-reloc
 	}
@@ -182,6 +200,11 @@ if { [is_elf_format] } then {
     run_dump_test "bad-section-flag"
     run_dump_test "bad-size"
     run_dump_test "bad-group"
+
+    run_dump_test "syms"
+    
+    run_dump_test "common1"
+    run_dump_test "common2"
 
 load_lib gas-dg.exp
 dg-init
