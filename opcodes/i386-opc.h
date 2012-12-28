@@ -1,5 +1,5 @@
 /* Declarations for Intel 80386 opcode table
-   Copyright 2007, 2008, 2009, 2010
+   Copyright 2007, 2008, 2009, 2010, 2012
    Free Software Foundation, Inc.
 
    This file is part of the GNU opcodes library.
@@ -120,6 +120,8 @@ enum
   CpuTBM,
   /* MOVBE Instruction support required */
   CpuMovbe,
+  /* CMPXCHG16B instruction support required.  */
+  CpuCX16,
   /* EPT Instructions required */
   CpuEPT,
   /* RDTSCP Instruction support required */
@@ -144,6 +146,12 @@ enum
   CpuVMFUNC,
   /* 64bit support available, used by -march= in assembler.  */
   CpuLM,
+  /* RDRSEED instruction required.  */
+  CpuRDSEED,
+  /* Multi-presisionn add-carry instructions are required.  */
+  CpuADX,
+  /* Supports prefetchw and prefetch instructions.  */
+  CpuPRFCHW,
   /* 64bit support required  */
   Cpu64,
   /* Not supported in the 64bit mode  */
@@ -211,6 +219,7 @@ typedef union i386_cpu_flags
       unsigned int cpubmi:1;
       unsigned int cputbm:1;
       unsigned int cpumovbe:1;
+      unsigned int cpucx16:1;
       unsigned int cpuept:1;
       unsigned int cpurdtscp:1;
       unsigned int cpufsgsbase:1;
@@ -223,6 +232,9 @@ typedef union i386_cpu_flags
       unsigned int cpuinvpcid:1;
       unsigned int cpuvmfunc:1;
       unsigned int cpulm:1;
+      unsigned int cpurdseed:1;
+      unsigned int cpuadx:1;
+      unsigned int cpuprfchw:1;
       unsigned int cpu64:1;
       unsigned int cpuno64:1;
 #ifdef CpuUnused
@@ -309,6 +321,8 @@ enum
 #define HLEPrefixAny		2
 #define HLEPrefixRelease	3
   HLEPrefixOk,
+  /* An instruction on which a "rep" prefix is acceptable.  */
+  RepPrefixOk,
   /* Convert to DWORD */
   ToDword,
   /* Convert to QWORD */
@@ -338,7 +352,7 @@ enum
      0: VEX.vvvv must be 1111b.
      1: VEX.NDS.  Register-only source is encoded in VEX.vvvv where
 	the content of source registers will be preserved.
-	VEX.DDS.  The second register operand is encoded in VEX.vvvv 
+	VEX.DDS.  The second register operand is encoded in VEX.vvvv
 	where the content of first source register will be overwritten
 	by the result.
 	VEX.NDD2.  The second destination register operand is encoded in
@@ -443,6 +457,7 @@ typedef struct i386_opcode_modifier
   unsigned int firstxmm0:1;
   unsigned int implicit1stxmm0:1;
   unsigned int hleprefixok:2;
+  unsigned int repprefixok:1;
   unsigned int todword:1;
   unsigned int toqword:1;
   unsigned int addrprefixop0:1;
@@ -662,7 +677,7 @@ typedef struct insn_template
   /* extension_opcode is the 3 bit extension for group <n> insns.
      This field is also used to store the 8-bit opcode suffix for the
      AMD 3DNow! instructions.
-     If this template has no extension opcode (the usual case) use None 
+     If this template has no extension opcode (the usual case) use None
      Instructions */
   unsigned int extension_opcode;
 #define None 0xffff		/* If no extension_opcode is possible.  */

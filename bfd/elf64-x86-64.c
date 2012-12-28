@@ -449,7 +449,7 @@ elf_x86_64_write_core_note (bfd *abfd, char *buf, int *bufsiz,
 	}
       else
 	{
-	  prpsinfo_t data;
+	  prpsinfo64_t data;
 	  memset (&data, 0, sizeof (data));
 	  strncpy (data.pr_fname, fname, sizeof (data.pr_fname));
 	  strncpy (data.pr_psargs, psargs, sizeof (data.pr_psargs));
@@ -490,7 +490,7 @@ elf_x86_64_write_core_note (bfd *abfd, char *buf, int *bufsiz,
 	}
       else
 	{
-	  prstatus_t prstat;
+	  prstatus64_t prstat;
 	  memset (&prstat, 0, sizeof (prstat));
 	  prstat.pr_pid = pid;
 	  prstat.pr_cursig = cursig;
@@ -970,33 +970,26 @@ elf_x86_64_create_dynamic_sections (bfd *dynobj,
   if (htab == NULL)
     return FALSE;
 
-  htab->sdynbss = bfd_get_section_by_name (dynobj, ".dynbss");
+  htab->sdynbss = bfd_get_linker_section (dynobj, ".dynbss");
   if (!info->shared)
-    htab->srelbss = bfd_get_section_by_name (dynobj, ".rela.bss");
+    htab->srelbss = bfd_get_linker_section (dynobj, ".rela.bss");
 
   if (!htab->sdynbss
       || (!info->shared && !htab->srelbss))
     abort ();
 
   if (!info->no_ld_generated_unwind_info
-      && bfd_get_section_by_name (dynobj, ".eh_frame") == NULL
+      && htab->plt_eh_frame == NULL
       && htab->elf.splt != NULL)
     {
-      const struct elf_x86_64_backend_data *const abed
-	= get_elf_x86_64_backend_data (dynobj);
-      flagword flags = get_elf_backend_data (dynobj)->dynamic_sec_flags;
+      flagword flags = (SEC_ALLOC | SEC_LOAD | SEC_READONLY
+			| SEC_HAS_CONTENTS | SEC_IN_MEMORY
+			| SEC_LINKER_CREATED);
       htab->plt_eh_frame
-	= bfd_make_section_with_flags (dynobj, ".eh_frame",
-				       flags | SEC_READONLY);
+	= bfd_make_section_anyway_with_flags (dynobj, ".eh_frame", flags);
       if (htab->plt_eh_frame == NULL
 	  || !bfd_set_section_alignment (dynobj, htab->plt_eh_frame, 3))
 	return FALSE;
-
-      htab->plt_eh_frame->size = abed->eh_frame_plt_size;
-      htab->plt_eh_frame->contents
-	= bfd_alloc (dynobj, htab->plt_eh_frame->size);
-      memcpy (htab->plt_eh_frame->contents,
-	      abed->eh_frame_plt, abed->eh_frame_plt_size);
     }
   return TRUE;
 }
@@ -1529,82 +1522,8 @@ elf_x86_64_check_relocs (bfd *abfd, struct bfd_link_info *info,
 	      break;
 	    }
 
-	  /* Since STT_GNU_IFUNC symbol must go through PLT, we handle
-	     it here if it is defined in a non-shared object.  */
-	  if (h->type == STT_GNU_IFUNC
-	      && h->def_regular)
-	    {
-	      /* It is referenced by a non-shared object. */
-	      h->ref_regular = 1;
-	      h->needs_plt = 1;
-
-	      /* STT_GNU_IFUNC symbol must go through PLT.  */
-	      h->plt.refcount += 1;
-
-	      /* STT_GNU_IFUNC needs dynamic sections.  */
-	      if (htab->elf.dynobj == NULL)
-		htab->elf.dynobj = abfd;
-
-	      switch (r_type)
-		{
-		default:
-		  if (h->root.root.string)
-		    name = h->root.root.string;
-		  else
-		    name = bfd_elf_sym_name (abfd, symtab_hdr, isym,
-					     NULL);
-		  (*_bfd_error_handler)
-		    (_("%B: relocation %s against STT_GNU_IFUNC "
-		       "symbol `%s' isn't handled by %s"), abfd,
-		     x86_64_elf_howto_table[r_type].name,
-		     name, __FUNCTION__);
-		  bfd_set_error (bfd_error_bad_value);
-		  return FALSE;
-
-		case R_X86_64_32:
-		  if (ABI_64_P (abfd))
-		    goto not_pointer;
-		case R_X86_64_64:
-		  h->non_got_ref = 1;
-		  h->pointer_equality_needed = 1;
-		  if (info->shared)
-		    {
-		      /* We must copy these reloc types into the output
-			 file.  Create a reloc section in dynobj and
-			 make room for this reloc.  */
-		      sreloc = _bfd_elf_create_ifunc_dyn_reloc
-			(abfd, info, sec, sreloc,
-			 &((struct elf_x86_64_link_hash_entry *) h)->dyn_relocs);
-		      if (sreloc == NULL)
-			return FALSE;
-		    }
-		  break;
-
-		case R_X86_64_32S:
-		case R_X86_64_PC32:
-		case R_X86_64_PC64:
-not_pointer:
-		  h->non_got_ref = 1;
-		  if (r_type != R_X86_64_PC32
-		      && r_type != R_X86_64_PC64)
-		    h->pointer_equality_needed = 1;
-		  break;
-
-		case R_X86_64_PLT32:
-		  break;
-
-		case R_X86_64_GOTPCREL:
-		case R_X86_64_GOTPCREL64:
-		  h->got.refcount += 1;
-		  if (htab->elf.sgot == NULL
-		      && !_bfd_elf_create_got_section (htab->elf.dynobj,
-						       info))
-		    return FALSE;
-		  break;
-		}
-
-	      continue;
-	    }
+	  /* It is referenced by a non-shared object. */
+	  h->ref_regular = 1;
 	}
 
       if (! elf_x86_64_tls_transition (info, abfd, sec, NULL,
@@ -2141,10 +2060,44 @@ elf_x86_64_adjust_dynamic_symbol (struct bfd_link_info *info,
 {
   struct elf_x86_64_link_hash_table *htab;
   asection *s;
+  struct elf_x86_64_link_hash_entry *eh;
+  struct elf_dyn_relocs *p;
 
   /* STT_GNU_IFUNC symbol must go through PLT. */
   if (h->type == STT_GNU_IFUNC)
     {
+      /* All local STT_GNU_IFUNC references must be treate as local
+	 calls via local PLT.  */
+      if (h->ref_regular
+	  && SYMBOL_CALLS_LOCAL (info, h))
+	{
+	  bfd_size_type pc_count = 0, count = 0;
+	  struct elf_dyn_relocs **pp;
+
+	  eh = (struct elf_x86_64_link_hash_entry *) h;
+	  for (pp = &eh->dyn_relocs; (p = *pp) != NULL; )
+	    {
+	      pc_count += p->pc_count;
+	      p->count -= p->pc_count;
+	      p->pc_count = 0;
+	      count += p->count;
+	      if (p->count == 0)
+		*pp = p->next;
+	      else
+		pp = &p->next;
+	    }
+
+	  if (pc_count || count)
+	    {
+	      h->needs_plt = 1;
+	      h->non_got_ref = 1;
+	      if (h->plt.refcount <= 0)
+		h->plt.refcount = 1;
+	      else
+		h->plt.refcount += 1;
+	    }
+	}
+
       if (h->plt.refcount <= 0)
 	{
 	  h->plt.offset = (bfd_vma) -1;
@@ -2221,9 +2174,6 @@ elf_x86_64_adjust_dynamic_symbol (struct bfd_link_info *info,
 
   if (ELIMINATE_COPY_RELOCS)
     {
-      struct elf_x86_64_link_hash_entry * eh;
-      struct elf_dyn_relocs *p;
-
       eh = (struct elf_x86_64_link_hash_entry *) h;
       for (p = eh->dyn_relocs; p != NULL; p = p->next)
 	{
@@ -2579,6 +2529,154 @@ elf_x86_64_readonly_dynrelocs (struct elf_link_hash_entry *h,
   return TRUE;
 }
 
+/* Convert
+   mov foo@GOTPCREL(%rip), %reg
+   to
+   lea foo(%rip), %reg
+   with the local symbol, foo.  */
+
+static bfd_boolean
+elf_x86_64_convert_mov_to_lea (bfd *abfd, asection *sec,
+			       struct bfd_link_info *link_info)
+{
+  Elf_Internal_Shdr *symtab_hdr;
+  Elf_Internal_Rela *internal_relocs;
+  Elf_Internal_Rela *irel, *irelend;
+  bfd_byte *contents;
+  struct elf_x86_64_link_hash_table *htab;
+  bfd_boolean changed_contents;
+  bfd_boolean changed_relocs;
+  bfd_signed_vma *local_got_refcounts;
+
+  /* Don't even try to convert non-ELF outputs.  */
+  if (!is_elf_hash_table (link_info->hash))
+    return FALSE;
+
+  /* Nothing to do if there are no codes, no relocations or no output.  */
+  if ((sec->flags & (SEC_CODE | SEC_RELOC)) != (SEC_CODE | SEC_RELOC)
+      || sec->reloc_count == 0
+      || discarded_section (sec))
+    return TRUE;
+
+  symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
+
+  /* Load the relocations for this section.  */
+  internal_relocs = (_bfd_elf_link_read_relocs
+		     (abfd, sec, NULL, (Elf_Internal_Rela *) NULL,
+		      link_info->keep_memory));
+  if (internal_relocs == NULL)
+    return FALSE;
+
+  htab = elf_x86_64_hash_table (link_info);
+  changed_contents = FALSE;
+  changed_relocs = FALSE;
+  local_got_refcounts = elf_local_got_refcounts (abfd);
+
+  /* Get the section contents.  */
+  if (elf_section_data (sec)->this_hdr.contents != NULL)
+    contents = elf_section_data (sec)->this_hdr.contents;
+  else
+    {
+      if (!bfd_malloc_and_get_section (abfd, sec, &contents))
+	goto error_return;
+    }
+
+  irelend = internal_relocs + sec->reloc_count;
+  for (irel = internal_relocs; irel < irelend; irel++)
+    {
+      unsigned int r_type = ELF32_R_TYPE (irel->r_info);
+      unsigned int r_symndx = htab->r_sym (irel->r_info);
+      unsigned int indx;
+      struct elf_link_hash_entry *h;
+
+      if (r_type != R_X86_64_GOTPCREL)
+	continue;
+
+      /* Get the symbol referred to by the reloc.  */
+      if (r_symndx < symtab_hdr->sh_info)
+	{
+	  Elf_Internal_Sym *isym;
+
+	  isym = bfd_sym_from_r_symndx (&htab->sym_cache,
+					abfd, r_symndx);
+
+	  /* STT_GNU_IFUNC must keep R_X86_64_GOTPCREL relocation.  */
+	  if (ELF_ST_TYPE (isym->st_info) != STT_GNU_IFUNC
+	      && bfd_get_8 (input_bfd,
+			    contents + irel->r_offset - 2) == 0x8b)
+	    {
+	      bfd_put_8 (output_bfd, 0x8d,
+			 contents + irel->r_offset - 2);
+	      irel->r_info = htab->r_info (r_symndx, R_X86_64_PC32);
+	      if (local_got_refcounts != NULL
+		  && local_got_refcounts[r_symndx] > 0)
+		local_got_refcounts[r_symndx] -= 1;
+	      changed_contents = TRUE;
+	      changed_relocs = TRUE;
+	    }
+	  continue;
+	}
+
+      indx = r_symndx - symtab_hdr->sh_info;
+      h = elf_sym_hashes (abfd)[indx];
+      BFD_ASSERT (h != NULL);
+
+      while (h->root.type == bfd_link_hash_indirect
+	     || h->root.type == bfd_link_hash_warning)
+	h = (struct elf_link_hash_entry *) h->root.u.i.link;
+
+      /* STT_GNU_IFUNC must keep R_X86_64_GOTPCREL relocation.  We also
+	 avoid optimizing _DYNAMIC since ld.so may use its link-time
+	 address.  */
+      if (h->def_regular
+	  && h->type != STT_GNU_IFUNC
+	  && h != htab->elf.hdynamic
+	  && SYMBOL_REFERENCES_LOCAL (link_info, h)
+	  && bfd_get_8 (input_bfd,
+			contents + irel->r_offset - 2) == 0x8b)
+	{
+	  bfd_put_8 (output_bfd, 0x8d,
+		     contents + irel->r_offset - 2);
+	  irel->r_info = htab->r_info (r_symndx, R_X86_64_PC32);
+	  if (h->got.refcount > 0)
+	    h->got.refcount -= 1;
+	  changed_contents = TRUE;
+	  changed_relocs = TRUE;
+	}
+    }
+
+  if (contents != NULL
+      && elf_section_data (sec)->this_hdr.contents != contents)
+    {
+      if (!changed_contents && !link_info->keep_memory)
+	free (contents);
+      else
+	{
+	  /* Cache the section contents for elf_link_input_bfd.  */
+	  elf_section_data (sec)->this_hdr.contents = contents;
+	}
+    }
+
+  if (elf_section_data (sec)->relocs != internal_relocs)
+    {
+      if (!changed_relocs)
+	free (internal_relocs);
+      else
+	elf_section_data (sec)->relocs = internal_relocs;
+    }
+
+  return TRUE;
+
+ error_return:
+  if (contents != NULL
+      && elf_section_data (sec)->this_hdr.contents != contents)
+    free (contents);
+  if (internal_relocs != NULL
+      && elf_section_data (sec)->relocs != internal_relocs)
+    free (internal_relocs);
+  return FALSE;
+}
+
 /* Set the sizes of the dynamic sections.  */
 
 static bfd_boolean
@@ -2606,7 +2704,7 @@ elf_x86_64_size_dynamic_sections (bfd *output_bfd,
       /* Set the contents of the .interp section to the interpreter.  */
       if (info->executable)
 	{
-	  s = bfd_get_section_by_name (dynobj, ".interp");
+	  s = bfd_get_linker_section (dynobj, ".interp");
 	  if (s == NULL)
 	    abort ();
 	  s->size = htab->dynamic_interpreter_size;
@@ -2632,6 +2730,9 @@ elf_x86_64_size_dynamic_sections (bfd *output_bfd,
       for (s = ibfd->sections; s != NULL; s = s->next)
 	{
 	  struct elf_dyn_relocs *p;
+
+	  if (!elf_x86_64_convert_mov_to_lea (ibfd, s, info))
+	    return FALSE;
 
 	  for (p = (struct elf_dyn_relocs *)
 		    (elf_section_data (s)->local_dynrel);
@@ -2773,15 +2874,10 @@ elf_x86_64_size_dynamic_sections (bfd *output_bfd,
 
   if (htab->elf.sgotplt)
     {
-      struct elf_link_hash_entry *got;
-      got = elf_link_hash_lookup (elf_hash_table (info),
-				  "_GLOBAL_OFFSET_TABLE_",
-				  FALSE, FALSE, FALSE);
-
       /* Don't allocate .got.plt section if there are no GOT nor PLT
 	 entries and there is no refeence to _GLOBAL_OFFSET_TABLE_.  */
-      if ((got == NULL
-	   || !got->ref_regular_nonweak)
+      if ((htab->elf.hgot == NULL
+	   || !htab->elf.hgot->ref_regular_nonweak)
 	  && (htab->elf.sgotplt->size
 	      == get_elf_backend_data (output_bfd)->got_header_size)
 	  && (htab->elf.splt == NULL
@@ -2793,6 +2889,17 @@ elf_x86_64_size_dynamic_sections (bfd *output_bfd,
 	  && (htab->elf.igotplt == NULL
 	      || htab->elf.igotplt->size == 0))
 	htab->elf.sgotplt->size = 0;
+    }
+
+  if (htab->plt_eh_frame != NULL
+      && htab->elf.splt != NULL
+      && htab->elf.splt->size != 0
+      && !bfd_is_abs_section (htab->elf.splt->output_section)
+      && _bfd_elf_eh_frame_present (info))
+    {
+      const struct elf_x86_64_backend_data *arch_data
+	= (const struct elf_x86_64_backend_data *) bed->arch_data;
+      htab->plt_eh_frame->size = arch_data->eh_frame_plt_size;
     }
 
   /* We now have determined the sizes of the various dynamic sections.
@@ -2808,6 +2915,7 @@ elf_x86_64_size_dynamic_sections (bfd *output_bfd,
 	  || s == htab->elf.sgotplt
 	  || s == htab->elf.iplt
 	  || s == htab->elf.igotplt
+	  || s == htab->plt_eh_frame
 	  || s == htab->sdynbss)
 	{
 	  /* Strip this section if we don't need it; see the
@@ -2859,11 +2967,16 @@ elf_x86_64_size_dynamic_sections (bfd *output_bfd,
     }
 
   if (htab->plt_eh_frame != NULL
-      && htab->elf.splt != NULL
-      && htab->elf.splt->size != 0
-      && (htab->elf.splt->flags & SEC_EXCLUDE) == 0)
-    bfd_put_32 (dynobj, htab->elf.splt->size,
-		htab->plt_eh_frame->contents + PLT_FDE_LEN_OFFSET);
+      && htab->plt_eh_frame->contents != NULL)
+    {
+      const struct elf_x86_64_backend_data *arch_data
+	= (const struct elf_x86_64_backend_data *) bed->arch_data;
+
+      memcpy (htab->plt_eh_frame->contents,
+	      arch_data->eh_frame_plt, htab->plt_eh_frame->size);
+      bfd_put_32 (dynobj, htab->elf.splt->size,
+		  htab->plt_eh_frame->contents + PLT_FDE_LEN_OFFSET);
+    }
 
   if (htab->elf.dynamic_sections_created)
     {
@@ -3094,8 +3207,11 @@ elf_x86_64_relocate_section (bfd *output_bfd,
 	  || r_type == (int) R_X86_64_GNU_VTENTRY)
 	continue;
 
-      if (r_type >= R_X86_64_max)
+      if (r_type >= (int) R_X86_64_standard)
 	{
+	  (*_bfd_error_handler)
+	    (_("%B: unrecognized relocation (0x%x) in section `%A'"),
+	     input_bfd, input_section, r_type);
 	  bfd_set_error (bfd_error_bad_value);
 	  return FALSE;
 	}
@@ -3145,7 +3261,7 @@ elf_x86_64_relocate_section (bfd *output_bfd,
 
       if (sec != NULL && discarded_section (sec))
 	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
-					 rel, relend, howto, contents);
+					 rel, 1, relend, howto, 0, contents);
 
       if (info->relocatable)
 	continue;
@@ -3681,6 +3797,36 @@ elf_x86_64_relocate_section (bfd *output_bfd,
 		      outrel.r_info = htab->r_info (0,
 						    R_X86_64_RELATIVE64);
 		      outrel.r_addend = relocation + rel->r_addend;
+		      /* Check addend overflow.  */
+		      if ((outrel.r_addend & 0x80000000)
+			  != (rel->r_addend & 0x80000000))
+			{
+			  const char *name;
+			  int addend = rel->r_addend;
+			  if (h && h->root.root.string)
+			    name = h->root.root.string;
+			  else
+			    name = bfd_elf_sym_name (input_bfd, symtab_hdr,
+						     sym, NULL);
+			  if (addend < 0)
+			    (*_bfd_error_handler)
+			      (_("%B: addend -0x%x in relocation %s against "
+				 "symbol `%s' at 0x%lx in section `%A' is "
+				 "out of range"),
+			       input_bfd, input_section, addend,
+			       x86_64_elf_howto_table[r_type].name,
+			       name, (unsigned long) rel->r_offset);
+			  else
+			    (*_bfd_error_handler)
+			      (_("%B: addend 0x%x in relocation %s against "
+				 "symbol `%s' at 0x%lx in section `%A' is "
+				 "out of range"),
+			       input_bfd, input_section, addend,
+			       x86_64_elf_howto_table[r_type].name,
+			       name, (unsigned long) rel->r_offset);
+			  bfd_set_error (bfd_error_bad_value);
+			  return FALSE;
+			}
 		    }
 		  else
 		    {
@@ -4170,13 +4316,16 @@ elf_x86_64_relocate_section (bfd *output_bfd,
 	       && h->def_dynamic)
 	  && _bfd_elf_section_offset (output_bfd, info, input_section,
 				      rel->r_offset) != (bfd_vma) -1)
-	(*_bfd_error_handler)
-	  (_("%B(%A+0x%lx): unresolvable %s relocation against symbol `%s'"),
-	   input_bfd,
-	   input_section,
-	   (long) rel->r_offset,
-	   howto->name,
-	   h->root.root.string);
+	{
+	  (*_bfd_error_handler)
+	    (_("%B(%A+0x%lx): unresolvable %s relocation against symbol `%s'"),
+	     input_bfd,
+	     input_section,
+	     (long) rel->r_offset,
+	     howto->name,
+	     h->root.root.string);
+	  return FALSE;
+	}
 
 do_relocation:
       r = _bfd_final_link_relocate (howto, input_bfd, input_section,
@@ -4230,7 +4379,7 @@ static bfd_boolean
 elf_x86_64_finish_dynamic_symbol (bfd *output_bfd,
 				  struct bfd_link_info *info,
 				  struct elf_link_hash_entry *h,
-				  Elf_Internal_Sym *sym)
+				  Elf_Internal_Sym *sym ATTRIBUTE_UNUSED)
 {
   struct elf_x86_64_link_hash_table *htab;
   const struct elf_x86_64_backend_data *const abed
@@ -4273,7 +4422,7 @@ elf_x86_64_finish_dynamic_symbol (bfd *output_bfd,
 	  || plt == NULL
 	  || gotplt == NULL
 	  || relplt == NULL)
-	return FALSE;
+	abort ();
 
       /* Get the index in the procedure linkage table which
 	 corresponds to this symbol.  This is the index of this symbol
@@ -4469,13 +4618,6 @@ do_glob_dat:
       elf_append_rela (output_bfd, htab->srelbss, &rela);
     }
 
-  /* Mark _DYNAMIC and _GLOBAL_OFFSET_TABLE_ as absolute.  SYM may
-     be NULL for local symbols.  */
-  if (sym != NULL
-      && (strcmp (h->root.root.string, "_DYNAMIC") == 0
-	  || h == htab->elf.hgot))
-    sym->st_shndx = SHN_ABS;
-
   return TRUE;
 }
 
@@ -4503,6 +4645,7 @@ elf_x86_64_reloc_type_class (const Elf_Internal_Rela *rela)
   switch ((int) ELF32_R_TYPE (rela->r_info))
     {
     case R_X86_64_RELATIVE:
+    case R_X86_64_RELATIVE64:
       return reloc_class_relative;
     case R_X86_64_JUMP_SLOT:
       return reloc_class_plt;
@@ -4530,7 +4673,7 @@ elf_x86_64_finish_dynamic_sections (bfd *output_bfd,
     return FALSE;
 
   dynobj = htab->elf.dynobj;
-  sdyn = bfd_get_section_by_name (dynobj, ".dynamic");
+  sdyn = bfd_get_linker_section (dynobj, ".dynamic");
 
   if (htab->elf.dynamic_sections_created)
     {
@@ -4699,7 +4842,8 @@ elf_x86_64_finish_dynamic_sections (bfd *output_bfd,
     }
 
   /* Adjust .eh_frame for .plt section.  */
-  if (htab->plt_eh_frame != NULL)
+  if (htab->plt_eh_frame != NULL
+      && htab->plt_eh_frame->contents != NULL)
     {
       if (htab->elf.splt != NULL
 	  && htab->elf.splt->size != 0

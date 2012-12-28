@@ -2145,18 +2145,17 @@ mips_elf32_object_p (bfd *abfd)
 {
   unsigned long mach;
 
+  if (ABI_N32_P (abfd))
+    return FALSE;
+
   /* Irix 5 and 6 are broken.  Object file symbol tables are not always
      sorted correctly such that local symbols precede global symbols,
      and the sh_info field in the symbol table is not always right.  */
   if (SGI_COMPAT (abfd))
     elf_bad_symtab (abfd) = TRUE;
 
-  if (ABI_N32_P (abfd))
-    return FALSE;
-
   mach = _bfd_elf_mips_mach (elf_elfheader (abfd)->e_flags);
   bfd_default_set_arch_mach (abfd, bfd_arch_mips, mach);
-
   return TRUE;
 }
 
@@ -2372,6 +2371,7 @@ static const struct ecoff_debug_swap mips_elf32_ecoff_debug_swap = {
 #define bfd_elf32_bfd_print_private_bfd_data \
 					_bfd_mips_elf_print_private_bfd_data
 #define bfd_elf32_bfd_relax_section	_bfd_mips_elf_relax_section
+#define bfd_elf32_mkobject		_bfd_mips_elf_mkobject
 
 /* Support for SGI-ish mips targets.  */
 #define TARGET_LITTLE_SYM		bfd_elf32_littlemips_vec

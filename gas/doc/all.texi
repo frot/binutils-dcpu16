@@ -26,6 +26,7 @@
 
 @c CPUs of interest
 @c ================
+@set AARCH64
 @set ALPHA
 @set ARC
 @set ARM
@@ -72,6 +73,7 @@
 @set TILEPRO
 @set V850
 @set VAX
+@set XGATE
 @set XSTORMY16
 @set XTENSA
 @set Z80

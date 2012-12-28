@@ -1,3 +1,19 @@
+2012-06-23  Doug Evans  <dje@google.com>
+
+	* gdb-index.h: New file.
+
+2012-05-24  Pedro Alves  <palves@redhat.com>
+
+	PR gdb/7205
+
+        Replace TARGET_SIGNAL_ with GDB_SIGNAL_ throughout.
+
+2012-05-24  Pedro Alves  <palves@redhat.com>
+
+	PR gdb/7205
+
+	Replace target_signal with gdb_signal throughout.
+
 2012-04-12  Mike Frysinger  <vapier@gentoo.org>
 
 	* callback.h (CB_SYS_argc, CB_SYS_argnlen, CB_SYS_argn): Define.
@@ -234,6 +250,12 @@ Wed Jul 17 19:36:38 2002  J"orn Rennecke <joern.rennecke@superh.com>
 	* signals.h: New file, from gdb/defs.h.
 
 
+Copyright (C) 2002-2012 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
 Local Variables:
 mode: change-log
 left-margin: 8

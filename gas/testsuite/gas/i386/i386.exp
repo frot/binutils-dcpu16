@@ -1,3 +1,20 @@
+# Copyright 2012
+# Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  
+
 #
 # i386 tests
 #
@@ -84,6 +101,9 @@ if [expr ([istarget "i*86-*-*"] ||  [istarget "x86_64-*-*"]) && [gas_32_check]] 
     run_dump_test "nops-1-core2"
     run_dump_test "nops-1-bdver1"
     run_dump_test "nops-1-bdver2"
+    run_dump_test "nops-1-bdver3"
+    run_dump_test "nops-1-btver1"
+    run_dump_test "nops-1-btver2"
     run_dump_test "nops-2"
     run_dump_test "nops-2-i386"
     run_dump_test "nops-2-core2"
@@ -126,6 +146,12 @@ if [expr ([istarget "i*86-*-*"] ||  [istarget "x86_64-*-*"]) && [gas_32_check]] 
     run_dump_test "arch-9"
     run_dump_test "arch-10"
     run_dump_test "arch-10-lzcnt"
+    run_dump_test "arch-10-prefetchw"
+    run_dump_test "arch-10-bdver1"
+    run_dump_test "arch-10-bdver2"
+    run_dump_test "arch-10-bdver3"
+    run_dump_test "arch-10-btver1"
+    run_dump_test "arch-10-btver2"
     run_list_test "arch-10-1" "-march=generic32 -I${srcdir}/$subdir -al"
     run_list_test "arch-10-2" "-march=i686 -I${srcdir}/$subdir -al"
     run_list_test "arch-10-3" "-march=i686+sse4.2 -I${srcdir}/$subdir -al"
@@ -159,6 +185,10 @@ if [expr ([istarget "i*86-*-*"] ||  [istarget "x86_64-*-*"]) && [gas_32_check]] 
     run_dump_test "sse-check-none"
     run_dump_test "sse-check-warn"
     run_list_test "sse-check-error" "-msse-check=error -I${srcdir}/$subdir -al"
+    run_dump_test "vgather-check"
+    run_dump_test "vgather-check-none"
+    run_dump_test "vgather-check-warn"
+    run_list_test "vgather-check-error" "-moperand-check=error -I${srcdir}/$subdir"
     run_dump_test "sse-noavx"
     run_dump_test "movbe"
     run_dump_test "movbe-intel"
@@ -207,6 +237,12 @@ if [expr ([istarget "i*86-*-*"] ||  [istarget "x86_64-*-*"]) && [gas_32_check]] 
     run_dump_test "bundle"
     run_dump_test "bundle-lock"
     run_dump_test "bundle-bad"
+    run_dump_test "adx"
+    run_dump_test "adx-intel"
+    run_dump_test "rdseed"
+    run_dump_test "rdseed-intel"
+    run_dump_test "prefetch"
+    run_dump_test "prefetch-intel"
 
     # These tests require support for 8 and 16 bit relocs,
     # so we only run them for ELF and COFF targets.
@@ -273,7 +309,9 @@ if [expr [istarget "i*86-*-*"] || [istarget "x86_64-*-*"]] then {
     run_dump_test "intel-expr"
     run_dump_test "string-ok"
     run_list_test "string-bad" ""
+    run_list_test "reg-bad" ""
     run_list_test "space1" "-al"
+    run_dump_test rept
     if [is_elf_format] then {
 	run_list_test_stdin "list-1" "-al"
 	run_list_test_stdin "list-2" "-al"
@@ -305,6 +343,7 @@ if [expr ([istarget "i*86-*-*"] || [istarget "x86_64-*-*"]) && [gas_64_check]] t
     run_dump_test "x86-64-stack-suffix"
     run_list_test "x86-64-inval" "-al"
     run_list_test "x86-64-segment" "-al"
+    run_dump_test "x86-64-segovr"
     run_list_test "x86-64-inval-seg" "-al"
     run_dump_test "x86-64-branch"
     run_dump_test "x86-64-relax-1"
@@ -341,6 +380,9 @@ if [expr ([istarget "i*86-*-*"] || [istarget "x86_64-*-*"]) && [gas_64_check]] t
     run_dump_test "x86-64-nops-1-pentium"
     run_dump_test "x86-64-nops-1-bdver1"
     run_dump_test "x86-64-nops-1-bdver2"
+    run_dump_test "x86-64-nops-1-bdver3"
+    run_dump_test "x86-64-nops-1-btver1"
+    run_dump_test "x86-64-nops-1-btver2"
     run_dump_test "x86-64-nops-2"
     run_dump_test "x86-64-nops-3"
     run_dump_test "x86-64-nops-4"
@@ -368,11 +410,20 @@ if [expr ([istarget "i*86-*-*"] || [istarget "x86_64-*-*"]) && [gas_64_check]] t
     run_dump_test "x86-64-disp-intel"
     run_dump_test "x86-64-disp32"
     run_dump_test "rexw"
+    run_list_test "x86-64-specific-reg"
     run_dump_test "x86-64-fxsave"
     run_dump_test "x86-64-fxsave-intel"
     run_dump_test "x86-64-arch-1"
     run_dump_test "x86-64-arch-2"
     run_dump_test "x86-64-arch-2-lzcnt"
+    run_dump_test "x86-64-arch-2-prefetchw"
+    run_dump_test "x86-64-arch-2-bdver1"
+    run_dump_test "x86-64-arch-2-bdver2"
+    run_dump_test "x86-64-arch-2-bdver3"
+    run_dump_test "x86-64-arch-2-btver1"
+    run_dump_test "x86-64-arch-2-btver2"
+    run_list_test "x86-64-arch-2-1" "-march=generic64 -I${srcdir}/$subdir -al"
+    run_list_test "x86-64-arch-2-2" "-march=generic64+cx16 -I${srcdir}/$subdir -al"
     run_dump_test "x86-64-xsave"
     run_dump_test "x86-64-xsave-intel"
     run_dump_test "x86-64-aes"
@@ -395,6 +446,10 @@ if [expr ([istarget "i*86-*-*"] || [istarget "x86_64-*-*"]) && [gas_64_check]] t
     run_dump_test "x86-64-sse-check-none"
     run_dump_test "x86-64-sse-check-warn"
     run_list_test "x86-64-sse-check-error" "-msse-check=error -I${srcdir}/$subdir -al"
+    run_dump_test "x86-64-vgather-check"
+    run_dump_test "x86-64-vgather-check-none"
+    run_dump_test "x86-64-vgather-check-warn"
+    run_list_test "x86-64-vgather-check-error" "-moperand-check=error -I${srcdir}/$subdir"
     run_dump_test "x86-64-sse-noavx"
     run_dump_test "x86-64-movbe"
     run_dump_test "x86-64-movbe-intel"
@@ -436,6 +491,12 @@ if [expr ([istarget "i*86-*-*"] || [istarget "x86_64-*-*"]) && [gas_64_check]] t
     run_dump_test "x86-64-rdrnd"
     run_dump_test "x86-64-rdrnd-intel"
     run_dump_test "x86-64-bundle"
+    run_dump_test "x86-64-adx"
+    run_dump_test "x86-64-adx-intel"
+    run_dump_test "x86-64-rdseed"
+    run_dump_test "x86-64-rdseed-intel"
+    run_dump_test "x86-64-prefetch"
+    run_dump_test "x86-64-prefetch-intel"
 
     if { ![istarget "*-*-aix*"]
       && ![istarget "*-*-beos*"]

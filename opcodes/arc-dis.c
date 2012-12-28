@@ -20,13 +20,12 @@
    Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
    MA 02110-1301, USA.  */
 
-#include "ansidecl.h"
+#include "sysdep.h"
 #include "libiberty.h"
 #include "dis-asm.h"
 #include "opcode/arc.h"
 #include "elf-bfd.h"
 #include "elf/arc.h"
-#include <string.h>
 #include "opintl.h"
 
 #include <stdarg.h>
@@ -427,8 +426,7 @@ write_comments_(struct arcDisState * state,
 	    strcpy (state->commentBuffer, comment_prefix);
 	  else
 	    strcat (state->commentBuffer, ", ");
-	  strncat (state->commentBuffer, state->comm[i],
-		   sizeof (state->commentBuffer));
+	  strcat (state->commentBuffer, state->comm[i]);
 	}
     }
 }

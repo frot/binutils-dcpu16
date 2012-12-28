@@ -35,7 +35,7 @@ extern "C" {
 #include <stdio.h>
 #include "bfd.h"
 
-  typedef int (*fprintf_ftype) (void *, const char*, ...) /*ATTRIBUTE_FPTR_PRINTF_2*/;
+  typedef int (*fprintf_ftype) (void *, const char*, ...) ATTRIBUTE_FPTR_PRINTF_2;
 
 enum dis_insn_type
 {
@@ -220,6 +220,7 @@ typedef struct disassemble_info
    target address.  Return number of octets processed.  */
 typedef int (*disassembler_ftype) (bfd_vma, disassemble_info *);
 
+extern int print_insn_aarch64		(bfd_vma, disassemble_info *);
 extern int print_insn_alpha		(bfd_vma, disassemble_info *);
 extern int print_insn_avr		(bfd_vma, disassemble_info *);
 extern int print_insn_bfin		(bfd_vma, disassemble_info *);
@@ -261,6 +262,8 @@ extern int print_insn_m32c	        (bfd_vma, disassemble_info *);
 extern int print_insn_m32r		(bfd_vma, disassemble_info *);
 extern int print_insn_m68hc11		(bfd_vma, disassemble_info *);
 extern int print_insn_m68hc12		(bfd_vma, disassemble_info *);
+extern int print_insn_m9s12x		(bfd_vma, disassemble_info *);
+extern int print_insn_m9s12xg		(bfd_vma, disassemble_info *);
 extern int print_insn_m68k		(bfd_vma, disassemble_info *);
 extern int print_insn_m88k		(bfd_vma, disassemble_info *);
 extern int print_insn_mcore		(bfd_vma, disassemble_info *);
@@ -294,6 +297,7 @@ extern int print_insn_v850		(bfd_vma, disassemble_info *);
 extern int print_insn_vax		(bfd_vma, disassemble_info *);
 extern int print_insn_w65		(bfd_vma, disassemble_info *);
 extern int print_insn_xc16x		(bfd_vma, disassemble_info *);
+extern int print_insn_xgate             (bfd_vma, disassemble_info *);
 extern int print_insn_xstormy16		(bfd_vma, disassemble_info *);
 extern int print_insn_xtensa		(bfd_vma, disassemble_info *);
 extern int print_insn_z80		(bfd_vma, disassemble_info *);
@@ -305,6 +309,7 @@ extern int print_insn_rl78		(bfd_vma, disassemble_info *);
 extern disassembler_ftype arc_get_disassembler (void *);
 extern disassembler_ftype cris_get_disassembler (bfd *);
 
+extern void print_aarch64_disassembler_options (FILE *);
 extern void print_i386_disassembler_options (FILE *);
 extern void print_mips_disassembler_options (FILE *);
 extern void print_ppc_disassembler_options (FILE *);
@@ -314,6 +319,7 @@ extern void print_s390_disassembler_options (FILE *);
 extern int  get_arm_regname_num_options (void);
 extern int  set_arm_regname_option (int);
 extern int  get_arm_regnames (int, const char **, const char **, const char *const **);
+extern bfd_boolean aarch64_symbol_is_valid (asymbol *, struct disassemble_info *);
 extern bfd_boolean arm_symbol_is_valid (asymbol *, struct disassemble_info *);
 extern void disassemble_init_powerpc (struct disassemble_info *);
 

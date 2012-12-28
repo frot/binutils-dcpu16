@@ -89,7 +89,7 @@ static bfd_reloc_status_type
 mcore_elf_unsupported_reloc (bfd * abfd,
 			     arelent * reloc_entry,
 			     asymbol * symbol ATTRIBUTE_UNUSED,
-			     PTR data ATTRIBUTE_UNUSED,
+			     void * data ATTRIBUTE_UNUSED,
 			     asection * input_section ATTRIBUTE_UNUSED,
 			     bfd * output_bfd ATTRIBUTE_UNUSED,
 			     char ** error_message ATTRIBUTE_UNUSED)
@@ -468,7 +468,7 @@ mcore_elf_relocate_section (bfd * output_bfd,
 
       if (sec != NULL && discarded_section (sec))
 	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
-					 rel, relend, howto, contents);
+					 rel, 1, relend, howto, 0, contents);
 
       if (info->relocatable)
 	continue;

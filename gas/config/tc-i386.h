@@ -140,6 +140,9 @@ extern void x86_cons (expressionS *, int);
 extern void x86_cons_fix_new
   (fragS *, unsigned int, unsigned int, expressionS *);
 
+#define TC_ADDRESS_BYTES x86_address_bytes
+extern int x86_address_bytes (void);
+
 #define DIFF_EXPR_OK    /* foo-. gets turned into PC relative relocs */
 
 #define NO_RELOC BFD_RELOC_NONE
@@ -242,7 +245,8 @@ enum processor_type
   PROCESSOR_GENERIC32,
   PROCESSOR_GENERIC64,
   PROCESSOR_AMDFAM10,
-  PROCESSOR_BD
+  PROCESSOR_BD,
+  PROCESSOR_BT
 };
 
 extern enum processor_type cpu_arch_tune;

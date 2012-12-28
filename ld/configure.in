@@ -1,5 +1,22 @@
 dnl Process this file with autoconf to produce a configure script
 dnl
+dnl   Copyright 2012 Free Software Foundation
+dnl
+dnl This file is free software; you can redistribute it and/or modify
+dnl it under the terms of the GNU General Public License as published by
+dnl the Free Software Foundation; either version 3 of the License, or
+dnl (at your option) any later version.
+dnl 
+dnl This program is distributed in the hope that it will be useful,
+dnl but WITHOUT ANY WARRANTY; without even the implied warranty of
+dnl MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+dnl GNU General Public License for more details.
+dnl 
+dnl You should have received a copy of the GNU General Public License
+dnl along with this program; see the file COPYING3.  If not see
+dnl <http://www.gnu.org/licenses/>.
+dnl
+
 AC_PREREQ(2.59)
 AC_INIT
 AC_CONFIG_SRCDIR(ldmain.c)
@@ -9,7 +26,7 @@ AC_CANONICAL_BUILD
 AC_ISC_POSIX
 
 changequote(,)dnl
-BFD_VERSION=`sed -n -e 's/^.._INIT_AUTOMAKE.*,[ 	]*\([^ 	]*\)[ 	]*).*/\1/p' < ${srcdir}/../bfd/configure.in`
+BFD_VERSION=`${srcdir}/../bfd/configure --version | sed -n -e '1s,.* ,,p'`
 changequote([,])dnl
 AM_INIT_AUTOMAKE(ld, ${BFD_VERSION})
 AM_MAINTAINER_MODE
@@ -124,6 +141,15 @@ AM_LC_MESSAGES
 
 AC_CONFIG_HEADERS([config.h:config.in])
 
+# PR 14072
+AH_VERBATIM([00_CONFIG_H_CHECK],
+[/* Check that config.h is #included before system headers
+   (this works only for glibc, but that should be enough).  */
+#if defined(__GLIBC__) && !defined(__FreeBSD_kernel__) && !defined(__CONFIG_H__)
+#  error config.h must be #included before system headers
+#endif
+#define __CONFIG_H__ 1])
+
 if test -z "$target" ; then
     AC_MSG_ERROR(Unrecognized target system type; please check config.sub.)
 fi
@@ -142,7 +168,7 @@ AC_PROG_INSTALL
 
 LT_INIT
 
-ALL_LINGUAS="fr sv tr es da vi zh_CN zh_TW ga fi id bg it"
+ALL_LINGUAS="fr sv tr es da vi zh_CN zh_TW ga fi id bg it uk"
 ZW_GNU_GETTEXT_SISTER_DIR
 AM_PO_SUBDIRS
 
@@ -164,6 +190,7 @@ AC_SUBST(NATIVE_LIB_DIRS)
 
 AC_CHECK_HEADERS(string.h strings.h stdlib.h unistd.h elf-hints.h limits.h locale.h sys/param.h)
 AC_CHECK_HEADERS(fcntl.h sys/file.h sys/time.h sys/stat.h)
+ACX_HEADER_STRING
 AC_CHECK_FUNCS(glob mkstemp realpath sbrk setlocale waitpid)
 AC_CHECK_FUNCS(open lseek close)
 AC_HEADER_DIRENT

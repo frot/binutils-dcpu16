@@ -1,4 +1,21 @@
 ## Process this file with automake to generate Makefile.in
+#
+#   Copyright 2012 Free Software Foundation
+#
+# This file is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; see the file COPYING3.  If not see
+# <http://www.gnu.org/licenses/>.
+#
 
 AUTOMAKE_OPTIONS = 1.8 cygnus
 
@@ -29,6 +46,7 @@ asconfig.texi: $(CONFIG).texi
 	chmod u+w ./asconfig.texi
 
 CPU_DOCS = \
+	c-aarch64.texi \
 	c-alpha.texi \
 	c-arc.texi \
 	c-arm.texi \
@@ -72,6 +90,7 @@ CPU_DOCS = \
 	c-tilepro.texi \
 	c-vax.texi \
 	c-v850.texi \
+	c-xgate.texi \
 	c-xstormy16.texi \
 	c-xtensa.texi \
 	c-z80.texi \

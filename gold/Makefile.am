@@ -1,4 +1,21 @@
-# Process this file with automake to generate Makefile.in
+## Process this file with automake to generate Makefile.in
+#
+#   Copyright 2012 Free Software Foundation
+#
+# This file is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; see the file COPYING3.  If not see
+# <http://www.gnu.org/licenses/>.
+#
 
 AUTOMAKE_OPTIONS = foreign
 
@@ -34,6 +51,8 @@ AM_YFLAGS = -d
 am__skiplex =
 am__skipyacc =
 
+bin_PROGRAMS = dwp
+
 noinst_PROGRAMS = ld-new incremental-dump
 noinst_LIBRARIES = libgold.a
 
@@ -64,6 +83,7 @@ CCFILES = \
 	layout.cc \
 	mapfile.cc \
 	merge.cc \
+	nacl.cc \
 	object.cc \
 	options.cc \
 	output.cc \
@@ -111,6 +131,7 @@ HFILES = \
 	layout.h \
 	mapfile.h \
 	merge.h \
+	nacl.h \
 	object.h \
 	options.h \
 	output.h \
@@ -142,11 +163,11 @@ DEFFILES = arm-reloc.def
 EXTRA_DIST = yyscript.c yyscript.h
 
 TARGETSOURCES = \
-	i386.cc x86_64.cc sparc.cc powerpc.cc arm.cc arm-reloc-property.cc
+	i386.cc x86_64.cc sparc.cc powerpc.cc arm.cc arm-reloc-property.cc tilegx.cc
 
 ALL_TARGETOBJS = \
 	i386.$(OBJEXT) x86_64.$(OBJEXT) sparc.$(OBJEXT) powerpc.$(OBJEXT) \
-	arm.$(OBJEXT) arm-reloc-property.$(OBJEXT)
+	arm.$(OBJEXT) arm-reloc-property.$(OBJEXT) tilegx.$(OBJEXT)
 
 libgold_a_SOURCES = $(CCFILES) $(HFILES) $(YFILES) $(DEFFILES)
 libgold_a_LIBADD = $(LIBOBJS)
@@ -169,6 +190,12 @@ incremental_dump_DEPENDENCIES = $(TARGETOBJS) libgold.a $(LIBIBERTY) \
 	$(LIBINTL_DEP)
 incremental_dump_LDADD = $(TARGETOBJS) libgold.a $(LIBIBERTY) $(LIBINTL) \
 	 $(THREADSLIB) $(LIBDL)
+
+dwp_SOURCES = dwp.cc
+dwp_DEPENDENCIES = libgold.a $(LIBIBERTY) $(LIBINTL_DEP)
+dwp_LDADD = libgold.a $(LIBIBERTY) $(GOLD_LDADD) $(LIBINTL) $(THREADSLIB) \
+	$(LIBDL)
+dwp_LDFLAGS = $(GOLD_LDFLAGS)
 
 # Use an explicit dependency for the bison generated header file.
 expression.$(OBJEXT): yyscript.h

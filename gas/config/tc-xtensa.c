@@ -1,5 +1,5 @@
 /* tc-xtensa.c -- Assemble Xtensa instructions.
-   Copyright 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2012
    Free Software Foundation, Inc.
 
    This file is part of GAS, the GNU Assembler.
@@ -19,8 +19,8 @@
    the Free Software Foundation, 51 Franklin Street - Fifth Floor, Boston,
    MA 02110-1301, USA.  */
 
-#include <limits.h>
 #include "as.h"
+#include <limits.h>
 #include "sb.h"
 #include "safe-ctype.h"
 #include "tc-xtensa.h"
@@ -8878,7 +8878,7 @@ find_address_of_next_align_frag (fragS **fragPP,
 		  (*widens)++;
 		  break;
 		}
-	      address += total_frag_text_expansion (fragP);;
+	      address += total_frag_text_expansion (fragP);
 	      break;
 
 	    case RELAX_IMMED:

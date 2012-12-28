@@ -163,8 +163,10 @@ typedef struct lang_output_section_statement_struct
   unsigned int all_input_readonly : 1;
   /* If this section should be ignored.  */
   unsigned int ignored : 1; 
-  /* If there is a symbol relative to this section.  */
-  unsigned int section_relative_symbol : 1; 
+  /* If this section should update "dot".  Prevents section being ignored.  */
+  unsigned int update_dot : 1; 
+  /* If this section is after assignment to _end.  */
+  unsigned int after_end : 1;
 } lang_output_section_statement_type;
 
 typedef struct
@@ -314,7 +316,8 @@ typedef struct
 typedef struct lang_wild_statement_struct lang_wild_statement_type;
 
 typedef void (*callback_t) (lang_wild_statement_type *, struct wildcard_list *,
-			    asection *, lang_input_statement_type *, void *);
+			    asection *, struct flag_info *,
+			    lang_input_statement_type *, void *);
 
 typedef void (*walk_wild_section_handler_t) (lang_wild_statement_type *,
 					     lang_input_statement_type *,
@@ -536,10 +539,6 @@ extern void lang_float
 extern void lang_leave_output_section_statement
   (fill_type *, const char *, lang_output_section_phdr_list *,
    const char *);
-extern void lang_abs_symbol_at_end_of
-  (const char *, const char *);
-extern void lang_abs_symbol_at_beginning_of
-  (const char *, const char *);
 extern void lang_statement_append
   (lang_statement_list_type *, lang_statement_union_type *,
    lang_statement_union_type **);
@@ -551,6 +550,8 @@ extern void lang_reset_memory_regions
   (void);
 extern void lang_do_assignments
   (lang_phase_type);
+extern asection *section_for_dot
+  (void);
 
 #define LANG_FOR_EACH_INPUT_STATEMENT(statement)			\
   lang_input_statement_type *statement;					\
@@ -616,7 +617,7 @@ extern void lang_leave_group
   (void);
 extern void lang_add_section
   (lang_statement_list_type *, asection *,
-   lang_output_section_statement_type *);
+   struct flag_info *, lang_output_section_statement_type *);
 extern void lang_new_phdr
   (const char *, etree_type *, bfd_boolean, bfd_boolean, etree_type *,
    etree_type *);

@@ -1,6 +1,6 @@
 /* ELF executable support for BFD.
    Copyright 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
-   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
+   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
 
    Written by Fred Fish @ Cygnus Support, from information published
@@ -633,8 +633,9 @@ elf_object_p (bfd *abfd)
       if (i_ehdrp->e_shnum == SHN_UNDEF)
 	{
 	  i_ehdrp->e_shnum = i_shdr.sh_size;
-	  if (i_ehdrp->e_shnum != i_shdr.sh_size
-	      || i_ehdrp->e_shnum == 0)
+	  if (i_ehdrp->e_shnum >= SHN_LORESERVE
+	      || i_ehdrp->e_shnum != i_shdr.sh_size
+	      || i_ehdrp->e_shnum  == 0)
 	    goto got_wrong_format_error;
 	}
 
@@ -1450,7 +1451,7 @@ elf_slurp_reloc_table_from_section (bfd *abfd,
 	  (*_bfd_error_handler)
 	    (_("%s(%s): relocation %d has invalid symbol index %ld"),
 	     abfd->filename, asect->name, i, ELF_R_SYM (rela.r_info));
-	  relent->sym_ptr_ptr = bfd_abs_section.symbol_ptr_ptr;
+	  relent->sym_ptr_ptr = bfd_abs_section_ptr->symbol_ptr_ptr;
 	}
       else
 	{
@@ -1615,7 +1616,7 @@ NAME(_bfd_elf,bfd_from_remote_memory)
   (bfd *templ,
    bfd_vma ehdr_vma,
    bfd_vma *loadbasep,
-   int (*target_read_memory) (bfd_vma, bfd_byte *, int))
+   int (*target_read_memory) (bfd_vma, bfd_byte *, bfd_size_type))
 {
   Elf_External_Ehdr x_ehdr;	/* Elf file header, external form */
   Elf_Internal_Ehdr i_ehdr;	/* Elf file header, internal form */

@@ -1803,7 +1803,7 @@ static reloc_howto_type mips16_elf64_howto_table_rela[] =
 	 _bfd_mips_elf_generic_reloc, /* special_function */
 	 "R_MIPS16_TLS_GD",	/* name */
 	 FALSE,			/* partial_inplace */
-	 0x0000ffff,		/* src_mask */
+	 0,			/* src_mask */
 	 0x0000ffff,		/* dst_mask */
 	 FALSE),		/* pcrel_offset */
 
@@ -1818,7 +1818,7 @@ static reloc_howto_type mips16_elf64_howto_table_rela[] =
 	 _bfd_mips_elf_generic_reloc, /* special_function */
 	 "R_MIPS16_TLS_LDM",	/* name */
 	 FALSE,			/* partial_inplace */
-	 0x0000ffff,		/* src_mask */
+	 0,			/* src_mask */
 	 0x0000ffff,		/* dst_mask */
 	 FALSE),		/* pcrel_offset */
 
@@ -1833,7 +1833,7 @@ static reloc_howto_type mips16_elf64_howto_table_rela[] =
 	 _bfd_mips_elf_generic_reloc, /* special_function */
 	 "R_MIPS16_TLS_DTPREL_HI16",	/* name */
 	 FALSE,			/* partial_inplace */
-	 0x0000ffff,		/* src_mask */
+	 0,			/* src_mask */
 	 0x0000ffff,		/* dst_mask */
 	 FALSE),		/* pcrel_offset */
 
@@ -1848,7 +1848,7 @@ static reloc_howto_type mips16_elf64_howto_table_rela[] =
 	 _bfd_mips_elf_generic_reloc, /* special_function */
 	 "R_MIPS16_TLS_DTPREL_LO16",	/* name */
 	 FALSE,			/* partial_inplace */
-	 0x0000ffff,		/* src_mask */
+	 0,			/* src_mask */
 	 0x0000ffff,		/* dst_mask */
 	 FALSE),		/* pcrel_offset */
 
@@ -1863,7 +1863,7 @@ static reloc_howto_type mips16_elf64_howto_table_rela[] =
 	 _bfd_mips_elf_generic_reloc, /* special_function */
 	 "R_MIPS16_TLS_GOTTPREL",	/* name */
 	 FALSE,			/* partial_inplace */
-	 0x0000ffff,		/* src_mask */
+	 0,			/* src_mask */
 	 0x0000ffff,		/* dst_mask */
 	 FALSE),		/* pcrel_offset */
 
@@ -1878,7 +1878,7 @@ static reloc_howto_type mips16_elf64_howto_table_rela[] =
 	 _bfd_mips_elf_generic_reloc, /* special_function */
 	 "R_MIPS16_TLS_TPREL_HI16", /* name */
 	 FALSE,			/* partial_inplace */
-	 0x0000ffff,		/* src_mask */
+	 0,			/* src_mask */
 	 0x0000ffff,		/* dst_mask */
 	 FALSE),		/* pcrel_offset */
 
@@ -1893,7 +1893,7 @@ static reloc_howto_type mips16_elf64_howto_table_rela[] =
 	 _bfd_mips_elf_generic_reloc, /* special_function */
 	 "R_MIPS16_TLS_TPREL_LO16", /* name */
 	 FALSE,			/* partial_inplace */
-	 0x0000ffff,		/* src_mask */
+	 0,			/* src_mask */
 	 0x0000ffff,		/* dst_mask */
 	 FALSE),		/* pcrel_offset */
 };
@@ -2708,6 +2708,7 @@ mips_elf64_be_swap_reloc_out (bfd *abfd, const Elf_Internal_Rela *src,
 
   mirel.r_offset = src[0].r_offset;
   BFD_ASSERT(src[0].r_offset == src[1].r_offset);
+  BFD_ASSERT(src[0].r_offset == src[2].r_offset);
 
   mirel.r_type = ELF64_MIPS_R_TYPE (src[0].r_info);
   mirel.r_sym = ELF64_R_SYM (src[0].r_info);
@@ -4125,7 +4126,7 @@ const struct elf_size_info mips_elf64_size_info =
 #define elf_backend_grok_prstatus	elf64_mips_grok_prstatus
 #define elf_backend_grok_psinfo		elf64_mips_grok_psinfo
 
-#define elf_backend_got_header_size	(4 * MIPS_RESERVED_GOTNO)
+#define elf_backend_got_header_size	(8 * MIPS_RESERVED_GOTNO)
 
 /* MIPS ELF64 can use a mixture of REL and RELA, but some Relocations
    work better/work only in RELA, so we default to this.  */
@@ -4165,6 +4166,7 @@ const struct elf_size_info mips_elf64_size_info =
 #define bfd_elf64_get_dynamic_reloc_upper_bound mips_elf64_get_dynamic_reloc_upper_bound
 #define bfd_elf64_canonicalize_dynamic_reloc mips_elf64_canonicalize_dynamic_reloc
 #define bfd_elf64_bfd_relax_section     _bfd_mips_relax_section
+#define bfd_elf64_mkobject		_bfd_mips_elf_mkobject
 
 /* MIPS ELF64 archive functions.  */
 #define bfd_elf64_archive_functions

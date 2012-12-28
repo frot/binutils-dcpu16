@@ -889,6 +889,10 @@ class General_options
   DEFINE_string(m, options::EXACTLY_ONE_DASH, 'm', "",
                 N_("Set GNU linker emulation; obsolete"), N_("EMULATION"));
 
+  DEFINE_bool(mmap_output_file, options::TWO_DASHES, '\0', true,
+              N_("Map the output file for writing (default)."),
+              N_("Do not map the output file for writing."));
+
   DEFINE_bool(print_map, options::TWO_DASHES, 'M', false,
 	      N_("Write map file on standard output"), NULL);
   DEFINE_string(Map, options::ONE_DASH, '\0', NULL, N_("Write map file"),
@@ -932,12 +936,29 @@ class General_options
   DEFINE_bool(pipeline_knowledge, options::ONE_DASH, '\0', false,
 	      NULL, N_("(ARM only) Ignore for backward compatibility"));
 
+  DEFINE_var(plt_align, options::TWO_DASHES, '\0', 0, "5",
+	     N_("(PowerPC64 only) Align PLT call stubs to fit cache lines"),
+	     N_("[=P2ALIGN]"), true, int, int, options::parse_uint);
+
+  DEFINE_bool(plt_static_chain, options::TWO_DASHES, '\0', false,
+	      N_("(PowerPC64 only) PLT call stubs should load r11"),
+	      N_("(PowerPC64 only) PLT call stubs should not load r11"));
+
+  DEFINE_bool(plt_thread_safe, options::TWO_DASHES, '\0', false,
+	      N_("(PowerPC64 only) PLT call stubs with load-load barrier"),
+	      N_("(PowerPC64 only) PLT call stubs without barrier"));
+
 #ifdef ENABLE_PLUGINS
   DEFINE_special(plugin, options::TWO_DASHES, '\0',
                  N_("Load a plugin library"), N_("PLUGIN"));
   DEFINE_special(plugin_opt, options::TWO_DASHES, '\0',
                  N_("Pass an option to the plugin"), N_("OPTION"));
 #endif
+
+  DEFINE_bool(posix_fallocate, options::TWO_DASHES, '\0', true,
+              N_("Use posix_fallocate to reserve space in the output file"
+		 " (default)."),
+              N_("Use fallocate or ftruncate to reserve space."));
 
   DEFINE_bool(preread_archive_symbols, options::TWO_DASHES, '\0', false,
               N_("Preread archive symbols when multi-threaded"), NULL);
@@ -1002,14 +1023,15 @@ class General_options
               N_("Emit only debug line number information"), NULL);
   DEFINE_bool(strip_debug_gdb, options::TWO_DASHES, '\0', false,
               N_("Strip debug symbols that are unused by gdb "
-                 "(at least versions <= 6.7)"), NULL);
+                 "(at least versions <= 7.4)"), NULL);
   DEFINE_bool(strip_lto_sections, options::TWO_DASHES, '\0', true,
               N_("Strip LTO intermediate code sections"), NULL);
 
   DEFINE_int(stub_group_size, options::TWO_DASHES , '\0', 1,
-             N_("(ARM only) The maximum distance from instructions in a group "
-		"of sections to their stubs.  Negative values mean stubs "
-		"are always after the group. 1 means using default size.\n"),
+             N_("(ARM, PowerPC only) The maximum distance from instructions "
+		"in a group of sections to their stubs.  Negative values mean "
+		"stubs are always after (PowerPC before) the group.  1 means "
+		"use default size.\n"),
 	     N_("SIZE"));
 
   DEFINE_bool(no_keep_memory, options::TWO_DASHES, '\0', false,
@@ -1086,6 +1108,14 @@ class General_options
                 N_("Set the address of the data segment"), N_("ADDRESS"));
   DEFINE_uint64(Ttext, options::ONE_DASH, '\0', -1U,
                 N_("Set the address of the text segment"), N_("ADDRESS"));
+
+  DEFINE_bool(toc_optimize, options::TWO_DASHES, '\0', true,
+	      N_("(PowerPC64 only) Optimize TOC code sequences"),
+	      N_("(PowerPC64 only) Don't optimize TOC code sequences"));
+
+  DEFINE_bool(toc_sort, options::TWO_DASHES, '\0', true,
+	      N_("(PowerPC64 only) Sort TOC and GOT sections"),
+	      N_("(PowerPC64 only) Don't sort TOC and GOT sections"));
 
   DEFINE_set(undefined, options::TWO_DASHES, 'u',
 	     N_("Create undefined reference to SYMBOL"), N_("SYMBOL"));
