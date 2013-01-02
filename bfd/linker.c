@@ -1743,6 +1743,7 @@ _bfd_generic_link_add_one_symbol (struct bfd_link_info *info,
 
 	  h->u.c.size = value;
 
+#if 0
 	  /* Select a default alignment based on the size.  This may
              be overridden by the caller.  */
 	  {
@@ -1753,6 +1754,7 @@ _bfd_generic_link_add_one_symbol (struct bfd_link_info *info,
 	      power = 4;
 	    h->u.c.p->alignment_power = power;
 	  }
+#endif
 
 	  /* The section of a common symbol is only used if the common
              symbol is actually allocated.  It basically provides a

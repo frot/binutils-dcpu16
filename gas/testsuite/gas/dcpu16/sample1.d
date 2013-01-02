@@ -7,7 +7,7 @@ Disassembly of section .text:
 
 00000000 <.text>:
    0:	7c01 0030      	set	A, 0x0030
-   2:	7fc1 1000 0020 	set	\[0x1000\], 0x0020
+   2:	7fc1 0020 1000 	set	\[0x1000\], 0x0020
    5:	7803 1000      	sub	A, \[0x1000\]
    7:	c413           	ifn	A, 0x10
    8:	7f81 001a      	set	PC, 0x001a
