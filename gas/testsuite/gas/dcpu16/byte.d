@@ -24,3 +24,18 @@ Disassembly of section .text:
   14:	ffff fffe      	std	0xfffe, 0x1e
   16:	fffd           	
   17:	fffc           	
+  18:	0048           	mod	C, A
+  19:	0065           	mli	X, A
+  1a:	006c           	xor	X, A
+  1b:	006c           	xor	X, A
+  1c:	006f           	shl	X, A
+  1d:	002c           	xor	B, A
+  1e:	0020           	jsr	A
+  1f:	0057           	ifu	C, A
+  20:	006f           	shl	X, A
+  21:	0072           	ife	X, A
+  22:	006c           	xor	X, A
+  23:	0064           	mul	X, A
+  24:	0021           	set	B, A
+  25:	0000           	
+  26:	4661 696c 2100 	set	\[X\+0x2100\], \[B\+0x696c\]
