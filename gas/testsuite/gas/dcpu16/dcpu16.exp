@@ -9,6 +9,8 @@ if [istarget dcpu16-*] then {
     run_dump_test "byte"
 # test indirect adressing
     run_dump_test "indirect"
+# test register indirect
+    run_dump_test "indirect2"
 # test stack operations
     run_dump_test "stack"
 }
