@@ -37,6 +37,7 @@ struct dcpu16_operand
 };
 
 extern void dcpu16_number_to_chars (char *, valueT, int);
+extern void cons_long (int);
 
 /* The target BFD architecture.  */
 #define TARGET_ARCH              bfd_arch_dcpu16

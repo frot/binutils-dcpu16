@@ -38,12 +38,17 @@ const char FLT_CHARS[]            = "dD";
 #define CHAR_BIT 16
 #endif
 
+#define OPTION_LONG (OPTION_MD_BASE + 0)
+
 struct option md_longopts[] =
 {
+  {"mlong", no_argument, NULL, OPTION_LONG},
   {NULL, no_argument, NULL, 0}
 };
 
 size_t md_longopts_size = sizeof (md_longopts);
+
+int option_long = 0;
 
 /* Opcode hash table.  */
 static struct hash_control *dcpu16_opcode_hash;
@@ -54,9 +59,16 @@ md_show_usage (FILE *stream ATTRIBUTE_UNUSED)
 }
 
 int
-md_parse_option (int c ATTRIBUTE_UNUSED, char *arg ATTRIBUTE_UNUSED)
+md_parse_option (int c, char *arg ATTRIBUTE_UNUSED)
 {
-  return 0;
+  switch(c) {
+  case OPTION_LONG:
+    option_long = 1;
+    break;
+  default:
+    return 0;
+  }
+  return 1;
 }
 
 symbolS *
@@ -459,6 +471,14 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg ATTRIBUTE_UNUSED)
       bfd_put_16 (stdoutput, val, buf);
       *valP = val & 0xFFFF;
       break;
+    case BFD_RELOC_32:
+      bfd_put_32 (stdoutput, val, buf);
+      *valP = val & 0xFFFFFFFF;
+      break;
+    case BFD_RELOC_64:
+      bfd_put_64 (stdoutput, val, buf);
+      //*valP = val & 0xFFFFFFFF;
+      break;
     }
 
   if (fixP->fx_addsy == NULL && fixP->fx_pcrel == 0)
@@ -469,8 +489,18 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg ATTRIBUTE_UNUSED)
 const pseudo_typeS md_pseudo_table[] =
 {
   { "byte", cons, 2},
+  { "long", cons_long, 4},
   { NULL, NULL, 0 }
 };
+
+void
+cons_long (int size)
+{
+    if(option_long)
+	cons (2*size);
+    else
+	cons (size);
+}
 
 arelent *
 tc_gen_reloc (asection *seg ATTRIBUTE_UNUSED , fixS *fixp)

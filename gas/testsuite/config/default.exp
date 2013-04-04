@@ -24,7 +24,7 @@ if ![info exists AS] then {
 
 global ASFLAGS
 if ![info exists ASFLAGS] then {
-    set ASFLAGS ""
+    set ASFLAGS "-mlong"
 }
 
 if ![info exists OBJDUMP] then {

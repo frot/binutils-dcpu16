@@ -33,6 +33,14 @@ static reloc_howto_type r_imm16 =
     HOWTO (BFD_RELOC_16,0,1,16,FALSE,0,complain_overflow_dont,
 	   NULL,"r_imm16",FALSE,0xFFFF,0xFFFF,FALSE);
 
+static reloc_howto_type r_imm32 =
+    HOWTO (BFD_RELOC_32,0,2,32,FALSE,0,complain_overflow_dont,
+	   NULL,"r_imm32",FALSE,0xFFFFFFFF,0xFFFFFFFF,FALSE);
+
+static reloc_howto_type r_imm64 =
+    HOWTO (BFD_RELOC_64,0,4,64,FALSE,0,complain_overflow_dont,
+	   NULL,"r_imm64",FALSE,-1,-1,FALSE);
+
 /* Code to turn a r_type into a howto ptr, uses the above howto table.  */
 
 static void
@@ -45,6 +53,12 @@ rtype2howto (arelent *internal, struct internal_reloc *dst)
       break;
     case BFD_RELOC_16:
       internal->howto = &r_imm16;
+      break;
+    case BFD_RELOC_32:
+      internal->howto = &r_imm32;
+      break;
+    case BFD_RELOC_64:
+      internal->howto = &r_imm64;
       break;
     }
 }
@@ -59,6 +73,10 @@ coff_dcpu16_reloc_type_lookup (bfd *abfd ATTRIBUTE_UNUSED,
     {
     case BFD_RELOC_16:
       return & r_imm16;
+    case BFD_RELOC_32:
+      return & r_imm32;
+    case BFD_RELOC_64:
+      return & r_imm64;
     default:
       BFD_FAIL ();
       return NULL;
@@ -71,6 +89,12 @@ coff_dcpu16_reloc_name_lookup (bfd *abfd ATTRIBUTE_UNUSED,
 {
   if (strcasecmp (r_imm16.name, r_name) == 0)
     return &r_imm16;
+
+  if (strcasecmp (r_imm32.name, r_name) == 0)
+    return &r_imm32;
+
+  if (strcasecmp (r_imm64.name, r_name) == 0)
+    return &r_imm64;
 
   return NULL;
 }

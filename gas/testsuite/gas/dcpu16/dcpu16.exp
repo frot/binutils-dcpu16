@@ -7,10 +7,19 @@ if [istarget dcpu16-*] then {
     run_dump_test "sample1"
 # test .byte and .short pseudo ops
     run_dump_test "byte"
+# test .long pseudo ops
+    run_dump_test "globals"
 # test indirect adressing
     run_dump_test "indirect"
 # test register indirect
     run_dump_test "indirect2"
 # test stack operations
     run_dump_test "stack"
+# test string macros
+    run_dump_test "semi"
+    run_dump_test "strings"
+# dot macro test
+    run_list_test dot "-alm"
+# paren macro test
+    run_dump_test paren
 }
